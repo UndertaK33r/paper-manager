@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PAPER MANAGER</title>
+<title>PAPER BRAIN</title>
 <link rel="stylesheet" href="assets/p3r-tokens.css">
 <link rel="stylesheet" href="assets/p3r-ui.css">
 <link rel="stylesheet" href="style.css">
@@ -14,201 +14,197 @@
 <script type="text/x-template" id="app-template">
 <div class="layout">
   <header class="p3r-panel p3r-panel--blue topbar p3r-wipe-in">
-    <div class="p3r-h2 p3r-glassy">PAPER <span class="p3r-accent">MANAGER</span></div>
-    <div class="top-actions">
-      <button class="p3r-btn" @click="openSettings">AI 设置</button>
-      <button class="p3r-btn p3r-btn--primary" @click="openAdd">+ 添加论文</button>
-    </div>
+    <div class="brand"><span class="p3r-note"></span><span class="p3r-h2 p3r-glassy">PAPER BRAIN</span></div>
+    <nav class="nav">
+      <button class="p3r-btn small" :class="{active: route==='list'}" @click="go('list')">论文库</button>
+      <button class="p3r-btn small" :class="{active: route==='upload'}" @click="go('upload')">上传论文</button>
+      <button class="p3r-btn small" :class="{active: route==='graph'}" @click="go('graph')">知识图谱</button>
+      <button class="p3r-btn small" @click="openSettings">AI 设置</button>
+      <button class="p3r-btn small" @click="openManage">管理</button>
+    </nav>
   </header>
 
-  <section class="p3r-panel stats-panel p3r-wipe-in" style="animation-delay:40ms">
-    <div class="p3r-panel__title"><span class="p3r-h3">LIBRARY STATUS</span><span class="p3r-readout">DATA READOUT</span><span class="p3r-eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></div>
-    <div class="stats-grid">
-      <div class="stat"><span class="p3r-readout">TOTAL</span><span class="p3r-h2 p3r-glassy">{{ stats.total || 0 }}</span></div>
-      <div class="stat"><span class="p3r-readout">UNREAD</span><span class="p3r-h2 p3r-glassy">{{ stats.unread || 0 }}</span></div>
-      <div class="stat"><span class="p3r-readout">READ</span><span class="p3r-h2 p3r-glassy">{{ stats.read || 0 }}</span></div>
-      <div class="stat"><span class="p3r-readout">STARRED</span><span class="p3r-h2 p3r-glassy">{{ stats.starred || 0 }}</span></div>
-      <div class="stat"><span class="p3r-readout">CATEGORIES</span><span class="p3r-h2 p3r-glassy">{{ stats.categories || 0 }}</span></div>
-      <div class="stat"><span class="p3r-readout">TAGS</span><span class="p3r-h2 p3r-glassy">{{ stats.tags || 0 }}</span></div>
+  <!-- ===================== 登录 ===================== -->
+  <section v-if="route==='login'" class="center-page">
+    <div class="p3r-dialog p3r-sheet p3r-submerge" style="max-width:420px">
+      <div class="dialog-head"><span class="p3r-h3">ENTER ARCHIVE</span></div>
+      <label class="p3r-form-label">访问密码<input type="password" class="p3r-input" v-model="loginPass" @keyup.enter="doLogin"></label>
+      <div v-if="loginError" class="p3r-readout p3r-readout--red">{{ loginError }}</div>
+      <div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="doLogin">登录</button></div>
     </div>
-    <div class="p3r-waveform p3r-waveform--playing" aria-hidden="true"><i style="--h:6px"></i><i style="--h:10px"></i><i style="--h:7px"></i><i style="--h:14px"></i><i style="--h:9px"></i><i style="--h:18px"></i><i style="--h:8px"></i><i style="--h:12px"></i><i style="--h:6px"></i><i style="--h:16px"></i><i style="--h:9px"></i><i style="--h:11px"></i><i style="--h:7px"></i><i style="--h:15px"></i><i style="--h:8px"></i><i style="--h:12px"></i><i style="--h:10px"></i><i style="--h:14px"></i><i style="--h:6px"></i><i style="--h:9px"></i><i style="--h:13px"></i><i style="--h:7px"></i><i style="--h:11px"></i><i style="--h:8px"></i></div>
   </section>
 
-  <section class="p3r-panel toolbar p3r-wipe-in" style="animation-delay:80ms">
-    <div class="toolbar-row">
-      <input class="p3r-input search" v-model="filters.search" placeholder="搜索标题 / 作者 / DOI..." @input="onSearchInput">
-      <select class="p3r-input" v-model="filters.category" @change="applyFilters">
-        <option value="">全部分类</option>
-        <option v-for="c in categories" :value="c.id" :key="c.id">{{ c.name }} ({{ c.paperCount }})</option>
-      </select>
-      <select class="p3r-input" v-model="filters.tag" @change="applyFilters">
-        <option value="">全部标签</option>
-        <option v-for="t in tags" :value="t.id" :key="t.id">{{ t.name }} ({{ t.paperCount }})</option>
-      </select>
-      <select class="p3r-input" v-model="filters.collection" @change="applyFilters">
-        <option value="">全部合集</option>
-        <option v-for="o in collections" :value="o.id" :key="o.id">{{ o.name }} ({{ o.paperCount }})</option>
-      </select>
-      <input class="p3r-input num" v-model="filters.yearFrom" placeholder="年从" @change="applyFilters">
-      <input class="p3r-input num" v-model="filters.yearTo" placeholder="年至" @change="applyFilters">
-      <select class="p3r-input" v-model="filters.read" @change="applyFilters">
-        <option value="">全部状态</option>
-        <option value="1">已读</option>
-        <option value="0">未读</option>
-      </select>
-      <select class="p3r-input" v-model="filters.starred" @change="applyFilters">
-        <option value="">全部收藏</option>
-        <option value="1">已收藏</option>
-        <option value="0">未收藏</option>
-      </select>
-      <select class="p3r-input" v-model="filters.sort" @change="loadPapers">
-        <option value="created">按添加时间</option>
-        <option value="year">按年份</option>
-        <option value="title">按标题</option>
-        <option value="authors">按作者</option>
-        <option value="updated">按更新时间</option>
-      </select>
-      <select class="p3r-input" v-model="filters.order" @change="loadPapers">
-        <option value="desc">降序</option>
-        <option value="asc">升序</option>
-      </select>
-      <div class="view-toggle">
-        <button class="p3r-btn small" :class="{active: view === 'table'}" @click="setView('table')">表格</button>
-        <button class="p3r-btn small" :class="{active: view === 'card'}" @click="setView('card')">卡片</button>
+  <!-- ===================== 论文库 ===================== -->
+  <section v-else-if="route==='list'">
+    <div class="hero p3r-sheet p3r-sheet--music p3r-submerge">
+      <div class="hero-left">
+        <div class="p3r-h1 p3r-glassy">PAPER <span class="p3r-accent">BRAIN</span></div>
+        <div class="p3r-readout">LIBRARY ARCHIVE · {{ stats.total || 0 }} RECORDS</div>
+        <div class="p3r-stat-bar"><span class="p3r-stat-bar__label">READ</span><span class="p3r-stat-bar__track"><span class="p3r-stat-bar__fill" :style="{width: readPct + '%'}"></span></span><span class="p3r-stat-bar__value">{{ stats.read || 0 }} / {{ stats.total || 0 }}</span></div>
       </div>
-    </div>
-  </section>
-
-  <section class="p3r-panel content p3r-wipe-in" style="animation-delay:120ms">
-    <div v-if="loading" class="p3r-readout">LOADING...</div>
-    <table v-else-if="view === 'table' && papers.length" class="p3r-table">
-      <thead><tr><th>标题</th><th>作者</th><th>年份</th><th>分类</th><th>标签</th><th>状态</th><th>摘要</th><th>操作</th></tr></thead>
-      <tbody>
-        <tr v-for="p in papers" :key="p.id">
-          <td class="title-cell" @click="openDetail(p.id)">{{ p.title }}</td>
-          <td class="ellipsis">{{ p.authors }}</td>
-          <td>{{ p.year }}</td>
-          <td>{{ p.categoryName }}</td>
-          <td><span v-for="t in p.tags" class="p3r-badge" :key="t.id">{{ t.name }}</span></td>
-          <td><span v-if="p.read" class="p3r-badge">已读</span><span v-if="p.starred" class="p3r-badge">收藏</span></td>
-          <td class="ellipsis">{{ p.summary }}</td>
-          <td>
-            <div class="actions">
-              <button class="p3r-btn small" @click="openDetail(p.id)">详情</button>
-              <button class="p3r-btn small" @click="openEdit(p)">编辑</button>
-              <button class="p3r-btn small" @click="toggleRead(p.id)">{{ p.read ? '标未读' : '标已读' }}</button>
-              <button class="p3r-btn small" @click="toggleStar(p.id)">{{ p.starred ? '取消收藏' : '收藏' }}</button>
-              <button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button>
-            </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <div v-else-if="view === 'card' && papers.length" class="cards-grid">
-      <div v-for="p in papers" :key="p.id" class="card p3r-panel">
-        <div class="p3r-h3 title-cell" @click="openDetail(p.id)">{{ p.title }}</div>
-        <div class="p3r-readout">{{ p.authors }} · {{ p.year }}</div>
-        <div><span v-if="p.read" class="p3r-badge">已读</span> <span v-if="p.starred" class="p3r-badge">收藏</span> <span v-if="p.categoryName" class="p3r-badge">{{ p.categoryName }}</span></div>
-        <div class="chips"><span v-for="t in p.tags" class="p3r-badge" :key="t.id">{{ t.name }}</span></div>
-        <div class="p3r-readout">{{ p.summary }}</div>
-        <div class="actions">
-          <button class="p3r-btn small" @click="openDetail(p.id)">详情</button>
-          <button class="p3r-btn small" @click="openEdit(p)">编辑</button>
-          <button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button>
+      <div class="hero-right p3r-music-card p3r-music-card--playing">
+        <div class="p3r-music-card__disc"></div>
+        <div>
+          <div class="p3r-readout">TRACK 01 · ARCHIVE</div>
+          <div class="p3r-h3">PAPER MANAGER</div>
+          <div class="p3r-eq"><i></i><i></i><i></i><i></i><i></i></div>
         </div>
       </div>
     </div>
-    <div v-else class="empty p3r-readout">NO PAPERS FOUND — 点击右上角添加论文</div>
-    <div class="pagination">
-      <button class="p3r-btn small" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
-      <span class="p3r-cue"></span><span class="p3r-readout">PAGE {{ page }} / {{ pages }} · TOTAL {{ total }}</span>
-      <button class="p3r-btn small" :disabled="page >= pages" @click="goPage(page + 1)">下一页</button>
+
+    <div class="p3r-panel toolbar p3r-wipe-in">
+      <div class="toolbar-row">
+        <input class="p3r-input search" v-model="search" @input="onSearch" placeholder="搜索标题 / 作者 / DOI / 正文...">
+        <div class="seg">
+          <button v-for="st in statusOptions" class="p3r-btn small" :class="{active: statusFilter===st.v}" @click="setStatus(st.v)">{{ st.t }}</button>
+        </div>
+        <select class="p3r-input" v-model="categoryFilter" @change="applyFilters"><option value="">全部分类</option><option v-for="c in categories" :value="c.id" :key="c.id">{{ c.name }}</option></select>
+        <select class="p3r-input" v-model="tagFilter" @change="applyFilters"><option value="">全部标签</option><option v-for="t in tags" :value="t.name" :key="t.id">{{ t.name }}</option></select>
+        <div class="view-toggle"><button class="p3r-btn small" :class="{active: view==='table'}" @click="view='table'">表格</button><button class="p3r-btn small" :class="{active: view==='card'}" @click="view='card'">卡片</button></div>
+        <button class="p3r-btn small" @click="exportBib">导出 BibTeX</button>
+        <button class="p3r-btn small" :class="{active: askOpen}" @click="askOpen=!askOpen">✦ 问论文库</button>
+      </div>
+    </div>
+
+    <div v-if="askOpen" class="p3r-sheet p3r-submerge ask-panel">
+      <div class="inline-form"><input class="p3r-input" v-model="question" placeholder="用中文提问你的论文库..." @keyup.enter="ask"><button class="p3r-btn p3r-btn--primary" @click="ask" :disabled="asking">提问</button></div>
+      <div v-if="answer" class="ask-answer">{{ answer }}</div>
+      <details v-for="s in sources" :key="s.id" class="ask-source"><summary>[{{ s.id }}] {{ s.title }}</summary><div class="p3r-readout">{{ s.excerpt }}</div></details>
+    </div>
+
+    <section class="p3r-panel content p3r-wipe-in">
+      <div v-if="loading" class="p3r-readout">LOADING...</div>
+      <table v-else-if="view==='table' && papers.length" class="p3r-table">
+        <thead><tr><th>NO.</th><th>标题</th><th>作者</th><th>年份</th><th>分类</th><th>标签</th><th>状态</th><th>摘要</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr v-for="(p,i) in papers" :key="p.id">
+            <td class="p3r-readout">NO.{{ String(p.id).padStart(4, '0') }}</td>
+            <td class="title-cell" @click="openDetail(p.id)">{{ p.title }}</td>
+            <td class="ellipsis">{{ p.authors }}</td>
+            <td>{{ p.year }}</td>
+            <td>{{ p.categoryName }}</td>
+            <td><span v-for="t in p.tags" class="p3r-badge" :key="t.id">{{ t.name }}</span></td>
+            <td><span class="p3r-badge" :class="{'p3r-badge--red': p.status==='read'}">{{ statusLabel(p.status) }}</span> <span v-if="p.starred" class="p3r-badge">★</span></td>
+            <td class="ellipsis">{{ p.snippet || p.summary }}</td>
+            <td><div class="actions"><button class="p3r-btn small" @click="openDetail(p.id)">详情</button><button class="p3r-btn small" @click="openEdit(p)">编辑</button><button class="p3r-btn small" @click="cycleStatus(p.id)">状态</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button></div></td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-else-if="view==='card' && papers.length" class="cards-grid">
+        <div v-for="(p,i) in papers" :key="p.id" class="paper-card p3r-panel">
+          <div class="p3r-readout">NO.{{ String(p.id).padStart(4, '0') }} · {{ statusLabel(p.status) }}</div>
+          <div class="p3r-h3 title-cell" @click="openDetail(p.id)">{{ p.title }}</div>
+          <div class="p3r-readout">{{ p.authors }} · {{ p.year }}</div>
+          <div class="chips"><span v-for="t in p.tags" class="p3r-badge" :key="t.id">{{ t.name }}</span></div>
+          <div class="muted">{{ p.snippet || p.summary }}</div>
+          <div class="actions"><button class="p3r-btn small" @click="openDetail(p.id)">详情</button><button class="p3r-btn small" @click="openEdit(p)">编辑</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button></div>
+        </div>
+      </div>
+      <div v-else class="empty"><span class="p3r-note"></span><span class="p3r-readout">NO PAPERS FOUND — 去上传第一篇论文</span></div>
+      <div class="pagination">
+        <button class="p3r-btn small" :disabled="page<=1" @click="goPage(page-1)">上一页</button>
+        <span class="p3r-cue"></span><span class="p3r-readout">PAGE {{ page }} / {{ pages }} · TOTAL {{ total }}</span>
+        <button class="p3r-btn small" :disabled="page>=pages" @click="goPage(page+1)">下一页</button>
+      </div>
+    </section>
+  </section>
+
+  <!-- ===================== 详情 ===================== -->
+  <section v-else-if="route==='detail'" class="detail-page">
+    <div v-if="!detail.id" class="p3r-readout">LOADING...</div>
+    <template v-else>
+      <div class="detail-head p3r-sheet p3r-sheet--music p3r-submerge">
+        <button class="p3r-btn small" @click="go('list')">← 返回</button>
+        <div class="p3r-h2 p3r-glassy">{{ detail.title }}</div>
+        <div class="p3r-readout">NO.{{ String(detail.id).padStart(4, '0') }}</div>
+      </div>
+      <div class="detail-grid">
+        <div class="p3r-panel">
+          <span class="p3r-readout">BASIC INFO</span>
+          <div class="grid2">
+            <label>标题<input class="p3r-input" v-model="detail.title"></label>
+            <label>作者<input class="p3r-input" v-model="detail.authors"></label>
+            <label>年份<input class="p3r-input" v-model="detail.year" type="number"></label>
+            <label>期刊/会议<input class="p3r-input" v-model="detail.venue"></label>
+            <label>DOI<input class="p3r-input" v-model="detail.doi"></label>
+            <label>关键词<input class="p3r-input" v-model="detail.keywords"></label>
+            <label>链接<input class="p3r-input" v-model="detail.link"></label>
+            <label>分类<select class="p3r-input" v-model="detail.categoryId"><option value="">未分类</option><option v-for="c in categories" :value="c.id" :key="c.id">{{ c.name }}</option></select></label>
+          </div>
+          <div class="checks">
+            <label class="check-row">状态<select class="p3r-input" v-model="detail.status"><option value="unread">待读</option><option value="reading">在读</option><option value="read">已读</option></select></label>
+            <label class="check-row"><input type="checkbox" v-model="detail.starred"> 收藏</label>
+          </div>
+          <div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="saveDetail">保存修改</button></div>
+        </div>
+        <div class="p3r-sheet">
+          <span class="p3r-readout">TAGS / COLLECTIONS</span>
+          <div class="chips"><span v-for="t in detail.tags" class="p3r-badge">{{ t.name }} <a class="chip-x" @click="removeDetailTag(t.id)">×</a></span></div>
+          <div class="inline-form"><select class="p3r-input" v-model="tagSelect"><option value="">选择标签</option><option v-for="t in availableTags" :value="t.id" :key="t.id">{{ t.name }}</option></select><button class="p3r-btn small" @click="addDetailTag">添加</button></div>
+          <div class="chips"><span v-for="c in detail.collections" class="p3r-badge">{{ c.name }} <a class="chip-x" @click="removeDetailCollection(c.id)">×</a></span></div>
+          <div class="inline-form"><select class="p3r-input" v-model="collectionSelect"><option value="">选择合集</option><option v-for="c in availableCollections" :value="c.id" :key="c.id">{{ c.name }}</option></select><button class="p3r-btn small" @click="addDetailCollection">添加</button></div>
+          <div class="p3r-divider"></div>
+          <span class="p3r-readout">AI SUMMARY</span>
+          <div class="muted">{{ detail.summary || '暂无摘要，点击生成' }}</div>
+          <div class="actions"><button class="p3r-btn small" @click="aiExtract(detail.id)">AI 提取元数据</button><button class="p3r-btn small" @click="summarize(detail.id)">生成摘要</button></div>
+        </div>
+        <div class="p3r-panel pdf-panel">
+          <span class="p3r-readout">PDF READER</span>
+          <div class="actions"><a v-if="detail.hasPdf" class="p3r-btn small" :href="pdfUrl(detail.id)" target="_blank">打开</a><a v-if="detail.hasPdf" class="p3r-btn small" :href="pdfUrl(detail.id)+'?download=1'">下载</a><button class="p3r-btn small" @click="fullWidth=!fullWidth">全宽阅读</button><button class="p3r-btn small" @click="toggleFullscreen">全屏</button></div>
+          <iframe v-if="detail.hasPdf" :src="pdfUrl(detail.id)" :class="{wide: fullWidth}"></iframe>
+          <div v-else class="p3r-readout">该论文暂无 PDF</div>
+        </div>
+        <div class="p3r-panel">
+          <span class="p3r-readout">NOTES</span>
+          <textarea class="p3r-input" v-model="detail.notes" rows="8"></textarea>
+          <div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="saveDetail">保存笔记</button><button class="p3r-btn small" @click="reExtract(detail.id)">重新提取全文</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(detail.id)">删除论文</button></div>
+        </div>
+      </div>
+    </template>
+  </section>
+
+  <!-- ===================== 上传 ===================== -->
+  <section v-else-if="route==='upload'" class="upload-page">
+    <div class="p3r-sheet p3r-sheet--music drop-zone p3r-submerge" @dragover.prevent @drop.prevent="onDrop" @click="$refs.fileInput && $refs.fileInput.click()">
+      <div class="p3r-h2 p3r-glassy">拖拽 PDF 到这里</div>
+      <div class="p3r-readout">或点击选择文件 · 自动提取元数据与全文</div>
+      <input type="file" ref="fileInput" accept=".pdf,application/pdf" class="hidden-input" @change="onFileChange">
+    </div>
+    <div v-if="uploading" class="p3r-gauge"><div class="p3r-gauge__fill" :style="{width: uploadProgress+'%'}"></div></div>
+    <div v-if="uploadResult" class="p3r-sheet p3r-submerge">
+      <span class="p3r-readout">收录完成</span>
+      <div class="p3r-h3 p3r-glassy">{{ uploadResult.title }}</div>
+      <div class="p3r-readout">{{ uploadResult.authors }} · {{ uploadResult.year }}</div>
+      <div class="actions"><button class="p3r-btn p3r-btn--primary" @click="openDetail(uploadResult.id)">查看详情</button><button class="p3r-btn" @click="resetUpload">继续上传</button></div>
     </div>
   </section>
 
-  <!-- 添加/编辑论文 -->
+  <!-- ===================== 图谱 ===================== -->
+  <section v-else-if="route==='graph'" class="graph-page">
+    <div class="p3r-panel toolbar"><span class="p3r-h3">CITATION GRAPH</span><span class="p3r-readout">{{ graphWarning || 'OPENALEX 引用网络' }}</span><button class="p3r-btn small p3r-btn--primary" @click="loadGraph(true)">重新拉取</button></div>
+    <div class="p3r-panel graph-wrap"><canvas ref="graphCanvas" width="1200" height="720" @mousedown="onGraphDown" @mousemove="onGraphMove" @mouseup="onGraphUp" @mouseleave="onGraphUp"></canvas></div>
+  </section>
+
+  <!-- 添加/编辑论文弹窗（与旧逻辑一致） -->
   <div v-if="showPaperModal" class="modal-overlay" @click.self="closePaperModal">
     <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge paper-dialog">
       <div class="dialog-head"><span class="p3r-h3">{{ editingId ? 'EDIT PAPER' : 'ADD PAPER' }}</span><button class="p3r-btn" @click="closePaperModal">CLOSE</button></div>
       <form class="p3r-form" @submit.prevent="submitPaperForm">
-        <div class="grid2">
-          <label>标题 *<input class="p3r-input" v-model="form.title" required></label>
-          <label>作者<input class="p3r-input" v-model="form.authors" placeholder="多作者用逗号分隔"></label>
-        </div>
-        <div class="grid2">
-          <label>发表年份<input class="p3r-input" v-model="form.year" type="number"></label>
-          <label>期刊/会议<input class="p3r-input" v-model="form.venue"></label>
-        </div>
-        <div class="grid2">
-          <label>DOI<input class="p3r-input" v-model="form.doi"></label>
-          <label>关键词<input class="p3r-input" v-model="form.keywords" placeholder="逗号分隔"></label>
-        </div>
-        <div class="grid2">
-          <label>分类<select class="p3r-input" v-model="form.categoryId"><option value="">未分类</option><option v-for="c in categories" :value="c.id" :key="c.id">{{ c.name }}</option></select></label>
-          <label>链接<input class="p3r-input" v-model="form.link" placeholder="代码仓库 / 补充材料 URL"></label>
-        </div>
-        <div class="grid2">
-          <label>标签<input class="p3r-input" v-model="form.tags" placeholder="逗号分隔"></label>
-          <label>合集<input class="p3r-input" v-model="form.collections" placeholder="逗号分隔"></label>
-        </div>
-        <div class="grid2">
-          <label>PDF 文件<input class="p3r-input" type="file" accept=".pdf,application/pdf" ref="pdfInput" @change="onPdfChange"></label>
-          <div class="ai-check"><label class="check-row"><input type="checkbox" v-model="form.useAI"> 使用 AI 自动提取剩余元数据</label><span class="p3r-readout">{{ pdfExtracting ? 'EXTRACTING...' : (hasApiKey ? 'API KEY READY — 选择 PDF 后自动提取' : 'NO API KEY — 仅基础提取' ) }}</span></div>
-        </div>
-        <label>AI 一句话总结<textarea class="p3r-input" v-model="form.summary" rows="2" placeholder="上传 PDF 后可由 AI 自动提取"></textarea></label>
+        <div class="grid2"><label>标题 *<input class="p3r-input" v-model="form.title" required></label><label>作者<input class="p3r-input" v-model="form.authors" placeholder="逗号分隔"></label></div>
+        <div class="grid2"><label>年份<input class="p3r-input" v-model="form.year" type="number"></label><label>期刊/会议<input class="p3r-input" v-model="form.venue"></label></div>
+        <div class="grid2"><label>DOI<input class="p3r-input" v-model="form.doi"></label><label>关键词<input class="p3r-input" v-model="form.keywords"></label></div>
+        <div class="grid2"><label>分类<select class="p3r-input" v-model="form.categoryId"><option value="">未分类</option><option v-for="c in categories" :value="c.id" :key="c.id">{{ c.name }}</option></select></label><label>链接<input class="p3r-input" v-model="form.link"></label></div>
+        <div class="grid2"><label>标签<input class="p3r-input" v-model="form.tags" placeholder="逗号分隔"></label><label>合集<input class="p3r-input" v-model="form.collections" placeholder="逗号分隔"></label></div>
+        <div class="grid2"><label>PDF 文件<input class="p3r-input" type="file" ref="pdfInput" accept=".pdf,application/pdf" @change="onPdfChange"></label><div class="ai-check"><label class="check-row"><input type="checkbox" v-model="form.useAI"> 使用 AI 补充提取</label><span class="p3r-readout">{{ hasApiKey ? 'API KEY READY' : 'NO API KEY — 跳过 AI' }}</span></div></div>
+        <label>一句话总结<textarea class="p3r-input" v-model="form.summary" rows="2"></textarea></label>
         <label>笔记<textarea class="p3r-input" v-model="form.notes" rows="4"></textarea></label>
-        <div class="checks">
-          <label class="check-row"><input type="checkbox" v-model="form.read"> 已读</label>
-          <label class="check-row"><input type="checkbox" v-model="form.starred"> 收藏</label>
-        </div>
-        <div class="form-actions">
-          <button type="button" class="p3r-btn" @click="closePaperModal">取消</button>
-          <button type="submit" class="p3r-btn p3r-btn--primary" :disabled="saving">保存</button>
-        </div>
+        <div class="checks"><label class="check-row"><input type="checkbox" v-model="form.read"> 已读</label><label class="check-row"><input type="checkbox" v-model="form.starred"> 收藏</label></div>
+        <div class="form-actions"><button type="button" class="p3r-btn" @click="closePaperModal">取消</button><button type="submit" class="p3r-btn p3r-btn--primary" :disabled="saving">保存</button></div>
       </form>
     </div>
   </div>
 
-  <!-- 详情 -->
-  <div v-if="showDetail" class="modal-overlay" @click.self="closeDetail">
-    <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge wide">
-      <div class="dialog-head"><span class="p3r-h3">{{ detail.title }}</span><button class="p3r-btn" @click="closeDetail">CLOSE</button></div>
-      <div v-if="!detail.id" class="p3r-readout">LOADING...</div>
-      <div v-else class="detail-body">
-        <div class="meta-grid">
-          <div class="meta-item"><span class="p3r-readout">作者</span><span>{{ detail.authors || '—' }}</span></div>
-          <div class="meta-item"><span class="p3r-readout">年份</span><span>{{ detail.year || '—' }}</span></div>
-          <div class="meta-item"><span class="p3r-readout">期刊/会议</span><span>{{ detail.venue || '—' }}</span></div>
-          <div class="meta-item"><span class="p3r-readout">DOI</span><span>{{ detail.doi || '—' }}</span></div>
-          <div class="meta-item"><span class="p3r-readout">关键词</span><span>{{ detail.keywords || '—' }}</span></div>
-          <div class="meta-item"><span class="p3r-readout">链接</span><a v-if="detail.link" :href="detail.link" target="_blank" class="p3r-accent">{{ detail.link }}</a><span v-else>—</span></div>
-          <div class="meta-item"><span class="p3r-readout">分类</span><span>{{ detail.categoryName || '—' }}</span></div>
-          <div class="meta-item"><span class="p3r-readout">状态</span><span>{{ detail.read ? '已读' : '未读' }} / {{ detail.starred ? '收藏' : '未收藏' }}</span></div>
-        </div>
-        <div class="p3r-panel summary-panel"><span class="p3r-readout">SUMMARY</span><div>{{ detail.summary || '暂无 AI 总结，可点击下方 AI 提取自动生成' }}</div></div>
-        <div class="actions">
-          <button class="p3r-btn small" @click="toggleRead(detail.id)">{{ detail.read ? '标为未读' : '标为已读' }}</button>
-          <button class="p3r-btn small" @click="toggleStar(detail.id)">{{ detail.starred ? '取消收藏' : '加入收藏' }}</button>
-          <button class="p3r-btn small" @click="openEdit(detail)">编辑</button>
-          <button class="p3r-btn small" @click="aiExtract(detail.id)">{{ aiExtracting ? 'AI 提取中...' : 'AI 提取' }}</button>
-          <button class="p3r-btn small" @click="summarize(detail.id)">{{ summarizing ? '总结中...' : 'AI 总结' }}</button>
-          <a v-if="detail.hasPdf" class="p3r-btn small" :href="'/api/papers/' + detail.id + '/pdf'" target="_blank">打开 PDF</a>
-          <a v-if="detail.hasPdf" class="p3r-btn small" :href="'/api/papers/' + detail.id + '/pdf?download=1'" target="_blank">下载 PDF</a>
-          <button class="p3r-btn small p3r-btn--danger" @click="deletePaper(detail.id)">删除</button>
-        </div>
-        <div class="p3r-panel pdf-panel"><span class="p3r-readout">PDF PREVIEW</span><iframe v-if="detail.hasPdf" :src="'/api/papers/' + detail.id + '/pdf'"></iframe><div v-else class="p3r-readout">该论文暂无 PDF</div></div>
-        <div class="p3r-panel"><span class="p3r-readout">TAGS / COLLECTIONS</span>
-          <div class="chips"><span v-for="t in detail.tags" class="p3r-badge">{{ t.name }} <a class="chip-x" @click="removeDetailTag(t.id)">×</a></span> <span v-if="!detail.tags.length" class="p3r-readout">暂无标签</span></div>
-          <div class="inline-form"><select class="p3r-input" v-model="tagSelect"><option value="">选择标签</option><option v-for="t in availableTags" :value="t.id" :key="t.id">{{ t.name }}</option></select><button class="p3r-btn small" @click="addDetailTag">添加</button></div>
-          <div class="chips"><span v-for="c in detail.collections" class="p3r-badge">{{ c.name }} <a class="chip-x" @click="removeDetailCollection(c.id)">×</a></span> <span v-if="!detail.collections.length" class="p3r-readout">暂无合集</span></div>
-          <div class="inline-form"><select class="p3r-input" v-model="collectionSelect"><option value="">选择合集</option><option v-for="c in availableCollections" :value="c.id" :key="c.id">{{ c.name }}</option></select><button class="p3r-btn small" @click="addDetailCollection">添加</button></div>
-        </div>
-        <div class="p3r-panel"><span class="p3r-readout">NOTES</span><textarea class="p3r-input" v-model="detail.notes" rows="6"></textarea><div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="saveNotes">保存笔记</button></div></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 管理 -->
+  <!-- 管理弹窗 -->
   <div v-if="showManage" class="modal-overlay" @click.self="showManage=false">
     <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge wide">
       <div class="dialog-head"><span class="p3r-h3">MANAGE</span><button class="p3r-btn" @click="showManage=false">CLOSE</button></div>
@@ -221,20 +217,15 @@
     </div>
   </div>
 
-  <!-- AI 设置 -->
+  <!-- AI 设置弹窗 -->
   <div v-if="showSettings" class="modal-overlay" @click.self="showSettings=false">
     <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge">
       <div class="dialog-head"><span class="p3r-h3">AI SETTINGS</span><button class="p3r-btn" @click="showSettings=false">CLOSE</button></div>
       <div class="p3r-form">
-        <div class="p3r-panel summary-panel"><span class="p3r-readout">STATUS</span><div class="p3r-h3" :class="hasApiKey ? 'p3r-accent' : ''">{{ hasApiKey ? 'API KEY 已配置 — 上传 PDF 时将自动发送 AI 提取请求' : '未配置 API KEY — 将跳过 AI 提取' }}</div></div>
-        <div class="model-row"><label>供应商</label><span class="p3r-readout">DEEPSEEK — 默认</span></div>
-        <label>模型选择<input class="p3r-input" v-model="settings.aiModel" list="aiModelList" placeholder="deepseek-v4-flash / deepseek-chat / deepseek-reasoner / 自定义">
-        <datalist id="aiModelList"><option value="deepseek-v4-flash"></option><option value="deepseek-chat"></option><option value="deepseek-reasoner"></option></datalist></label>
-        <label>API Key<input class="p3r-input" v-model="settings.aiApiKey" type="password" placeholder="请输入 DeepSeek API Key（留空保持不变）"></label>
-        <div class="form-actions">
-          <button class="p3r-btn p3r-btn--danger" @click="clearApiKey">清除 API Key</button>
-          <button class="p3r-btn p3r-btn--primary" @click="saveSettings">保存设置</button>
-        </div>
+        <div class="p3r-panel summary-panel"><span class="p3r-readout">STATUS</span><div class="p3r-h3" :class="hasApiKey ? 'p3r-accent' : ''">{{ hasApiKey ? 'API KEY 已配置' : '未配置 API KEY — AI 功能将跳过' }}</div></div>
+        <label>模型<input class="p3r-input" v-model="settings.aiModel" list="aiModelList" placeholder="deepseek-v4-flash / deepseek-chat / deepseek-reasoner / 自定义"><datalist id="aiModelList"><option value="deepseek-v4-flash"></option><option value="deepseek-chat"></option><option value="deepseek-reasoner"></option></datalist></label>
+        <label>API Key<input class="p3r-input" v-model="settings.aiApiKey" type="password" placeholder="sk-...（留空保持不变）"></label>
+        <div class="form-actions"><button class="p3r-btn p3r-btn--danger" @click="clearApiKey">清除 API Key</button><button class="p3r-btn p3r-btn--primary" @click="saveSettings">保存设置</button></div>
       </div>
     </div>
   </div>

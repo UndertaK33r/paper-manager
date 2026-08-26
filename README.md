@@ -24,14 +24,19 @@
 - 去重检测：DOI 精确；无 DOI 时按「归一化标题 + 第一作者」；重复时提示确认
 - PDF 管理：上传、存储、浏览器内预览、下载
 - 分类（唯一分类）、标签（多对多）、合集（多对多）
-- 已读 / 未读、收藏标记
+- 阅读状态三档（待读 / 在读 / 已读）与收藏标记
 - 搜索：标题 / 作者 / 关键词 / 期刊 / DOI / **PDF 全文** 模糊
 - 筛选：分类、标签、合集、年份、状态、收藏
 - 排序：标题、年份、作者、添加/更新时间，升降序
 - 表格 / 卡片视图、分页、响应式
 - Basic Auth（可选）
-- AI 设置页面：保存 OpenAI 兼容 API Key / Base URL / Model
+- AI 设置页面：保存 DeepSeek API Key / 模型（默认 deepseek-v4-flash）
 - 手动「AI 提取」按钮：详情页对已有 PDF 重新提取
+- **问论文库**：RAG 问答，回答带 [n] 引用来源与参考片段
+- **BibTeX 导出**：按当前筛选导出 .bib（Zotero / LaTeX 可用）
+- **知识图谱**：OpenAlex 引用网络 Canvas 可视化（拖拽 / 点击跳详情）
+- **重新提取全文**：详情页刷新旧论文的正文
+- 可选密码登录（Bearer token），未配置密码时完全开放
 
 ## 快速开始（Docker）
 
@@ -79,7 +84,10 @@ POST   /api/papers/extract-pdf            PDF 预览提取（返回元数据，�
 GET    /api/papers/{id}                   详情
 PUT    /api/papers/{id}                   更新（multipart 或 JSON）
 DELETE /api/papers/{id}                   删除
-GET    /api/papers/{id}/pdf               获取 PDF（?download=1 下载）
+GET    /api/papers/{id}/pdf (file)       获取 PDF（?download=1 下载）
+PATCH  /api/papers/{id}                   部分更新（未提供字段不覆盖）
+POST   /api/papers/{id}/status            设置状态 {status: unread/reading/read}
+POST   /api/papers/{id}/re-extract        重新提取全文
 POST   /api/papers/{id}/toggle-read       切换已读
 POST   /api/papers/{id}/toggle-star       切换收藏
 POST   /api/papers/{id}/ai-extract        手动 AI 提取（无 Key 时返回 skipped）

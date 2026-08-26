@@ -35,6 +35,8 @@ type Paper struct {
 	CategoryID   *int64       `json:"categoryId"`
 	CategoryName string       `json:"categoryName"`
 	Read         bool         `json:"read"`
+	Status       string       `json:"status"`
+	Snippet      string       `json:"snippet,omitempty"`
 	Starred      bool         `json:"starred"`
 	HasPDF       bool         `json:"hasPdf"`
 	PDFSize      int64        `json:"pdfSize"`
@@ -58,6 +60,7 @@ type PaperInput struct {
 	Notes           string   `json:"notes"`
 	CategoryID      *int64   `json:"categoryId"`
 	Read            bool     `json:"read"`
+	Status          string   `json:"status"`
 	Force           bool     `json:"force"`
 	UseAI           bool     `json:"useAI"`
 	Starred         bool     `json:"starred"`
@@ -75,6 +78,7 @@ type PaperQuery struct {
 	YearFrom      *int
 	YearTo        *int
 	Read          *bool
+	Status        string
 	Starred       *bool
 	Sort          string
 	Order         string

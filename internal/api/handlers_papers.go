@@ -54,6 +54,7 @@ func formPaperInput(r *http.Request) models.PaperInput {
 	in.Year, _ = strconv.Atoi(strings.TrimSpace(r.FormValue("year")))
 	in.CategoryID = parseIntPtr(r.FormValue("categoryId"))
 	in.Read = r.FormValue("read") == "1" || strings.EqualFold(r.FormValue("read"), "true")
+	in.Status = r.FormValue("status")
 	in.Starred = r.FormValue("starred") == "1" || strings.EqualFold(r.FormValue("starred"), "true")
 	in.Force = r.FormValue("force") == "1" || strings.EqualFold(r.FormValue("force"), "true")
 	in.UseAI = r.FormValue("useAI") == "1" || strings.EqualFold(r.FormValue("useAI"), "true")
@@ -80,6 +81,9 @@ func (s *Server) decodeInput(w http.ResponseWriter, r *http.Request) (models.Pap
 
 func (s *Server) savePdf(r *http.Request) (string, int64, string, error) {
 	file, header, err := r.FormFile("pdf")
+	if err != nil {
+		file, header, err = r.FormFile("file")
+	}
 	if err != nil {
 		return "", 0, "", nil
 	}
@@ -378,7 +382,16 @@ func (s *Server) toggleFlag(w http.ResponseWriter, r *http.Request, read bool) {
 		return
 	}
 	if read {
-		err = s.store.SetPaperRead(id, !p.Read)
+		next := "read"
+		switch p.Status {
+		case "unread":
+			next = "reading"
+		case "reading":
+			next = "read"
+		default:
+			next = "unread"
+		}
+		err = s.store.SetPaperStatus(id, next)
 	} else {
 		err = s.store.SetPaperStarred(id, !p.Starred)
 	}

@@ -8,7 +8,7 @@ import (
 )
 
 const paperCols = `p.id, p.title, p.authors, p.year, p.venue, p.doi, p.keywords, p.link,
- p.summary, p.notes, p.category_id, c.name, p.read, p.starred,
+ p.summary, p.notes, p.category_id, c.name, p.read, p.status, p.starred,
  CASE WHEN p.pdf_path = '' THEN 0 ELSE 1 END, p.pdf_size, p.pdf_path, p.created_at, p.updated_at`
 
 type rowScanner interface{ Scan(dest ...any) error }
@@ -20,7 +20,7 @@ func scanPaper(scanner rowScanner) (models.Paper, error) {
 	var categoryID sql.NullInt64
 	var categoryName sql.NullString
 	err := scanner.Scan(&p.ID, &p.Title, &p.Authors, &p.Year, &p.Venue, &p.DOI, &p.Keywords, &p.Link,
-		&p.Summary, &p.Notes, &categoryID, &categoryName, &read, &starred, &hasPDF, &p.PDFSize, &p.PDFPath, &created, &updated)
+		&p.Summary, &p.Notes, &categoryID, &categoryName, &read, &p.Status, &starred, &hasPDF, &p.PDFSize, &p.PDFPath, &created, &updated)
 	if err != nil {
 		return p, err
 	}
@@ -28,7 +28,7 @@ func scanPaper(scanner rowScanner) (models.Paper, error) {
 		id := categoryID.Int64
 		p.CategoryID = &id
 	}
-	p.Read = read != 0
+	p.Read = read != 0 || p.Status == "read"
 	p.Starred = starred != 0
 	p.HasPDF = hasPDF != 0
 	p.CategoryName = categoryName.String
@@ -88,12 +88,15 @@ func buildWhere(q models.PaperQuery) (string, []any) {
 		args = append(args, *q.YearTo)
 	}
 	if q.Read != nil {
-		conds = append(conds, "p.read = ?")
 		if *q.Read {
-			args = append(args, 1)
+			conds = append(conds, "p.status = 'read'")
 		} else {
-			args = append(args, 0)
+			conds = append(conds, "p.status != 'read'")
 		}
+	}
+	if q.Status != "" && q.Status != "all" {
+		conds = append(conds, "p.status = ?")
+		args = append(args, q.Status)
 	}
 	if q.Starred != nil {
 		conds = append(conds, "p.starred = ?")
@@ -146,6 +149,9 @@ func (s *Store) ListPapers(q models.PaperQuery) (models.ListResult, error) {
 		}
 		p.Tags = tags
 		p.Collections = cols
+		if q.Search != "" {
+			p.Snippet = buildSnippet(s.PaperFullText(p.ID), q.Search, 160)
+		}
 		papers = append(papers, p)
 	}
 	return models.ListResult{Total: total, Page: page, PageSize: size, Papers: papers}, rows.Err()
@@ -206,14 +212,14 @@ func (s *Store) FindDuplicate(title, authors, doi string) (*models.Paper, error)
 		var categoryName sql.NullString
 		err := s.db.QueryRow("SELECT "+paperCols+" FROM papers p LEFT JOIN categories c ON c.id = p.category_id WHERE lower(p.doi) = lower(?)", strings.TrimSpace(doi)).
 			Scan(&p.ID, &p.Title, &p.Authors, &p.Year, &p.Venue, &p.DOI, &p.Keywords, &p.Link,
-				&p.Summary, &p.Notes, &categoryID, &categoryName, &read, &starred, &hasPDF, &p.PDFSize, &p.PDFPath, &created, &updated)
+				&p.Summary, &p.Notes, &categoryID, &categoryName, &read, &p.Status, &starred, &hasPDF, &p.PDFSize, &p.PDFPath, &created, &updated)
 		if err == nil {
 			if categoryID.Valid {
 				id := categoryID.Int64
 				p.CategoryID = &id
 			}
 			p.CategoryName = categoryName.String
-			p.Read = read != 0
+			p.Read = read != 0 || p.Status == "read"
 			p.Starred = starred != 0
 			p.HasPDF = hasPDF != 0
 			p.CreatedAt = parseTime(created)
@@ -260,4 +266,43 @@ func (s *Store) PaperFullText(id int64) string {
 		return ""
 	}
 	return v
+}
+
+// SearchRelaxed 任意 token 命中即返回（OR 检索，供 AI 问答召回使用）。
+func (s *Store) SearchRelaxed(query string, limit int) ([]models.Paper, error) {
+	tokens := queryTokens(query)
+	if len(tokens) == 0 {
+		return nil, nil
+	}
+	if limit <= 0 || limit > 10 {
+		limit = 3
+	}
+	conds := []string{}
+	args := []any{}
+	for _, t := range tokens {
+		like := "%" + t + "%"
+		conds = append(conds, "(lower(p.title) LIKE ? OR lower(p.authors) LIKE ? OR lower(p.keywords) LIKE ? OR lower(p.summary) LIKE ? OR lower(p.fulltext) LIKE ?)")
+		for i := 0; i < 5; i++ {
+			args = append(args, like)
+		}
+	}
+	where := " WHERE " + strings.Join(conds, " OR ")
+	sqlStr := "SELECT " + paperCols + " FROM papers p LEFT JOIN categories c ON c.id = p.category_id" + where + " ORDER BY p.year DESC, p.id DESC LIMIT ?"
+	args = append(args, limit)
+	rows, err := s.db.Query(sqlStr, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.Paper{}
+	for rows.Next() {
+		p, err := scanPaper(rows)
+		if err != nil {
+			return nil, err
+		}
+		p.Tags = []models.Tag{}
+		p.Collections = []models.Collection{}
+		out = append(out, p)
+	}
+	return out, rows.Err()
 }

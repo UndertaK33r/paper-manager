@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS papers (
   notes TEXT NOT NULL DEFAULT '',
   category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
   read INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'unread',
   starred INTEGER NOT NULL DEFAULT 0,
   pdf_path TEXT NOT NULL DEFAULT '',
   pdf_size INTEGER NOT NULL DEFAULT 0,
@@ -95,6 +96,8 @@ CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 		return err
 	}
 	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN fulltext TEXT NOT NULL DEFAULT ''")
+	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN status TEXT NOT NULL DEFAULT 'unread'")
+	_, _ = s.db.Exec("UPDATE papers SET status = 'read' WHERE read = 1 AND status = 'unread'")
 	return nil
 }
 
@@ -204,12 +207,15 @@ func firstAuthor(a string) string {
 }
 
 func (s *Store) CreatePaper(p *models.Paper) (int64, error) {
+	if p.Status == "" {
+		p.Status = "unread"
+	}
 	now := nowStr()
 	res, err := s.db.Exec(`INSERT INTO papers
-		(title, authors, year, venue, doi, keywords, link, summary, notes, category_id, read, starred, pdf_path, pdf_size, fulltext, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		(title, authors, year, venue, doi, keywords, link, summary, notes, category_id, read, status, starred, pdf_path, pdf_size, fulltext, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		p.Title, p.Authors, p.Year, p.Venue, p.DOI, p.Keywords, p.Link, p.Summary, p.Notes,
-		p.CategoryID, boolInt(p.Read), boolInt(p.Starred), p.PDFPath, p.PDFSize, p.FullText, now, now)
+		p.CategoryID, boolInt(p.Read), p.Status, boolInt(p.Starred), p.PDFPath, p.PDFSize, p.FullText, now, now)
 	if err != nil {
 		return 0, err
 	}
@@ -217,12 +223,15 @@ func (s *Store) CreatePaper(p *models.Paper) (int64, error) {
 }
 
 func (s *Store) UpdatePaper(p *models.Paper) error {
+	if p.Status == "" {
+		p.Status = "unread"
+	}
 	_, err := s.db.Exec(`UPDATE papers SET
 		title=?, authors=?, year=?, venue=?, doi=?, keywords=?, link=?, summary=?, notes=?,
-		category_id=?, read=?, starred=?, pdf_path=?, pdf_size=?, fulltext=?, updated_at=?
+		category_id=?, read=?, status=?, starred=?, pdf_path=?, pdf_size=?, fulltext=?, updated_at=?
 		WHERE id=?`,
 		p.Title, p.Authors, p.Year, p.Venue, p.DOI, p.Keywords, p.Link, p.Summary, p.Notes,
-		p.CategoryID, boolInt(p.Read), boolInt(p.Starred), p.PDFPath, p.PDFSize, p.FullText, nowStr(), p.ID)
+		p.CategoryID, boolInt(p.Read), p.Status, boolInt(p.Starred), p.PDFPath, p.PDFSize, p.FullText, nowStr(), p.ID)
 	return err
 }
 
@@ -245,7 +254,19 @@ func (s *Store) SetPaperCategory(id int64, categoryID *int64) error {
 }
 
 func (s *Store) SetPaperRead(id int64, read bool) error {
-	_, err := s.db.Exec("UPDATE papers SET read = ?, updated_at = ? WHERE id = ?", boolInt(read), nowStr(), id)
+	status := "unread"
+	if read {
+		status = "read"
+	}
+	_, err := s.db.Exec("UPDATE papers SET read = ?, status = ?, updated_at = ? WHERE id = ?", boolInt(read), status, nowStr(), id)
+	return err
+}
+
+func (s *Store) SetPaperStatus(id int64, status string) error {
+	if status != "unread" && status != "reading" && status != "read" {
+		status = "unread"
+	}
+	_, err := s.db.Exec("UPDATE papers SET status = ?, read = ?, updated_at = ? WHERE id = ?", status, boolInt(status == "read"), nowStr(), id)
 	return err
 }
 

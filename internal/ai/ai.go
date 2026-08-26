@@ -171,3 +171,59 @@ func (c *Client) Summarize(ctx context.Context, paperContext string) (string, er
 	}
 	return strings.TrimSpace(envelope.Choices[0].Message.Content), nil
 }
+
+func (c *Client) Ask(ctx context.Context, prompt string) (string, error) {
+	return c.chat(ctx, []map[string]string{
+		{"role": "system", "content": "你是一名严谨的学术助手，正在帮助用户梳理其私人论文库。回答要求：1. 只依据提供的论文片段回答，用 [1]、[2] 标注引用来源编号；2. 回答要具体、有针对性：直接引用论文中的方法名称、实验数据、结论或原文表述，不要泛泛而谈；3. 若片段信息不足以回答某个方面，明确说明论文库片段未提及；4. 用中文回答，先给结论再展开，适当使用小标题与要点。"},
+		{"role": "user", "content": prompt},
+	}, 1200)
+}
+
+func (c *Client) chat(ctx context.Context, messages []map[string]string, maxTokens int) (string, error) {
+	if strings.TrimSpace(c.cfg.APIKey) == "" {
+		return "", fmt.Errorf("AI_API_KEY not configured")
+	}
+	url := strings.TrimRight(c.cfg.BaseURL, "/") + "/chat/completions"
+	payload := map[string]any{
+		"model":       c.cfg.Model,
+		"messages":    messages,
+		"temperature": 0.3,
+		"max_tokens":  maxTokens,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("AI API %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var envelope struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return "", err
+	}
+	if len(envelope.Choices) == 0 {
+		return "", fmt.Errorf("AI API returned no choices")
+	}
+	return strings.TrimSpace(envelope.Choices[0].Message.Content), nil
+}

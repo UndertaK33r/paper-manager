@@ -52,15 +52,20 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/papers/extract-pdf", s.handleExtractPDF)
 	mux.HandleFunc("GET /api/papers/{id}", s.handleGetPaper)
 	mux.HandleFunc("PUT /api/papers/{id}", s.handleUpdatePaper)
+	mux.HandleFunc("PATCH /api/papers/{id}", s.handlePatchPaper)
 	mux.HandleFunc("DELETE /api/papers/{id}", s.handleDeletePaper)
 	mux.HandleFunc("GET /api/papers/{id}/pdf", s.handleGetPDF)
+	mux.HandleFunc("GET /api/papers/{id}/file", s.handleGetPDF)
 	mux.HandleFunc("POST /api/papers/{id}/toggle-read", s.handleToggleRead)
+	mux.HandleFunc("POST /api/papers/{id}/status", s.handleSetStatus)
+	mux.HandleFunc("POST /api/papers/{id}/re-extract", s.handleReExtract)
 	mux.HandleFunc("POST /api/papers/{id}/toggle-star", s.handleToggleStar)
 	mux.HandleFunc("POST /api/papers/{id}/tags", s.handleAddPaperTag)
 	mux.HandleFunc("DELETE /api/papers/{id}/tags/{tagID}", s.handleRemovePaperTag)
 	mux.HandleFunc("POST /api/papers/{id}/collections", s.handleAddPaperCollection)
 	mux.HandleFunc("DELETE /api/papers/{id}/collections/{collectionID}", s.handleRemovePaperCollection)
 	mux.HandleFunc("POST /api/papers/{id}/summarize", s.handleSummarize)
+	mux.HandleFunc("POST /api/papers/{id}/summary", s.handleSummarize)
 	mux.HandleFunc("POST /api/papers/{id}/ai-extract", s.handleAIExtract)
 
 	mux.HandleFunc("GET /api/categories", s.handleListCategories)
@@ -76,6 +81,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/collections/{id}", s.handleDeleteCollection)
 
 	mux.HandleFunc("GET /api/stats", s.handleStats)
+	mux.HandleFunc("GET /api/health", s.handleHealth)
+	mux.HandleFunc("GET /api/papers/export.bib", s.handleExportBib)
+	mux.HandleFunc("POST /api/ask", s.handleAsk)
+	mux.HandleFunc("GET /api/graph", s.handleGraph)
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
 	mux.HandleFunc("PUT /api/settings", s.handleUpdateSettings)
 
@@ -171,6 +180,7 @@ func (s *Server) buildQuery(r *http.Request) models.PaperQuery {
 		Order:         q.Get("order"),
 		Read:          parseBoolParam(q.Get("read")),
 		Starred:       parseBoolParam(q.Get("starred")),
+		Status:        q.Get("status"),
 	}
 	if v := parseIntPtr(q.Get("category")); v != nil {
 		id := *v
@@ -207,6 +217,9 @@ func (s *Server) paperFromInput(in models.PaperInput, existing *models.Paper) mo
 	p.Notes = in.Notes
 	p.CategoryID = in.CategoryID
 	p.Read = in.Read
+	if in.Status != "" {
+		p.Status = in.Status
+	}
 	p.Starred = in.Starred
 	return p
 }
