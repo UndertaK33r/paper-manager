@@ -93,10 +93,18 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/", static)
 
 	var h http.Handler = mux
+	h = noCache(h)
 	if s.authUser != "" || s.authPass != "" {
 		h = s.basicAuth(h)
 	}
 	return h
+}
+
+func noCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) basicAuth(next http.Handler) http.Handler {
