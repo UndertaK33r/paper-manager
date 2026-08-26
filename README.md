@@ -1,6 +1,6 @@
 # Paper Manager 论文管理系统
 
-一个基于 Go + SQLite 的个人论文管理系统。支持 PDF 上传后自动提取元数据（基础元数据 + 可选 AI 补充提取）、分类 / 标签 / 合集、搜索筛选排序、已读 / 收藏标记、浏览器内 PDF 预览，通过 Docker 一键部署。前端采用 **Vue 3** 重构，并使用 **P3R（Persona 3 Reload）冷蓝黑游戏 UI 美学**。
+一个基于 Go + SQLite 的个人论文管理系统。支持 PDF 上传后自动提取元数据（基础元数据 + 可选 AI 补充提取）、分类 / 标签 / 合集、搜索筛选排序、已读 / 收藏标记、浏览器内 PDF 预览，通过 Docker 一键部署。前端采用 **Vue 3** 重构（已内置 vendor，无需构建）。
 
 ## 技术栈
 
@@ -8,7 +8,7 @@
 - 数据库：SQLite（pure-Go 驱动 modernc.org/sqlite，无 CGO）
 - PDF 元数据：github.com/ledongthuc/pdf
 - AI 提取：DeepSeek（OpenAI 兼容 Chat Completions API，默认模型 deepseek-v4-flash，可自由选择/输入模型名，如 deepseek-chat / deepseek-reasoner）
-- 前端：Vue 3（已内置 vendor，无需构建）+ P3R 设计系统（现代浅色编辑部模式 p3r-site + 组件库）
+- 前端：Vue 3（已内置 vendor，无需构建）
 - 部署：Docker / docker-compose
 
 ## 已实现功能（MVP）
@@ -114,7 +114,7 @@ paper-manager/
 │   ├── pdf/               # PDF 元数据 + 文本提取
 │   └── store/             # SQLite（含 settings 表）
 ├── web/
-│   ├── assets/            # Vue 3 vendor + P3R CSS
+│   ├── assets/            # Vue 3 vendor + 样式资源
 │   ├── index.html         # Vue 模板
 │   ├── app.js             # Vue 应用
 │   └── style.css
