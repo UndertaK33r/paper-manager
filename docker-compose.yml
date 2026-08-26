@@ -1,0 +1,15 @@
+services:
+  paper-manager:
+    build: .
+    container_name: paper-manager
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Asia/Shanghai
+      - MAX_UPLOAD_MB=100
+      # 可选：启用简单密码保护
+      # - AUTH_USERNAME=admin
+      # - AUTH_PASSWORD=change-me
+    restart: unless-stopped

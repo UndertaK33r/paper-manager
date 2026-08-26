@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>论文管理系统</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+<div class="brand">📚 论文管理系统</div>
+<div class="top-actions">
+<button id="manageBtn" class="btn ghost">⚙️ 管理</button>
+<button id="addBtn" class="btn primary">＋ 添加论文</button>
+</div>
+</header>
+<main class="container">
+<section class="stats" id="stats"></section>
+<section class="toolbar">
+<input id="searchInput" class="input search" placeholder="搜索标题 / 作者 / 关键词 / DOI ...">
+<select id="categoryFilter" class="select"></select>
+<select id="tagFilter" class="select"></select>
+<select id="collectionFilter" class="select"></select>
+<input id="yearFrom" class="input num" placeholder="年份从">
+<input id="yearTo" class="input num" placeholder="年份至">
+<select id="readFilter" class="select">
+<option value="">全部状态</option>
+<option value="1">已读</option>
+<option value="0">未读</option>
+</select>
+<select id="starFilter" class="select">
+<option value="">全部收藏</option>
+<option value="1">已收藏</option>
+<option value="0">未收藏</option>
+</select>
+<select id="sortSelect" class="select">
+<option value="created">按添加时间</option>
+<option value="year">按年份</option>
+<option value="title">按标题</option>
+<option value="authors">按作者</option>
+<option value="updated">按更新时间</option>
+</select>
+<select id="orderSelect" class="select">
+<option value="desc">降序</option>
+<option value="asc">升序</option>
+</select>
+<div class="view-toggle">
+<button id="tableViewBtn" class="btn small active">表格</button>
+<button id="cardViewBtn" class="btn small">卡片</button>
+</div>
+</section>
+<section id="papersArea"></section>
+<section class="pagination" id="pagination"></section>
+</main>
+
+<div class="modal hidden" id="paperModal">
+<div class="modal-card">
+<div class="modal-head">
+<h2 id="paperModalTitle">添加论文</h2>
+<button class="btn ghost" data-close="paperModal">×</button>
+</div>
+<form id="paperForm" class="form">
+<label>标题 *<input id="fTitle" name="title" class="input" required></label>
+<div class="grid2">
+<label>作者<input id="fAuthors" name="authors" class="input" placeholder="多作者用逗号分隔"></label>
+<label>发表年份<input id="fYear" name="year" class="input" type="number"></label>
+</div>
+<div class="grid2">
+<label>期刊/会议<input id="fVenue" name="venue" class="input"></label>
+<label>DOI<input id="fDOI" name="doi" class="input"></label>
+</div>
+<div class="grid2">
+<label>关键词<input id="fKeywords" name="keywords" class="input" placeholder="逗号分隔"></label>
+<label>分类<select id="fCategory" name="categoryId" class="select"></select></label>
+</div>
+<div class="grid2">
+<label>链接<input id="fLink" name="link" class="input" placeholder="代码仓库 / 补充材料 URL"></label>
+<label>PDF 文件<input id="fPDF" name="pdf" class="input" type="file" accept=".pdf,application/pdf"></label>
+</div>
+<div class="grid2">
+<label>标签<input id="fTags" name="tags" class="input" placeholder="逗号分隔，如: deep-learning, nlp"></label>
+<label>合集<input id="fCollections" name="collections" class="input" placeholder="逗号分隔，如: 组会分享"></label>
+</div>
+<label>AI 一句话总结<textarea id="fSummary" name="summary" class="textarea" rows="2" placeholder="可在编辑时手动填写，后续版本自动生成"></textarea></label>
+<label>笔记<textarea id="fNotes" name="notes" class="textarea" rows="4"></textarea></label>
+<div class="checks">
+<label class="check"><input type="checkbox" id="fRead" name="read"> 已读</label>
+<label class="check"><input type="checkbox" id="fStarred" name="starred"> 收藏</label>
+</div>
+<div class="form-actions">
+<button type="button" class="btn ghost" data-close="paperModal">取消</button>
+<button type="submit" id="savePaperBtn" class="btn primary">保存</button>
+</div>
+</form>
+</div>
+</div>
+
+<div class="modal hidden" id="detailModal">
+<div class="modal-card wide">
+<div class="modal-head">
+<h2 id="detailTitle"></h2>
+<button class="btn ghost" data-close="detailModal">×</button>
+</div>
+<div class="detail-body">
+<div class="meta-grid" id="detailMeta"></div>
+<div class="card" id="detailSummary"></div>
+<div class="detail-actions" id="detailActions"></div>
+<div class="card">
+<h3>PDF 预览</h3>
+<div id="pdfWrap" class="pdf-wrap"></div>
+</div>
+<div class="card">
+<h3>标签 / 合集</h3>
+<div id="tagChips" class="chips"></div>
+<div class="inline-form">
+<select id="detailTagSelect" class="select"></select>
+<button class="btn small" id="addTagBtn">添加标签</button>
+</div>
+<div id="collectionChips" class="chips"></div>
+<div class="inline-form">
+<select id="detailCollectionSelect" class="select"></select>
+<button class="btn small" id="addCollectionBtn">加入合集</button>
+</div>
+</div>
+<div class="card">
+<h3>笔记</h3>
+<textarea id="detailNotes" class="textarea" rows="6"></textarea>
+<div class="form-actions">
+<button class="btn primary" id="saveNotesBtn">保存笔记</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="modal hidden" id="manageModal">
+<div class="modal-card wide">
+<div class="modal-head"><h2>管理</h2><button class="btn ghost" data-close="manageModal">×</button></div>
+<div class="manage-grid">
+<div class="card">
+<h3>分类</h3>
+<div class="inline-form"><input id="newCategory" class="input" placeholder="新分类名称"><button class="btn small" id="addCategoryBtn">添加</button></div>
+<ul class="manage-list" id="categoryList"></ul>
+</div>
+<div class="card">
+<h3>标签</h3>
+<div class="inline-form"><input id="newTag" class="input" placeholder="新标签名称"><button class="btn small" id="addTagGlobalBtn">添加</button></div>
+<ul class="manage-list" id="tagList"></ul>
+</div>
+<div class="card">
+<h3>合集</h3>
+<div class="inline-form"><input id="newCollection" class="input" placeholder="新合集名称"><button class="btn small" id="addCollectionGlobalBtn">添加</button></div>
+<ul class="manage-list" id="collectionList"></ul>
+</div>
+</div>
+</div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>

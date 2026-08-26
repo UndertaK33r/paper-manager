@@ -1,0 +1,484 @@
+package api
+
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"paper-manager/internal/models"
+	pdfmeta "paper-manager/internal/pdf"
+)
+
+func (s *Server) handleListPapers(w http.ResponseWriter, r *http.Request) {
+	q := s.buildQuery(r)
+	res, err := s.store.ListPapers(q)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) handleGetPaper(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	p, err := s.store.GetPaper(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "paper not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
+}
+
+func formPaperInput(r *http.Request) models.PaperInput {
+	in := models.PaperInput{}
+	in.Title = r.FormValue("title")
+	in.Authors = r.FormValue("authors")
+	in.Venue = r.FormValue("venue")
+	in.DOI = r.FormValue("doi")
+	in.Keywords = r.FormValue("keywords")
+	in.Link = r.FormValue("link")
+	in.Summary = r.FormValue("summary")
+	in.Notes = r.FormValue("notes")
+	in.Year, _ = strconv.Atoi(strings.TrimSpace(r.FormValue("year")))
+	in.CategoryID = parseIntPtr(r.FormValue("categoryId"))
+	in.Read = r.FormValue("read") == "1" || strings.EqualFold(r.FormValue("read"), "true")
+	in.Starred = r.FormValue("starred") == "1" || strings.EqualFold(r.FormValue("starred"), "true")
+	in.Force = r.FormValue("force") == "1" || strings.EqualFold(r.FormValue("force"), "true")
+	in.TagNames = csvSplit(r.FormValue("tags"))
+	in.CollectionNames = csvSplit(r.FormValue("collections"))
+	return in
+}
+
+func (s *Server) decodeInput(w http.ResponseWriter, r *http.Request) (models.PaperInput, bool, error) {
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		size := s.maxUploadMB * 1024 * 1024
+		r.Body = http.MaxBytesReader(w, r.Body, size)
+		if err := r.ParseMultipartForm(size); err != nil {
+			return models.PaperInput{}, true, err
+		}
+		return formPaperInput(r), true, nil
+	}
+	var in models.PaperInput
+	if err := readJSON(r, &in); err != nil {
+		return in, false, err
+	}
+	return in, false, nil
+}
+
+func (s *Server) savePdf(r *http.Request) (string, int64, error) {
+	file, header, err := r.FormFile("pdf")
+	if err != nil {
+		return "", 0, nil
+	}
+	defer file.Close()
+	if !strings.HasSuffix(strings.ToLower(header.Filename), ".pdf") {
+		return "", 0, fmt.Errorf("only PDF files are supported")
+	}
+	name := randomName() + ".pdf"
+	dst := filepath.Join(s.uploadDir, name)
+	out, err := os.Create(dst)
+	if err != nil {
+		return "", 0, err
+	}
+	n, err := io.Copy(out, file)
+	closeErr := out.Close()
+	if err != nil {
+		os.Remove(dst)
+		return "", 0, err
+	}
+	if closeErr != nil {
+		os.Remove(dst)
+		return "", 0, closeErr
+	}
+	if n == 0 {
+		os.Remove(dst)
+		return "", 0, fmt.Errorf("empty PDF file")
+	}
+	return name, n, nil
+}
+
+func randomName() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%d-%d", os.Getpid(), time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)
+}
+
+func (s *Server) handleCreatePaper(w http.ResponseWriter, r *http.Request) {
+	in, isMultipart, err := s.decodeInput(w, r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	in.Title = strings.TrimSpace(in.Title)
+	if in.Title == "" {
+		writeError(w, http.StatusBadRequest, "title is required")
+		return
+	}
+	pdfPath, pdfSize := "", int64(0)
+	if isMultipart {
+		name, size, perr := s.savePdf(r)
+		if perr != nil {
+			writeError(w, http.StatusBadRequest, perr.Error())
+			return
+		}
+		if name != "" {
+			pdfPath, pdfSize = name, size
+			meta, merr := pdfmeta.Extract(filepath.Join(s.uploadDir, name))
+			if merr != nil {
+				os.Remove(filepath.Join(s.uploadDir, name))
+				writeError(w, http.StatusBadRequest, "无法解析 PDF 元数据: "+merr.Error())
+				return
+			}
+			if in.Title == "" {
+				in.Title = meta.Title
+			}
+			if in.Authors == "" {
+				in.Authors = meta.Author
+			}
+			if in.Keywords == "" {
+				in.Keywords = meta.Keywords
+			}
+		}
+	}
+	dup, derr := s.store.FindDuplicate(in.Title, in.Authors, in.DOI)
+	if derr != nil {
+		if pdfPath != "" {
+			os.Remove(filepath.Join(s.uploadDir, pdfPath))
+		}
+		writeError(w, http.StatusInternalServerError, derr.Error())
+		return
+	}
+	if dup != nil && !in.Force {
+		if pdfPath != "" {
+			os.Remove(filepath.Join(s.uploadDir, pdfPath))
+		}
+		writeJSON(w, http.StatusConflict, models.DuplicateCheck{Duplicate: true, Reason: "duplicate paper", PaperID: dup.ID, Title: dup.Title})
+		return
+	}
+	p := s.paperFromInput(in, nil)
+	p.PDFPath = pdfPath
+	p.PDFSize = pdfSize
+	id, err := s.store.CreatePaper(&p)
+	if err != nil {
+		if pdfPath != "" {
+			os.Remove(filepath.Join(s.uploadDir, pdfPath))
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := s.applyRelations(id, in); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	paper, err := s.store.GetPaper(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, paper)
+}
+
+func (s *Server) applyRelations(id int64, in models.PaperInput) error {
+	var tagIDs []int64
+	if len(in.TagNames) > 0 {
+		tags, err := s.ensureTags(in.TagNames)
+		if err != nil {
+			return err
+		}
+		tagIDs = s.tagIDs(tags)
+	} else {
+		tagIDs = in.Tags
+	}
+	if err := s.store.SetPaperTags(id, tagIDs); err != nil {
+		return err
+	}
+	var colIDs []int64
+	if len(in.CollectionNames) > 0 {
+		cols, err := s.ensureCollections(in.CollectionNames)
+		if err != nil {
+			return err
+		}
+		colIDs = s.collectionIDs(cols)
+	} else {
+		colIDs = in.Collections
+	}
+	return s.store.SetPaperCollections(id, colIDs)
+}
+
+func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	current, err := s.store.GetPaper(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "paper not found")
+		return
+	}
+	in, isMultipart, err := s.decodeInput(w, r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if strings.TrimSpace(in.Title) == "" {
+		writeError(w, http.StatusBadRequest, "title is required")
+		return
+	}
+	if isMultipart {
+		name, size, perr := s.savePdf(r)
+		if perr != nil {
+			writeError(w, http.StatusBadRequest, perr.Error())
+			return
+		}
+		if name != "" {
+			meta, merr := pdfmeta.Extract(filepath.Join(s.uploadDir, name))
+			if merr != nil {
+				os.Remove(filepath.Join(s.uploadDir, name))
+				writeError(w, http.StatusBadRequest, "无法解析 PDF 元数据: "+merr.Error())
+				return
+			}
+			old := current.PDFPath
+			current.PDFPath = name
+			current.PDFSize = size
+			if in.Title == "" {
+				in.Title = meta.Title
+			}
+			if in.Authors == "" {
+				in.Authors = meta.Author
+			}
+			if in.Keywords == "" {
+				in.Keywords = meta.Keywords
+			}
+			if old != "" && old != name {
+				os.Remove(filepath.Join(s.uploadDir, old))
+			}
+		}
+	}
+	p := s.paperFromInput(in, &current)
+	if err := s.store.UpdatePaper(&p); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := s.applyRelations(id, in); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	paper, err := s.store.GetPaper(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, paper)
+}
+
+func (s *Server) handleDeletePaper(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	pdfPath, err := s.store.DeletePaper(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if pdfPath != "" {
+		os.Remove(filepath.Join(s.uploadDir, pdfPath))
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleGetPDF(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	p, err := s.store.GetPaper(id)
+	if err != nil || !p.HasPDF || p.PDFPath == "" {
+		writeError(w, http.StatusNotFound, "pdf not found")
+		return
+	}
+	full := filepath.Join(s.uploadDir, p.PDFPath)
+	if _, err := os.Stat(full); err != nil {
+		writeError(w, http.StatusNotFound, "pdf file missing on disk")
+		return
+	}
+	w.Header().Set("Content-Type", "application/pdf")
+	disp := "inline"
+	if r.URL.Query().Get("download") == "1" {
+		disp = "attachment"
+	}
+	w.Header().Set("Content-Disposition", disp+"; filename=\"paper-"+strconv.FormatInt(id, 10)+".pdf\"")
+	http.ServeFile(w, r, full)
+}
+
+func (s *Server) handleToggleRead(w http.ResponseWriter, r *http.Request) {
+	s.toggleFlag(w, r, true)
+}
+
+func (s *Server) handleToggleStar(w http.ResponseWriter, r *http.Request) {
+	s.toggleFlag(w, r, false)
+}
+
+func (s *Server) toggleFlag(w http.ResponseWriter, r *http.Request, read bool) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	p, err := s.store.GetPaper(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "paper not found")
+		return
+	}
+	if read {
+		err = s.store.SetPaperRead(id, !p.Read)
+	} else {
+		err = s.store.SetPaperStarred(id, !p.Starred)
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	paper, _ := s.store.GetPaper(id)
+	writeJSON(w, http.StatusOK, paper)
+}
+
+func (s *Server) handleAddPaperTag(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	var body struct {
+		TagID int64
+		Name  string
+	}
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if body.TagID == 0 && strings.TrimSpace(body.Name) == "" {
+		writeError(w, http.StatusBadRequest, "tagId or name required")
+		return
+	}
+	var tagID int64
+	if body.TagID != 0 {
+		tagID = body.TagID
+	} else {
+		t, err := s.store.EnsureTag(body.Name)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		tagID = t.ID
+	}
+	if err := s.store.AddPaperTag(id, tagID); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	paper, _ := s.store.GetPaper(id)
+	writeJSON(w, http.StatusOK, paper)
+}
+
+func (s *Server) handleRemovePaperTag(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	tagID, ok := s.idParam(r, "tagID")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid tag id")
+		return
+	}
+	if err := s.store.RemovePaperTag(id, tagID); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	paper, _ := s.store.GetPaper(id)
+	writeJSON(w, http.StatusOK, paper)
+}
+
+func (s *Server) handleAddPaperCollection(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	var body struct {
+		CollectionID int64
+		Name         string
+	}
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	var colID int64
+	if body.CollectionID != 0 {
+		colID = body.CollectionID
+	} else if strings.TrimSpace(body.Name) != "" {
+		c, err := s.store.EnsureCollection(body.Name, "")
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		colID = c.ID
+	} else {
+		writeError(w, http.StatusBadRequest, "collectionId or name required")
+		return
+	}
+	if err := s.store.AddPaperCollection(id, colID); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	paper, _ := s.store.GetPaper(id)
+	writeJSON(w, http.StatusOK, paper)
+}
+
+func (s *Server) handleRemovePaperCollection(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	colID, ok := s.idParam(r, "collectionID")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid collection id")
+		return
+	}
+	if err := s.store.RemovePaperCollection(id, colID); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	paper, _ := s.store.GetPaper(id)
+	writeJSON(w, http.StatusOK, paper)
+}
+
+func (s *Server) handleSummarize(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusNotImplemented, "AI summarization is planned for phase 2; the interface is reserved")
+}
+
+func (s *Server) decodeJSONOnly(w http.ResponseWriter, r *http.Request, v any) bool {
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return false
+	}
+	return true
+}

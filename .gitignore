@@ -1,0 +1,8 @@
+data/
+*.db
+*.db-*
+uploads/
+dist/
+paper-manager.exe
+*.exe~
+paper-manager
