@@ -114,8 +114,8 @@ func truncateN(s string, max int) string {
 
 func Defaults() Config {
 	return Config{
-		BaseURL: "https://api.openai.com/v1",
-		Model:   "gpt-4o-mini",
+		BaseURL: "https://api.deepseek.com",
+		Model:   "deepseek-chat",
 		Timeout: 45 * time.Second,
 	}
 }

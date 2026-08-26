@@ -27,14 +27,14 @@ func (s *Server) aiConfig() (ai.Config, bool) {
 		base = os.Getenv("AI_BASE_URL")
 	}
 	if base == "" {
-		base = "https://api.openai.com/v1"
+		base = "https://api.deepseek.com"
 	}
 	model := s.store.GetSetting("ai_model")
 	if model == "" {
 		model = os.Getenv("AI_MODEL")
 	}
 	if model == "" {
-		model = "gpt-4o-mini"
+		model = "deepseek-chat"
 	}
 	return ai.Config{BaseURL: base, APIKey: key, Model: model, Timeout: 45 * time.Second}, true
 }
@@ -100,9 +100,15 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	if base == "" {
 		base = os.Getenv("AI_BASE_URL")
 	}
+	if base == "" {
+		base = "https://api.deepseek.com"
+	}
 	model := s.store.GetSetting("ai_model")
 	if model == "" {
 		model = os.Getenv("AI_MODEL")
+	}
+	if model == "" {
+		model = "deepseek-chat"
 	}
 	key := s.store.GetSetting("ai_api_key")
 	if key == "" {

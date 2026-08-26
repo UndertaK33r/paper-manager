@@ -7,7 +7,7 @@
 - 后端：Go 1.24（标准库 net/http）
 - 数据库：SQLite（pure-Go 驱动 modernc.org/sqlite，无 CGO）
 - PDF 元数据：github.com/ledongthuc/pdf
-- AI 提取：OpenAI 兼容 Chat Completions API（可配置 Base URL / Model / API Key）
+- AI 提取：DeepSeek（OpenAI 兼容 Chat Completions API，默认 deepseek-chat，可选 deepseek-reasoner）
 - 前端：Vue 3（已内置 vendor，无需构建）+ P3R 设计系统（p3r-tokens.css / p3r-ui.css）
 - 部署：Docker / docker-compose
 
@@ -49,12 +49,12 @@ go run ./cmd/server
 
 ## AI 自动提取说明
 
-1. 点击右上角「AI 设置」，填入 OpenAI 兼容 API Key（可选 Base URL、Model），保存。
+1. 点击右上角「AI 设置」，**只需填入 DeepSeek API Key**，并选择模型（deepseek-chat / deepseek-reasoner），保存。默认供应商为 DeepSeek。
 2. 添加 / 编辑论文时勾选「使用 AI 自动提取剩余元数据」并上传 PDF。
 3. 后端仅在 **已配置 API Key** 时发送 AI 请求；AI 失败不会阻断论文保存。
 4. 详情页提供「AI 提取」按钮，可随时对已有 PDF 重新提取并补全空字段。
 
-环境变量亦可直接注入：`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`。
+环境变量亦可直接注入：`AI_API_KEY`、`AI_BASE_URL`（默认 https://api.deepseek.com）、`AI_MODEL`（默认 deepseek-chat）。
 
 ## 环境变量
 

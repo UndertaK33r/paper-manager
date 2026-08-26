@@ -1,0 +1,64 @@
+{
+  "$schema": "https://tr.designtokens.org/format/",
+  "$description": "P3R aesthetic design tokens (representative approximations of the Persona 3 Reload UI palette; re-sample from screenshots for high-fidelity work).",
+  "P3R": {
+    "color": {
+      "bg": { "$type": "color", "$value": "#071A3C" },
+      "bg-raised": { "$type": "color", "$value": "#0A2348" },
+      "navy": { "$type": "color", "$value": "#0E2E5C" },
+      "navy-deep": { "$type": "color", "$value": "#04102B" },
+      "blue": { "$type": "color", "$value": "#2FB6FF", "$description": "primary accent" },
+      "blue-bright": { "$type": "color", "$value": "#9EE4FF", "$description": "blue text on dark backgrounds" },
+      "blue-deep": { "$type": "color", "$value": "#0E4FA8", "$description": "hover/pressed" },
+      "white": { "$type": "color", "$value": "#F7FBFF" },
+      "grey": { "$type": "color", "$value": "#B7C6D9" },
+      "grey-dark": { "$type": "color", "$value": "#5F7490" },
+      "red": { "$type": "color", "$value": "#FF4D5E", "$description": "danger / Shadow / critical, max ~5% of frame" },
+      "red-deep": { "$type": "color", "$value": "#A9232A" },
+      "amber": { "$type": "color", "$value": "#FFD34D", "$description": "warning / new" },
+      "green": { "$type": "color", "$value": "#4ADE9C", "$description": "success / restore, sparingly" }
+    },
+    "border": {
+      "line": { "$type": "color", "$value": "rgba(244, 247, 251, 0.16)" },
+      "line-strong": { "$type": "color", "$value": "rgba(244, 247, 251, 0.32)" },
+      "line-blue": { "$type": "color", "$value": "rgba(46, 159, 255, 0.55)" }
+    },
+    "glass": {
+      "panel": { "$type": "color", "$value": "rgba(6, 20, 45, 0.82)" },
+      "strong": { "$type": "color", "$value": "rgba(6, 9, 15, 0.92)" },
+      "navy": { "$type": "color", "$value": "rgba(16, 27, 46, 0.82)" }
+    },
+    "fontFamily": {
+      "display": { "$type": "fontFamily", "$value": ["Oswald", "DIN Condensed", "Arial Narrow", "Noto Sans SC", "sans-serif"], "$description": "all-caps headings, wide tracking" },
+      "body": { "$type": "fontFamily", "$value": ["Inter", "Noto Sans SC", "PingFang SC", "system-ui", "sans-serif"] },
+      "mono": { "$type": "fontFamily", "$value": ["JetBrains Mono", "Roboto Mono", "Consolas", "monospace"], "$description": "numerals, data readouts, micro labels" }
+    },
+    "spacing": {
+      "1": { "$type": "spacing", "$value": "4px" },
+      "2": { "$type": "spacing", "$value": "8px" },
+      "3": { "$type": "spacing", "$value": "12px" },
+      "4": { "$type": "spacing", "$value": "16px" },
+      "6": { "$type": "spacing", "$value": "24px" },
+      "8": { "$type": "spacing", "$value": "32px" },
+      "12": { "$type": "spacing", "$value": "48px" }
+    },
+    "shape": {
+      "radius": { "$type": "borderRadius", "$value": "0px", "$description": "No rounded corners, ever" },
+      "cut-sm": { "$type": "other", "$value": "8px", "$description": "single-corner clip depth: small controls" },
+      "cut-md": { "$type": "other", "$value": "14px", "$description": "single-corner clip depth: panels" },
+      "cut-lg": { "$type": "other", "$value": "20px", "$description": "single-corner clip depth: hero/cut-in" }
+    },
+    "motion": {
+      "duration-fast": { "$type": "duration", "$value": "150ms", "$description": "hover feedback" },
+      "duration-mid": { "$type": "duration", "$value": "250ms", "$description": "panel/card enter" },
+      "duration-slow": { "$type": "duration", "$value": "450ms", "$description": "page/menu wipe" },
+      "glitch": { "$type": "duration", "$value": "120ms", "$description": "once, never looping" },
+      "ease-out": { "$type": "cubicBezier", "$value": [0.22, 1, 0.36, 1] },
+      "ease-in": { "$type": "cubicBezier", "$value": [0.4, 0, 1, 1] }
+    },
+    "glow": {
+      "blue": { "$type": "shadow", "$value": "0 0 12px rgba(64, 190, 255, 0.55), 0 0 2px rgba(64, 190, 255, 0.9)" },
+      "red": { "$type": "shadow", "$value": "0 0 12px rgba(229, 72, 77, 0.45)" }
+    }
+  }
+}

@@ -16,6 +16,9 @@ a { color: var(--p3r-blue-bright, #7cc4ff); text-decoration: none; }
   position: sticky; top: 0; z-index: 20;
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
   margin-bottom: 20px;
+  background: linear-gradient(90deg, rgba(18, 87, 184, 0.5), rgba(11, 46, 107, 0.25));
+  border-color: var(--p3r-line-blue, rgba(64,190,255,.6));
+  box-shadow: var(--p3r-glow-blue, 0 0 12px rgba(64,190,255,.55));
 }
 .top-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 

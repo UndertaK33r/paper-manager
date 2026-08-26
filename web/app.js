@@ -276,6 +276,7 @@ var Root = {
       try { await this.api("/api/collections/" + id, { method: "DELETE" }); this.toast("已删除"); await this.loadAll(); await this.loadPapers(); }
       catch (e) { this.toast(e.message, true); }
     },
+    isKnownModel: function (m) { return ["deepseek-chat", "deepseek-reasoner"].indexOf(m) >= 0; },
     openSettings: async function () {
       try { await this.loadAll(); } catch (e) {}
       this.showSettings = true;
