@@ -206,14 +206,14 @@ var Root = {
       var cv=this.$refs.graphCanvas; if(!cv) return; var ctx=cv.getContext("2d");
       ctx.clearRect(0,0,cv.width,cv.height);
       var byId={}; this.graphNodes.forEach(function(n){ byId[n.id]=n; });
-      ctx.strokeStyle="rgba(46,159,255,0.35)"; ctx.lineWidth=1;
+      ctx.strokeStyle="rgba(17,17,17,0.4)"; ctx.lineWidth=1;
       this.graphEdges.forEach(function(e){ var a=byId[e.source]; var b=byId[e.target]; if(!a||!b) return; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); });
       var self=this;
       this.graphNodes.forEach(function(n){
         ctx.beginPath(); ctx.arc(n.x,n.y, n.in_library?9:6, 0, Math.PI*2);
-        ctx.fillStyle = n.in_library ? "#2FB6FF" : "#93A3B4"; ctx.fill();
+        ctx.fillStyle = n.in_library ? "#111111" : "#888888"; ctx.fill();
         ctx.strokeStyle="rgba(125,232,255,0.8)"; ctx.lineWidth=1; ctx.stroke();
-        ctx.font="12px JetBrains Mono, monospace"; ctx.fillStyle="#F7FBFF";
+        ctx.font="12px JetBrains Mono, monospace"; ctx.fillStyle="#111111";
         ctx.fillText((n.title||n.id).slice(0,24), n.x+12, n.y-6);
       });
     },

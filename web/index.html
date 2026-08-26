@@ -9,16 +9,9 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app" class="p3r-shell p3r-sea"></div>
+<div id="app" class="p3r-shell"></div>
 
 <script type="text/x-template" id="app-template">
-<div class="sea-light" aria-hidden="true">
-  <span class="caustic caustic--1"></span>
-  <span class="caustic caustic--2"></span>
-  <span class="caustic caustic--3"></span>
-  <span class="shaft shaft--1"></span>
-  <span class="shaft shaft--2"></span>
-</div>
 <div class="layout">
   <header class="p3r-panel p3r-panel--blue topbar p3r-wipe-in">
     <div class="brand"><span class="p3r-h2 p3r-glassy">PAPER BRAIN</span></div>
@@ -61,7 +54,7 @@
         <select class="p3r-input" v-model="tagFilter" @change="applyFilters"><option value="">全部标签</option><option v-for="t in tags" :value="t.name" :key="t.id">{{ t.name }}</option></select>
         <div class="view-toggle"><button class="p3r-btn small" :class="{active: view==='table'}" @click="view='table'">表格</button><button class="p3r-btn small" :class="{active: view==='card'}" @click="view='card'">卡片</button></div>
         <button class="p3r-btn small" @click="exportBib">导出 BibTeX</button>
-        <button class="p3r-btn small" :class="{active: askOpen}" @click="askOpen=!askOpen">✦ 问论文库</button>
+        <button class="p3r-btn small" :class="{active: askOpen}" @click="askOpen=!askOpen">问论文库</button>
       </div>
     </div>
 
@@ -83,7 +76,7 @@
             <td>{{ p.year }}</td>
             <td>{{ p.categoryName }}</td>
             <td><span v-for="t in p.tags" class="p3r-badge" :key="t.id">{{ t.name }}</span></td>
-            <td><span class="p3r-badge" :class="{'p3r-badge--red': p.status==='read'}">{{ statusLabel(p.status) }}</span> <span v-if="p.starred" class="p3r-badge">★</span></td>
+            <td><span class="p3r-badge" :class="{'p3r-badge--red': p.status==='read'}">{{ statusLabel(p.status) }}</span> <span v-if="p.starred" class="p3r-badge">收藏</span></td>
             <td class="ellipsis">{{ p.snippet || p.summary }}</td>
             <td><div class="actions"><button class="p3r-btn small" @click="openDetail(p.id)">详情</button><button class="p3r-btn small" @click="openEdit(p)">编辑</button><button class="p3r-btn small" @click="cycleStatus(p.id)">状态</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button></div></td>
           </tr>
