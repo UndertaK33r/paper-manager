@@ -151,8 +151,8 @@
           <label>合集<input class="p3r-input" v-model="form.collections" placeholder="逗号分隔"></label>
         </div>
         <div class="grid2">
-          <label>PDF 文件<input class="p3r-input" type="file" accept=".pdf,application/pdf" ref="pdfInput"></label>
-          <div class="ai-check"><label class="check-row"><input type="checkbox" v-model="form.useAI"> 使用 AI 自动提取剩余元数据</label><span class="p3r-readout">{{ hasApiKey ? 'API KEY READY' : 'NO API KEY — 将跳过 AI' }}</span></div>
+          <label>PDF 文件<input class="p3r-input" type="file" accept=".pdf,application/pdf" ref="pdfInput" @change="onPdfChange"></label>
+          <div class="ai-check"><label class="check-row"><input type="checkbox" v-model="form.useAI"> 使用 AI 自动提取剩余元数据</label><span class="p3r-readout">{{ pdfExtracting ? 'EXTRACTING...' : (hasApiKey ? 'API KEY READY — 选择 PDF 后自动提取' : 'NO API KEY — 仅基础提取' ) }}</span></div>
         </div>
         <label>AI 一句话总结<textarea class="p3r-input" v-model="form.summary" rows="2" placeholder="上传 PDF 后可由 AI 自动提取"></textarea></label>
         <label>笔记<textarea class="p3r-input" v-model="form.notes" rows="4"></textarea></label>

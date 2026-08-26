@@ -14,9 +14,10 @@
 ## 已实现功能（MVP）
 
 - 论文 CRUD：添加（PDF 上传 + 元数据自动提取）、查看、编辑、删除
-- **导入 PDF 后自动提取**：
-  - 基础提取：标题、作者、关键词（来自 PDF Info）
+- **选择 PDF 后表单自动填充**（无需先保存）：
+  - 基础提取：标题（原文件名兜底）、作者、关键词（来自 PDF Info）
   - AI 补充提取（可选）：作者、年份、期刊/会议、DOI、关键词、一句话总结、建议分类
+  - 已自动提取成功时，保存阶段不再重复发送 AI 请求
   - 未配置 API Key 时自动跳过 AI 请求，不会报错
 - 去重检测：DOI 精确；无 DOI 时按「归一化标题 + 第一作者」；重复时提示确认
 - PDF 管理：上传、存储、浏览器内预览、下载
@@ -72,6 +73,7 @@ go run ./cmd/server
 ```
 GET    /api/papers                        列表（search/category/tags/collections/yearFrom/yearTo/read/starred/sort/order/page/pageSize）
 POST   /api/papers                        添加论文（multipart；useAI=1 时自动 AI 提取）
+POST   /api/papers/extract-pdf            PDF 预览提取（返回元数据，不创建论文）
 GET    /api/papers/{id}                   详情
 PUT    /api/papers/{id}                   更新（multipart 或 JSON）
 DELETE /api/papers/{id}                   删除

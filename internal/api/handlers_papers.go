@@ -78,36 +78,38 @@ func (s *Server) decodeInput(w http.ResponseWriter, r *http.Request) (models.Pap
 	return in, false, nil
 }
 
-func (s *Server) savePdf(r *http.Request) (string, int64, error) {
+func (s *Server) savePdf(r *http.Request) (string, int64, string, error) {
 	file, header, err := r.FormFile("pdf")
 	if err != nil {
-		return "", 0, nil
+		return "", 0, "", nil
 	}
 	defer file.Close()
 	if !strings.HasSuffix(strings.ToLower(header.Filename), ".pdf") {
-		return "", 0, fmt.Errorf("only PDF files are supported")
+		return "", 0, "", fmt.Errorf("only PDF files are supported")
 	}
 	name := randomName() + ".pdf"
 	dst := filepath.Join(s.uploadDir, name)
 	out, err := os.Create(dst)
 	if err != nil {
-		return "", 0, err
+		return "", 0, "", err
 	}
 	n, err := io.Copy(out, file)
 	closeErr := out.Close()
 	if err != nil {
 		os.Remove(dst)
-		return "", 0, err
+		return "", 0, "", err
 	}
 	if closeErr != nil {
 		os.Remove(dst)
-		return "", 0, closeErr
+		return "", 0, "", closeErr
 	}
 	if n == 0 {
 		os.Remove(dst)
-		return "", 0, fmt.Errorf("empty PDF file")
+		return "", 0, "", fmt.Errorf("empty PDF file")
 	}
-	return name, n, nil
+	orig := filepath.Base(header.Filename)
+	orig = strings.TrimSuffix(orig, filepath.Ext(orig))
+	return name, n, strings.TrimSpace(orig), nil
 }
 
 func randomName() string {
@@ -125,20 +127,16 @@ func (s *Server) handleCreatePaper(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Title = strings.TrimSpace(in.Title)
-	if in.Title == "" {
-		writeError(w, http.StatusBadRequest, "title is required")
-		return
-	}
 	pdfPath, pdfSize := "", int64(0)
 	if isMultipart {
-		name, size, perr := s.savePdf(r)
+		name, size, origName, perr := s.savePdf(r)
 		if perr != nil {
 			writeError(w, http.StatusBadRequest, perr.Error())
 			return
 		}
 		if name != "" {
 			pdfPath, pdfSize = name, size
-			meta, merr := pdfmeta.Extract(filepath.Join(s.uploadDir, name))
+			meta, merr := pdfmeta.ExtractWithFallback(filepath.Join(s.uploadDir, name), origName)
 			if merr != nil {
 				os.Remove(filepath.Join(s.uploadDir, name))
 				writeError(w, http.StatusBadRequest, "无法解析 PDF 元数据: "+merr.Error())
@@ -154,6 +152,13 @@ func (s *Server) handleCreatePaper(w http.ResponseWriter, r *http.Request) {
 				in.Keywords = meta.Keywords
 			}
 		}
+	}
+	if in.Title == "" {
+		if pdfPath != "" {
+			os.Remove(filepath.Join(s.uploadDir, pdfPath))
+		}
+		writeError(w, http.StatusBadRequest, "title is required")
+		return
 	}
 	dup, derr := s.store.FindDuplicate(in.Title, in.Authors, in.DOI)
 	if derr != nil {
@@ -248,13 +253,13 @@ func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isMultipart {
-		name, size, perr := s.savePdf(r)
+		name, size, origName, perr := s.savePdf(r)
 		if perr != nil {
 			writeError(w, http.StatusBadRequest, perr.Error())
 			return
 		}
 		if name != "" {
-			meta, merr := pdfmeta.Extract(filepath.Join(s.uploadDir, name))
+			meta, merr := pdfmeta.ExtractWithFallback(filepath.Join(s.uploadDir, name), origName)
 			if merr != nil {
 				os.Remove(filepath.Join(s.uploadDir, name))
 				writeError(w, http.StatusBadRequest, "无法解析 PDF 元数据: "+merr.Error())

@@ -10,7 +10,7 @@ var Root = {
       view: "table",
       filters: { search: "", category: "", tag: "", collection: "", yearFrom: "", yearTo: "", read: "", starred: "", sort: "created", order: "desc" },
       showPaperModal: false, editingId: null, saving: false, form: makeEmptyForm(),
-      showDetail: false, detail: {}, tagSelect: "", collectionSelect: "", aiExtracting: false,
+      showDetail: false, detail: {}, tagSelect: "", collectionSelect: "", aiExtracting: false, pdfExtracting: false,
       showManage: false, newCategory: "", newTag: "", newCollection: "",
       showSettings: false,
       settings: { aiBaseUrl: "https://api.openai.com/v1", aiModel: "gpt-4o-mini", aiApiKey: "" },
@@ -90,7 +90,7 @@ var Root = {
     setView: function (v) { this.view = v; },
     goPage: function (p) { if (p < 1 || p > this.pages) return; this.page = p; this.loadPapers(); },
     openAdd: function () {
-      this.editingId = null; this.form = makeEmptyForm();
+      this.editingId = null; this.form = makeEmptyForm(); this.pdfExtracting = false;
       if (this.$refs.pdfInput) this.$refs.pdfInput.value = "";
       this.showPaperModal = true;
     },
@@ -104,10 +104,34 @@ var Root = {
         collections: (p.collections || []).map(function (c) { return c.name; }).join(", "),
         read: !!p.read, starred: !!p.starred, useAI: true
       };
+      this.pdfExtracting = false;
       if (this.$refs.pdfInput) this.$refs.pdfInput.value = "";
       this.showDetail = false; this.showPaperModal = true;
     },
     closePaperModal: function () { this.showPaperModal = false; },
+
+    onPdfChange: async function () {
+      var el = this.$refs.pdfInput;
+      if (!el || !el.files || !el.files[0]) return;
+      this.pdfExtracting = true;
+      var fd = new FormData();
+      fd.append("pdf", el.files[0], el.files[0].name);
+      fd.append("useAI", this.form.useAI ? "1" : "0");
+      try {
+        var m = await this.api("/api/papers/extract-pdf", { method: "POST", body: fd });
+        if (!this.form.title) this.form.title = m.title || "";
+        if (!this.form.authors) this.form.authors = m.authors || "";
+        if (!this.form.year) this.form.year = m.year || "";
+        if (!this.form.venue) this.form.venue = m.venue || "";
+        if (!this.form.doi) this.form.doi = m.doi || "";
+        if (!this.form.keywords) this.form.keywords = m.keywords || "";
+        if (!this.form.summary) this.form.summary = m.summary || "";
+        if (m.aiUsed) this.form.useAI = false;
+        this.toast(m.aiUsed ? "已自动提取（AI），保存时不再重复请求" : "已提取 PDF 基础元数据");
+      } catch (e) { this.toast(e.message, true); }
+      this.pdfExtracting = false;
+    },
+
     submitPaperForm: async function () {
       if (!this.form.title.trim()) { this.toast("标题必填", true); return; }
       var fd = new FormData();

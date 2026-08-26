@@ -214,3 +214,85 @@ func paperToInput(p *models.Paper) models.PaperInput {
 	}
 	return in
 }
+
+func fillAIMeta(in *models.PaperInput, r ai.MetaResult) {
+	if strings.TrimSpace(in.Title) == "" {
+		in.Title = strings.TrimSpace(r.Title)
+	}
+	if strings.TrimSpace(in.Authors) == "" {
+		in.Authors = strings.TrimSpace(r.Authors)
+	}
+	if in.Year == 0 {
+		if y, err := strconv.Atoi(strings.TrimSpace(r.Year)); err == nil {
+			in.Year = y
+		}
+	}
+	if strings.TrimSpace(in.Venue) == "" {
+		in.Venue = strings.TrimSpace(r.Venue)
+	}
+	if strings.TrimSpace(in.DOI) == "" {
+		in.DOI = strings.TrimSpace(r.DOI)
+	}
+	if strings.TrimSpace(in.Keywords) == "" {
+		in.Keywords = strings.TrimSpace(r.Keywords)
+	}
+	if strings.TrimSpace(in.Summary) == "" {
+		in.Summary = strings.TrimSpace(r.Summary)
+	}
+}
+
+func (s *Server) handleExtractPDF(w http.ResponseWriter, r *http.Request) {
+	size := s.maxUploadMB * 1024 * 1024
+	r.Body = http.MaxBytesReader(w, r.Body, size)
+	if err := r.ParseMultipartForm(size); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	useAI := r.FormValue("useAI") == "1" || strings.EqualFold(r.FormValue("useAI"), "true")
+	name, _, origName, err := s.savePdf(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "pdf file required")
+		return
+	}
+	defer os.Remove(filepath.Join(s.uploadDir, name))
+	meta, err := pdfmeta.ExtractWithFallback(filepath.Join(s.uploadDir, name), origName)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "无法解析 PDF: "+err.Error())
+		return
+	}
+	in := models.PaperInput{
+		Title:    meta.Title,
+		Authors:  meta.Author,
+		Keywords: meta.Keywords,
+		UseAI:    useAI,
+	}
+	aiUsed := false
+	if useAI {
+		if cfg, ok := s.aiConfig(); ok {
+			text, terr := pdfmeta.ExtractText(filepath.Join(s.uploadDir, name), 20000)
+			if terr == nil && strings.TrimSpace(text) != "" {
+				client := ai.NewClient(cfg)
+				ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+				defer cancel()
+				if result, aerr := client.ExtractMeta(ctx, text); aerr == nil {
+					fillAIMeta(&in, result)
+					aiUsed = true
+				}
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"title":    in.Title,
+		"authors":  in.Authors,
+		"year":     in.Year,
+		"venue":    in.Venue,
+		"doi":      in.DOI,
+		"keywords": in.Keywords,
+		"summary":  in.Summary,
+		"aiUsed":   aiUsed,
+	})
+}

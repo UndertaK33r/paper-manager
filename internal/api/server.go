@@ -49,6 +49,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/papers", s.handleListPapers)
 	mux.HandleFunc("POST /api/papers", s.handleCreatePaper)
+	mux.HandleFunc("POST /api/papers/extract-pdf", s.handleExtractPDF)
 	mux.HandleFunc("GET /api/papers/{id}", s.handleGetPaper)
 	mux.HandleFunc("PUT /api/papers/{id}", s.handleUpdatePaper)
 	mux.HandleFunc("DELETE /api/papers/{id}", s.handleDeletePaper)

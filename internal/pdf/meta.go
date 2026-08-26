@@ -16,6 +16,10 @@ type Meta struct {
 }
 
 func Extract(path string) (Meta, error) {
+	return ExtractWithFallback(path, "")
+}
+
+func ExtractWithFallback(path, fallbackTitle string) (Meta, error) {
 	f, r, err := pdf.Open(path)
 	if err != nil {
 		return Meta{}, err
@@ -28,18 +32,25 @@ func Extract(path string) (Meta, error) {
 	m.Keywords = strings.TrimSpace(info.Key("Keywords").Text())
 	m.Subject = strings.TrimSpace(info.Key("Subject").Text())
 	if m.Title == "" {
+		m.Title = cleanTitle(fallbackTitle)
+	}
+	if m.Title == "" {
 		m.Title = titleFromFilename(path)
 	}
 	return m, nil
 }
 
 func titleFromFilename(path string) string {
-	base := filepath.Base(path)
-	base = strings.TrimSuffix(base, filepath.Ext(base))
-	base = strings.ReplaceAll(base, "_", " ")
-	base = strings.ReplaceAll(base, "-", " ")
-	base = strings.ReplaceAll(base, ".", " ")
-	return strings.TrimSpace(base)
+	return cleanTitle(filepath.Base(path))
+}
+
+func cleanTitle(s string) string {
+	s = filepath.Base(s)
+	s = strings.TrimSuffix(s, filepath.Ext(s))
+	s = strings.ReplaceAll(s, "_", " ")
+	s = strings.ReplaceAll(s, "-", " ")
+	s = strings.ReplaceAll(s, ".", " ")
+	return strings.TrimSpace(s)
 }
 
 func ExtractText(path string, maxChars int) (string, error) {
