@@ -172,3 +172,45 @@ func (s *Server) handleReExtract(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": "1.0"})
 }
+
+// handleRedetect 用健壮提取器 + 在线补全重新识别元数据（可修正历史错误记录）。
+func (s *Server) handleRedetect(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	p, err := s.store.GetPaper(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "paper not found")
+		return
+	}
+	if !p.HasPDF || p.PDFPath == "" {
+		writeError(w, http.StatusBadRequest, "paper has no PDF")
+		return
+	}
+	meta, merr := pdfmeta.ExtractWithFallback(filepath.Join(s.uploadDir, p.PDFPath), "")
+	if merr == nil {
+		if strings.TrimSpace(meta.Title) != "" {
+			p.Title = strings.TrimSpace(meta.Title)
+		}
+		if strings.TrimSpace(meta.Author) != "" && strings.TrimSpace(p.Authors) == "" {
+			p.Authors = strings.TrimSpace(meta.Author)
+		}
+		if strings.TrimSpace(meta.Keywords) != "" && strings.TrimSpace(p.Keywords) == "" {
+			p.Keywords = strings.TrimSpace(meta.Keywords)
+		}
+	}
+	if text, terr := pdfmeta.ExtractText(filepath.Join(s.uploadDir, p.PDFPath), 200000); terr == nil {
+		p.FullText = text
+	}
+	in := paperToInput(&p)
+	_ = s.maybeEnrich(&in, p.PDFPath)
+	p = s.paperFromInput(in, &p)
+	if err := s.store.UpdatePaper(&p); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	paper, _ := s.store.GetPaper(id)
+	writeJSON(w, http.StatusOK, paper)
+}

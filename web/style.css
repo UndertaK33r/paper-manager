@@ -51,7 +51,7 @@ b { font-weight: 700; }
   font-size: 13px; font-weight: 400; letter-spacing: 0.02em;
   color: var(--k-ink, #141414); background: var(--k-bg, #fff);
   border: 1px solid var(--k-line-strong, #DCDCDC);
-  border-radius: 999px;
+  border-radius: 0;
   transition: all 0.18s ease-out;
 }
 .p3r-btn:hover { background: var(--k-bg-soft, #FAFAFA); border-color: var(--k-ink, #141414); }
@@ -68,9 +68,9 @@ b { font-weight: 700; }
 .p3r-panel, .p3r-sheet {
   background: var(--k-bg, #fff);
   border: 1px solid var(--k-line, #ECECEC);
-  border-radius: 12px;
+  border-radius: 0;
   padding: 24px;
-  clip-path: none;
+  clip-path: polygon(12px 0, 100% 0, 100% 100%, 0 100%, 0 12px);
   transition: border-color 0.18s ease-out, background 0.18s ease-out;
 }
 .p3r-panel:hover, .p3r-sheet:hover { border-color: var(--k-line-strong, #DCDCDC); }
@@ -92,7 +92,7 @@ b { font-weight: 700; }
   font-family: var(--k-font, sans-serif); font-size: 14px; color: var(--k-ink);
   background: var(--k-bg-raise, #F4F4F4);
   border: 1px solid var(--k-line-strong, #DCDCDC);
-  border-radius: 12px;
+  border-radius: 0;
   outline: none;
   transition: all 0.18s ease-out;
 }
@@ -114,12 +114,12 @@ label .p3r-input, .p3r-form label .p3r-input { display: block; width: 100%; marg
 
 /* ---- 表格（细线） ---- */
 .p3r-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.p3r-table th {
+.p3r-table th { vertical-align: middle;
   text-align: left; padding: 10px 12px;
   font-family: var(--k-font-mono, "JetBrains Mono", monospace); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--k-mute, #8C8C8C); border-bottom: 1px solid var(--k-line-strong, #DCDCDC);
 }
-.p3r-table td { padding: 12px; border-bottom: 1px solid var(--k-line, #ECECEC); color: var(--k-ink); }
+.p3r-table td { padding: 12px; border-bottom: 1px solid var(--k-line, #ECECEC); color: var(--k-ink); vertical-align: middle; }
 .p3r-table tbody tr:hover td { background: var(--k-bg-soft, #FAFAFA); }
 .title-cell { color: var(--k-ink); cursor: pointer; font-weight: 500; }
 .title-cell:hover { text-decoration: underline; }
@@ -170,7 +170,7 @@ label .p3r-input, .p3r-form label .p3r-input { display: block; width: 100%; marg
 }
 .p3r-dialog {
   background: var(--k-bg, #fff); border: 1px solid var(--k-line-strong, #DCDCDC);
-  border-radius: 16px; clip-path: none;
+  border-radius: 0; clip-path: polygon(14px 0, 100% 0, 100% 100%, 0 100%, 0 14px);
   max-width: 720px; margin: 0 auto; padding: 28px;
 }
 .p3r-dialog::after { content: ""; }
@@ -219,6 +219,41 @@ label .p3r-input, .p3r-form label .p3r-input { display: block; width: 100%; marg
 .toast.error { background: #333; }
 
 /* ---- 深色模式自动（kimi-tokens 提供变量切换，这里适配元素阴影等） ---- */
+
+/* ---- 字体对齐 / 行高 ---- */
+.p3r-btn, .p3r-input, .p3r-badge, .p3r-readout { line-height: 1.4; vertical-align: middle; }
+.toolbar-row, .inline-form, .actions { align-items: center; }
+.grid2 label { display: flex; flex-direction: column; gap: 4px; }
+.p3r-table th, .p3r-table td { line-height: 1.5; }
+.p3r-form label { line-height: 1.6; }
+.form-actions { align-items: center; }
+
+/* ---- 背景：稀疏五线谱 + 音符 ---- */
+.staff-notes { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.staff {
+  position: absolute; left: -10%; right: -10%; top: 12%; bottom: 12%;
+  background: repeating-linear-gradient(180deg, var(--k-faint, #B9B9B9) 0 1px, transparent 1px 9px, var(--k-faint, #B9B9B9) 9px 10px, transparent 10px 18px, var(--k-faint, #B9B9B9) 18px 19px, transparent 19px 27px, var(--k-faint, #B9B9B9) 27px 28px, transparent 28px 36px, var(--k-faint, #B9B9B9) 36px 37px, transparent 37px 80px);
+  opacity: 0.12;
+}
+.staff-note {
+  position: absolute; color: var(--k-note, #141414); opacity: 0.16; font-size: 22px;
+  animation: staff-note-float 3.2s ease-in-out infinite;
+}
+.staff-note.n1 { left: 8%; top: 14%; }
+.staff-note.n2 { left: 26%; top: 62%; font-size: 18px; animation-delay: -1.2s; }
+.staff-note.n3 { left: 48%; top: 30%; font-size: 26px; animation-delay: -2.1s; }
+.staff-note.n4 { left: 68%; top: 72%; font-size: 20px; animation-delay: -0.6s; }
+.staff-note.n5 { left: 84%; top: 22%; font-size: 16px; animation-delay: -1.8s; }
+.staff-note.n6 { left: 58%; top: 88%; font-size: 24px; animation-delay: -2.6s; }
+@keyframes staff-note-float {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-6px) rotate(3deg); }
+  100% { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .staff-note { animation: none; }
+}
+
 @media (max-width: 760px) {
   .layout { padding: 16px 14px 64px; }
   .topbar { flex-direction: column; align-items: stretch; }

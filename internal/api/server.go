@@ -59,6 +59,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/papers/{id}/toggle-read", s.handleToggleRead)
 	mux.HandleFunc("POST /api/papers/{id}/status", s.handleSetStatus)
 	mux.HandleFunc("POST /api/papers/{id}/re-extract", s.handleReExtract)
+	mux.HandleFunc("POST /api/papers/{id}/re-detect", s.handleRedetect)
 	mux.HandleFunc("POST /api/papers/{id}/toggle-star", s.handleToggleStar)
 	mux.HandleFunc("POST /api/papers/{id}/tags", s.handleAddPaperTag)
 	mux.HandleFunc("DELETE /api/papers/{id}/tags/{tagID}", s.handleRemovePaperTag)

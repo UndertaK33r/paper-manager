@@ -34,10 +34,10 @@ func ExtractWithFallback(path, fallbackTitle string) (Meta, error) {
 	// 老项目同款流扫描提取（不依赖 xref，兼容性更好）
 	text, big, _ := ExtractPDFText(path)
 	if m.Title == "" {
-		m.Title = SniffTitle(text)
+		m.Title = SniffTitle(big)
 	}
 	if m.Title == "" {
-		m.Title = SniffTitle(big)
+		m.Title = SniffTitle(text)
 	}
 	if m.Title == "" {
 		m.Title = cleanTitle(fallbackTitle)
