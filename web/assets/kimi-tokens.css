@@ -1,0 +1,101 @@
+/* ============================================================================
+   kimi-tokens.css — Kimi-style monochrome design tokens
+   Part of the `kimi-aesthetic` skill. Zero dependencies.
+   Pure greyscale: white canvas, ink text, grey hierarchy. The ONLY
+   decorative element allowed elsewhere is the music note (♪/♫).
+   Calibrated from kimi.com's shipped styling (palette layers are #fff/#000
+   grey-steps; line icons, fill:none). Dark mode flips automatically.
+   ========================================================================== */
+
+:root {
+  color-scheme: light dark;
+
+  /* ── monochrome scale ─────────────────────────────────────────────────── */
+  --k-bg: #ffffff;
+  --k-bg-soft: #fafafa;
+  --k-bg-raise: #f4f4f4;
+  --k-ink: #141414;
+  --k-ink-soft: #4a4a4a;
+  --k-mute: #8c8c8c;
+  --k-faint: #b9b9b9;
+  --k-line: #ececec;
+  --k-line-strong: #dcdcdc;
+  --k-note: var(--k-ink);          /* the note accent = ink. no colors. */
+
+  /* ── typography ───────────────────────────────────────────────────────── */
+  --k-font: "Inter", "Noto Sans SC", "PingFang SC", system-ui, -apple-system, sans-serif;
+  --k-font-mono: "JetBrains Mono", "Roboto Mono", "SFMono-Regular", Consolas, monospace;
+  --k-display-weight: 350;
+  --k-body-size: 15px;
+  --k-body-lh: 1.8;
+
+  /* ── radii (no cut corners; calm rounds) ──────────────────────────────── */
+  --k-radius-sm: 8px;
+  --k-radius-md: 12px;
+  --k-radius-lg: 16px;
+  --k-radius-pill: 999px;
+
+  /* ── spacing (8px grid) ───────────────────────────────────────────────── */
+  --k-space-1: 4px;
+  --k-space-2: 8px;
+  --k-space-3: 12px;
+  --k-space-4: 16px;
+  --k-space-5: 20px;
+  --k-space-6: 24px;
+  --k-space-8: 32px;
+  --k-space-10: 40px;
+  --k-space-12: 48px;
+  --k-section: 96px;               /* section rhythm: 96/128/160 */
+
+  /* ── layout ───────────────────────────────────────────────────────────── */
+  --k-container: 1120px;
+  --k-container-narrow: 680px;     /* ~65ch body text */
+  --k-row-height: 56px;
+
+  /* ── motion: everything ≤0.3s ease-out, no bounce, no glitch ──────────── */
+  --k-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --k-fast: 180ms;
+  --k-mid: 300ms;
+  --k-reveal: 500ms;
+  --k-note-float-dur: 3.2s;
+
+  /* ── focus ring (the only "shadow" allowed) ───────────────────────────── */
+  --k-focus-ring: 0 0 0 4px rgba(20, 20, 20, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --k-bg: #0a0a0a;
+    --k-bg-soft: #111111;
+    --k-bg-raise: #1a1a1a;
+    --k-ink: #f5f5f5;
+    --k-ink-soft: #b0b0b0;
+    --k-mute: #7c7c7c;
+    --k-faint: #4f4f4f;
+    --k-line: #262626;
+    --k-line-strong: #333333;
+    --k-note: var(--k-ink);
+    --k-focus-ring: 0 0 0 4px rgba(245, 245, 245, 0.10);
+  }
+}
+
+/* ============================================================================
+   Tailwind v4 mapping — copy into your app CSS after `@import "tailwindcss";`
+   ========================================================================== */
+/*
+@theme {
+  --color-k-bg: #ffffff;
+  --color-k-bg-soft: #fafafa;
+  --color-k-bg-raise: #f4f4f4;
+  --color-k-ink: #141414;
+  --color-k-ink-soft: #4a4a4a;
+  --color-k-mute: #8c8c8c;
+  --color-k-faint: #b9b9b9;
+  --color-k-line: #ececec;
+  --color-k-line-strong: #dcdcdc;
+  --font-k: "Inter", "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+  --font-k-mono: "JetBrains Mono", "Roboto Mono", Consolas, monospace;
+  --radius-k-md: 12px;
+  --radius-k-lg: 16px;
+}
+*/
