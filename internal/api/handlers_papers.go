@@ -128,6 +128,7 @@ func (s *Server) handleCreatePaper(w http.ResponseWriter, r *http.Request) {
 	}
 	in.Title = strings.TrimSpace(in.Title)
 	pdfPath, pdfSize := "", int64(0)
+	fullText := ""
 	if isMultipart {
 		name, size, origName, perr := s.savePdf(r)
 		if perr != nil {
@@ -151,6 +152,7 @@ func (s *Server) handleCreatePaper(w http.ResponseWriter, r *http.Request) {
 			if in.Keywords == "" {
 				in.Keywords = meta.Keywords
 			}
+			fullText, _ = pdfmeta.ExtractText(filepath.Join(s.uploadDir, name), 200000)
 		}
 	}
 	if in.Title == "" {
@@ -160,6 +162,7 @@ func (s *Server) handleCreatePaper(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "title is required")
 		return
 	}
+	_ = s.maybeEnrich(&in, pdfPath)
 	dup, derr := s.store.FindDuplicate(in.Title, in.Authors, in.DOI)
 	if derr != nil {
 		if pdfPath != "" {
@@ -185,6 +188,7 @@ func (s *Server) handleCreatePaper(w http.ResponseWriter, r *http.Request) {
 	p := s.paperFromInput(in, nil)
 	p.PDFPath = pdfPath
 	p.PDFSize = pdfSize
+	p.FullText = fullText
 	id, err := s.store.CreatePaper(&p)
 	if err != nil {
 		if pdfPath != "" {
@@ -277,11 +281,16 @@ func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
 			if in.Keywords == "" {
 				in.Keywords = meta.Keywords
 			}
+			current.FullText, _ = pdfmeta.ExtractText(filepath.Join(s.uploadDir, name), 200000)
 			if old != "" && old != name {
 				os.Remove(filepath.Join(s.uploadDir, old))
 			}
 		}
 	}
+	if current.FullText == "" {
+		current.FullText = s.store.PaperFullText(id)
+	}
+	_ = s.maybeEnrich(&in, current.PDFPath)
 	if err := s.maybeAIExtract(&in, current.PDFPath); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -486,10 +495,6 @@ func (s *Server) handleRemovePaperCollection(w http.ResponseWriter, r *http.Requ
 	}
 	paper, _ := s.store.GetPaper(id)
 	writeJSON(w, http.StatusOK, paper)
-}
-
-func (s *Server) handleSummarize(w http.ResponseWriter, r *http.Request) {
-	writeError(w, http.StatusNotImplemented, "AI summarization is planned for phase 2; the interface is reserved")
 }
 
 func (s *Server) decodeJSONOnly(w http.ResponseWriter, r *http.Request, v any) bool {

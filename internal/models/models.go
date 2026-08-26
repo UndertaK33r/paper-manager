@@ -39,6 +39,7 @@ type Paper struct {
 	HasPDF       bool         `json:"hasPdf"`
 	PDFSize      int64        `json:"pdfSize"`
 	PDFPath      string       `json:"pdfPath,omitempty"`
+	FullText     string       `json:"fulltext,omitempty"`
 	CreatedAt    time.Time    `json:"createdAt"`
 	UpdatedAt    time.Time    `json:"updatedAt"`
 	Tags         []Tag        `json:"tags"`

@@ -56,8 +56,8 @@ func buildWhere(q models.PaperQuery) (string, []any) {
 	args := []any{}
 	if q.Search != "" {
 		like := "%" + strings.ToLower(q.Search) + "%"
-		conds = append(conds, `(lower(p.title) LIKE ? OR lower(p.authors) LIKE ? OR lower(p.venue) LIKE ? OR lower(p.doi) LIKE ? OR lower(p.keywords) LIKE ?)`)
-		for i := 0; i < 5; i++ {
+		conds = append(conds, `(lower(p.title) LIKE ? OR lower(p.authors) LIKE ? OR lower(p.venue) LIKE ? OR lower(p.doi) LIKE ? OR lower(p.keywords) LIKE ? OR lower(p.fulltext) LIKE ?)`)
+		for i := 0; i < 6; i++ {
 			args = append(args, like)
 		}
 	}
@@ -251,4 +251,13 @@ func (s *Store) FindDuplicate(title, authors, doi string) (*models.Paper, error)
 		}
 	}
 	return nil, rows.Err()
+}
+
+func (s *Store) PaperFullText(id int64) string {
+	var v string
+	err := s.db.QueryRow("SELECT fulltext FROM papers WHERE id = ?", id).Scan(&v)
+	if err != nil {
+		return ""
+	}
+	return v
 }

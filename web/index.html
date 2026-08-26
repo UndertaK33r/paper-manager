@@ -190,6 +190,7 @@
           <button class="p3r-btn small" @click="toggleStar(detail.id)">{{ detail.starred ? '取消收藏' : '加入收藏' }}</button>
           <button class="p3r-btn small" @click="openEdit(detail)">编辑</button>
           <button class="p3r-btn small" @click="aiExtract(detail.id)">{{ aiExtracting ? 'AI 提取中...' : 'AI 提取' }}</button>
+          <button class="p3r-btn small" @click="summarize(detail.id)">{{ summarizing ? '总结中...' : 'AI 总结' }}</button>
           <a v-if="detail.hasPdf" class="p3r-btn small" :href="'/api/papers/' + detail.id + '/pdf'" target="_blank">打开 PDF</a>
           <a v-if="detail.hasPdf" class="p3r-btn small" :href="'/api/papers/' + detail.id + '/pdf?download=1'" target="_blank">下载 PDF</a>
           <button class="p3r-btn small p3r-btn--danger" @click="deletePaper(detail.id)">删除</button>

@@ -10,7 +10,7 @@ var Root = {
       view: "table",
       filters: { search: "", category: "", tag: "", collection: "", yearFrom: "", yearTo: "", read: "", starred: "", sort: "created", order: "desc" },
       showPaperModal: false, editingId: null, saving: false, form: makeEmptyForm(),
-      showDetail: false, detail: {}, tagSelect: "", collectionSelect: "", aiExtracting: false, pdfExtracting: false,
+      showDetail: false, detail: {}, tagSelect: "", collectionSelect: "", aiExtracting: false, summarizing: false, pdfExtracting: false,
       showManage: false, newCategory: "", newTag: "", newCollection: "",
       showSettings: false,
       settings: { aiBaseUrl: "https://api.openai.com/v1", aiModel: "gpt-4o-mini", aiApiKey: "" },
@@ -33,7 +33,7 @@ var Root = {
     }
   },
   methods: {
-    toast: function (msg, error) {
+    notify: function (msg, error) {
       var self = this;
       this.toast.show = true; this.toast.msg = msg; this.toast.error = !!error;
       clearTimeout(this._toastTimer);
@@ -61,7 +61,7 @@ var Root = {
         this.hasApiKey = !!st.hasApiKey;
         this.settings.aiBaseUrl = st.aiBaseUrl || this.settings.aiBaseUrl;
         this.settings.aiModel = st.aiModel || this.settings.aiModel;
-      } catch (e) { this.toast(e.message, true); }
+      } catch (e) { this.notify(e.message, true); }
     },
     queryString: function () {
       var q = []; var f = this.filters;
@@ -78,7 +78,7 @@ var Root = {
         var res = await this.api(this.queryString());
         this.papers = res.papers || []; this.total = res.total; this.page = res.page;
         this.pages = Math.max(1, Math.ceil(res.total / res.pageSize));
-      } catch (e) { this.toast(e.message, true); }
+      } catch (e) { this.notify(e.message, true); }
       this.loading = false;
     },
     onSearchInput: function () {
@@ -127,13 +127,13 @@ var Root = {
         if (!this.form.keywords) this.form.keywords = m.keywords || "";
         if (!this.form.summary) this.form.summary = m.summary || "";
         if (m.aiUsed) this.form.useAI = false;
-        this.toast(m.aiUsed ? "已自动提取（AI），保存时不再重复请求" : "已提取 PDF 基础元数据");
-      } catch (e) { this.toast(e.message, true); }
+        this.notify(m.aiUsed ? "已自动提取（AI），保存时不再重复请求" : "已提取 PDF 基础元数据");
+      } catch (e) { this.notify(e.message, true); }
       this.pdfExtracting = false;
     },
 
     submitPaperForm: async function () {
-      if (!this.form.title.trim()) { this.toast("标题必填", true); return; }
+      if (!this.form.title.trim()) { this.notify("标题必填", true); return; }
       var fd = new FormData();
       fd.append("title", this.form.title); fd.append("authors", this.form.authors);
       fd.append("year", this.form.year); fd.append("venue", this.form.venue);
@@ -150,7 +150,7 @@ var Root = {
       this.saving = true;
       try {
         await this.api(url, { method: method, body: fd });
-        this.toast("保存成功"); this.showPaperModal = false;
+        this.notify("保存成功"); this.showPaperModal = false;
         await this.loadAll(); await this.loadPapers();
       } catch (e) {
         if (e.status === 409 && e.data && e.data.duplicate) {
@@ -158,11 +158,11 @@ var Root = {
             fd.append("force", "1");
             try {
               await this.api(url, { method: method, body: fd });
-              this.toast("已添加（确认保留重复项）"); this.showPaperModal = false;
+              this.notify("已添加（确认保留重复项）"); this.showPaperModal = false;
               await this.loadAll(); await this.loadPapers();
-            } catch (e2) { this.toast(e2.message, true); }
+            } catch (e2) { this.notify(e2.message, true); }
           }
-        } else { this.toast(e.message, true); }
+        } else { this.notify(e.message, true); }
       }
       this.saving = false;
     },
@@ -171,39 +171,50 @@ var Root = {
         var p = await this.api("/api/papers/" + id + "/toggle-read", { method: "POST" });
         if (this.detail && this.detail.id === id) this.detail = p;
         await this.loadPapers();
-      } catch (e) { this.toast(e.message, true); }
+      } catch (e) { this.notify(e.message, true); }
     },
     toggleStar: async function (id) {
       try {
         var p = await this.api("/api/papers/" + id + "/toggle-star", { method: "POST" });
         if (this.detail && this.detail.id === id) this.detail = p;
         await this.loadPapers();
-      } catch (e) { this.toast(e.message, true); }
+      } catch (e) { this.notify(e.message, true); }
     },
     deletePaper: async function (id) {
       if (!confirm("确定删除这篇论文吗？此操作不可恢复。")) return;
       try {
         await this.api("/api/papers/" + id, { method: "DELETE" });
-        this.toast("已删除"); this.showDetail = false;
+        this.notify("已删除"); this.showDetail = false;
         await this.loadAll(); await this.loadPapers();
-      } catch (e) { this.toast(e.message, true); }
+      } catch (e) { this.notify(e.message, true); }
     },
     openDetail: async function (id) {
       this.showDetail = true; this.detail = {};
       try {
         this.detail = await this.api("/api/papers/" + id);
         this.tagSelect = ""; this.collectionSelect = "";
-      } catch (e) { this.toast(e.message, true); }
+      } catch (e) { this.notify(e.message, true); }
     },
     closeDetail: function () { this.showDetail = false; this.detail = {}; },
+    summarize: async function (id) {
+      if (!this.hasApiKey) { this.notify("未配置 API Key，无法生成总结", true); return; }
+      this.summarizing = true;
+      try {
+        var p = await this.api("/api/papers/" + id + "/summarize", { method: "POST" });
+        this.detail = p;
+        this.notify("AI 总结已生成");
+        await this.loadPapers();
+      } catch (e) { this.notify(e.message, true); }
+      this.summarizing = false;
+    },
     aiExtract: async function (id) {
-      if (!this.hasApiKey) { this.toast("未配置 API Key，已跳过 AI 提取", true); return; }
+      if (!this.hasApiKey) { this.notify("未配置 API Key，已跳过 AI 提取", true); return; }
       this.aiExtracting = true;
       try {
         var res = await this.api("/api/papers/" + id + "/ai-extract", { method: "POST" });
-        if (res && res.skipped) { this.toast("未配置 API Key，已跳过"); }
-        else { this.detail = res; this.toast("AI 提取完成"); await this.loadPapers(); }
-      } catch (e) { this.toast(e.message, true); }
+        if (res && res.skipped) { this.notify("未配置 API Key，已跳过"); }
+        else { this.detail = res; this.notify("AI 提取完成"); await this.loadPapers(); }
+      } catch (e) { this.notify(e.message, true); }
       this.aiExtracting = false;
     },
     addDetailTag: async function () {
@@ -211,24 +222,24 @@ var Root = {
       try {
         this.detail = await this.api("/api/papers/" + this.detail.id + "/tags", { method: "POST", json: { tagId: Number(this.tagSelect) } });
         this.tagSelect = "";
-      } catch (e) { this.toast(e.message, true); }
+      } catch (e) { this.notify(e.message, true); }
     },
     removeDetailTag: async function (tagId) {
       if (!this.detail.id) return;
       try { this.detail = await this.api("/api/papers/" + this.detail.id + "/tags/" + tagId, { method: "DELETE" }); }
-      catch (e) { this.toast(e.message, true); }
+      catch (e) { this.notify(e.message, true); }
     },
     addDetailCollection: async function () {
       if (!this.collectionSelect || !this.detail.id) return;
       try {
         this.detail = await this.api("/api/papers/" + this.detail.id + "/collections", { method: "POST", json: { collectionId: Number(this.collectionSelect) } });
         this.collectionSelect = "";
-      } catch (e) { this.toast(e.message, true); }
+      } catch (e) { this.notify(e.message, true); }
     },
     removeDetailCollection: async function (colId) {
       if (!this.detail.id) return;
       try { this.detail = await this.api("/api/papers/" + this.detail.id + "/collections/" + colId, { method: "DELETE" }); }
-      catch (e) { this.toast(e.message, true); }
+      catch (e) { this.notify(e.message, true); }
     },
     saveNotes: async function () {
       if (!this.detail || !this.detail.id) return;
@@ -242,39 +253,39 @@ var Root = {
       };
       try {
         this.detail = await this.api("/api/papers/" + p.id, { method: "PUT", json: body });
-        this.toast("笔记已保存"); await this.loadPapers();
-      } catch (e) { this.toast(e.message, true); }
+        this.notify("笔记已保存"); await this.loadPapers();
+      } catch (e) { this.notify(e.message, true); }
     },
     openManage: function () { this.showManage = true; },
     addCategory: async function () {
       if (!this.newCategory.trim()) return;
-      try { await this.api("/api/categories", { method: "POST", json: { name: this.newCategory } }); this.newCategory = ""; this.toast("分类已添加"); await this.loadAll(); }
-      catch (e) { this.toast(e.message, true); }
+      try { await this.api("/api/categories", { method: "POST", json: { name: this.newCategory } }); this.newCategory = ""; this.notify("分类已添加"); await this.loadAll(); }
+      catch (e) { this.notify(e.message, true); }
     },
     deleteCategory: async function (id) {
       if (!confirm("删除该分类？论文将变为未分类。")) return;
-      try { await this.api("/api/categories/" + id, { method: "DELETE" }); this.toast("已删除"); await this.loadAll(); await this.loadPapers(); }
-      catch (e) { this.toast(e.message, true); }
+      try { await this.api("/api/categories/" + id, { method: "DELETE" }); this.notify("已删除"); await this.loadAll(); await this.loadPapers(); }
+      catch (e) { this.notify(e.message, true); }
     },
     addTag: async function () {
       if (!this.newTag.trim()) return;
-      try { await this.api("/api/tags", { method: "POST", json: { name: this.newTag } }); this.newTag = ""; this.toast("标签已添加"); await this.loadAll(); }
-      catch (e) { this.toast(e.message, true); }
+      try { await this.api("/api/tags", { method: "POST", json: { name: this.newTag } }); this.newTag = ""; this.notify("标签已添加"); await this.loadAll(); }
+      catch (e) { this.notify(e.message, true); }
     },
     deleteTag: async function (id) {
       if (!confirm("删除该标签？")) return;
-      try { await this.api("/api/tags/" + id, { method: "DELETE" }); this.toast("已删除"); await this.loadAll(); await this.loadPapers(); }
-      catch (e) { this.toast(e.message, true); }
+      try { await this.api("/api/tags/" + id, { method: "DELETE" }); this.notify("已删除"); await this.loadAll(); await this.loadPapers(); }
+      catch (e) { this.notify(e.message, true); }
     },
     addCollection: async function () {
       if (!this.newCollection.trim()) return;
-      try { await this.api("/api/collections", { method: "POST", json: { name: this.newCollection } }); this.newCollection = ""; this.toast("合集已添加"); await this.loadAll(); }
-      catch (e) { this.toast(e.message, true); }
+      try { await this.api("/api/collections", { method: "POST", json: { name: this.newCollection } }); this.newCollection = ""; this.notify("合集已添加"); await this.loadAll(); }
+      catch (e) { this.notify(e.message, true); }
     },
     deleteCollection: async function (id) {
       if (!confirm("删除该合集？")) return;
-      try { await this.api("/api/collections/" + id, { method: "DELETE" }); this.toast("已删除"); await this.loadAll(); await this.loadPapers(); }
-      catch (e) { this.toast(e.message, true); }
+      try { await this.api("/api/collections/" + id, { method: "DELETE" }); this.notify("已删除"); await this.loadAll(); await this.loadPapers(); }
+      catch (e) { this.notify(e.message, true); }
     },
     isKnownModel: function (m) { return ["deepseek-chat", "deepseek-reasoner"].indexOf(m) >= 0; },
     openSettings: async function () {
@@ -287,15 +298,15 @@ var Root = {
       try {
         var res = await this.api("/api/settings", { method: "PUT", json: body });
         this.hasApiKey = !!res.hasApiKey; this.settings.aiApiKey = "";
-        this.toast("AI 设置已保存"); this.showSettings = false;
-      } catch (e) { this.toast(e.message, true); }
+        this.notify("AI 设置已保存"); this.showSettings = false;
+      } catch (e) { this.notify(e.message, true); }
     },
     clearApiKey: async function () {
       try {
         var res = await this.api("/api/settings", { method: "PUT", json: { clearApiKey: true, aiBaseUrl: this.settings.aiBaseUrl, aiModel: this.settings.aiModel } });
         this.hasApiKey = !!res.hasApiKey; this.settings.aiApiKey = "";
-        this.toast("API Key 已清除");
-      } catch (e) { this.toast(e.message, true); }
+        this.notify("API Key 已清除");
+      } catch (e) { this.notify(e.message, true); }
     }
   },
   mounted: function () {

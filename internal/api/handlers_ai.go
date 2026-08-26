@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"paper-manager/internal/ai"
+	"paper-manager/internal/meta"
 	"paper-manager/internal/models"
 	pdfmeta "paper-manager/internal/pdf"
 )
@@ -37,6 +38,48 @@ func (s *Server) aiConfig() (ai.Config, bool) {
 		model = "deepseek-chat"
 	}
 	return ai.Config{BaseURL: base, APIKey: key, Model: model, Timeout: 45 * time.Second}, true
+}
+
+func (s *Server) maybeEnrich(in *models.PaperInput, pdfPath string) error {
+	if pdfPath == "" {
+		return nil
+	}
+	text, err := pdfmeta.ExtractText(filepath.Join(s.uploadDir, pdfPath), 20000)
+	if err != nil || strings.TrimSpace(text) == "" {
+		return nil
+	}
+	if strings.TrimSpace(in.DOI) == "" {
+		in.DOI = meta.SniffDOI(text)
+	}
+	if strings.TrimSpace(in.Title) == "" {
+		in.Title = meta.SniffTitle(text)
+	}
+	var info *meta.Info
+	if strings.TrimSpace(in.DOI) != "" {
+		info, _ = meta.EnrichByDOI(context.Background(), in.DOI)
+	}
+	if info == nil && strings.TrimSpace(in.Title) != "" {
+		info, _ = meta.SearchByTitle(context.Background(), in.Title)
+	}
+	if info == nil {
+		return nil
+	}
+	if strings.TrimSpace(in.Title) == "" {
+		in.Title = strings.TrimSpace(info.Title)
+	}
+	if strings.TrimSpace(in.Authors) == "" && len(info.Authors) > 0 {
+		in.Authors = strings.Join(info.Authors, ", ")
+	}
+	if in.Year == 0 && info.Year > 0 {
+		in.Year = info.Year
+	}
+	if strings.TrimSpace(in.Venue) == "" {
+		in.Venue = strings.TrimSpace(info.Venue)
+	}
+	if strings.TrimSpace(in.DOI) == "" {
+		in.DOI = strings.TrimSpace(info.DOI)
+	}
+	return nil
 }
 
 func (s *Server) maybeAIExtract(in *models.PaperInput, pdfPath string) error {
@@ -179,6 +222,9 @@ func (s *Server) handleAIExtract(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, "AI 提取失败: "+err.Error())
 		return
 	}
+	if p.FullText == "" {
+		p.FullText = s.store.PaperFullText(id)
+	}
 	in := paperToInput(&p)
 	if err := s.applyAIResult(&in, result); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -276,6 +322,7 @@ func (s *Server) handleExtractPDF(w http.ResponseWriter, r *http.Request) {
 		Keywords: meta.Keywords,
 		UseAI:    useAI,
 	}
+	_ = s.maybeEnrich(&in, name)
 	aiUsed := false
 	if useAI {
 		if cfg, ok := s.aiConfig(); ok {
@@ -301,4 +348,52 @@ func (s *Server) handleExtractPDF(w http.ResponseWriter, r *http.Request) {
 		"summary":  in.Summary,
 		"aiUsed":   aiUsed,
 	})
+}
+
+func (s *Server) handleSummarize(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	p, err := s.store.GetPaper(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "paper not found")
+		return
+	}
+	cfg, ok := s.aiConfig()
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "未配置 AI API Key")
+		return
+	}
+	text := p.FullText
+	if text == "" && p.HasPDF {
+		text, _ = pdfmeta.ExtractText(filepath.Join(s.uploadDir, p.PDFPath), 8000)
+	}
+	if len(text) > 8000 {
+		text = text[:8000]
+	}
+	if strings.TrimSpace(text) == "" {
+		writeError(w, http.StatusBadRequest, "论文没有可用的正文文本")
+		return
+	}
+	paperContext := "标题：" + p.Title + "\n作者：" + p.Authors + "\n年份：" + strconv.Itoa(p.Year) + "\n期刊/会议：" + p.Venue + "\n现有关键词：" + p.Keywords + "\n正文片段：\n" + text
+	client := ai.NewClient(cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	summary, serr := client.Summarize(ctx, paperContext)
+	if serr != nil {
+		writeError(w, http.StatusBadGateway, "AI 总结失败: "+serr.Error())
+		return
+	}
+	if p.FullText == "" {
+		p.FullText = s.store.PaperFullText(id)
+	}
+	p.Summary = summary
+	if err := s.store.UpdatePaper(&p); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	paper, _ := s.store.GetPaper(id)
+	writeJSON(w, http.StatusOK, paper)
 }

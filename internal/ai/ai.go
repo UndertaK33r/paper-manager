@@ -119,3 +119,55 @@ func Defaults() Config {
 		Timeout: 45 * time.Second,
 	}
 }
+
+func (c *Client) Summarize(ctx context.Context, paperContext string) (string, error) {
+	if strings.TrimSpace(c.cfg.APIKey) == "" {
+		return "", fmt.Errorf("AI_API_KEY not configured")
+	}
+	url := strings.TrimRight(c.cfg.BaseURL, "/") + "/chat/completions"
+	payload := map[string]any{
+		"model": c.cfg.Model,
+		"messages": []map[string]string{
+			{"role": "system", "content": "你是学术论文阅读助手。请用中文输出结构化总结，按四段：1) 研究问题 2) 方法 3) 主要结果 4) 意义。每段 1-3 句话，语言精炼，不要输出无关内容。"},
+			{"role": "user", "content": paperContext},
+		},
+		"temperature": 0.3,
+		"max_tokens":  800,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("AI API %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var envelope struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return "", err
+	}
+	if len(envelope.Choices) == 0 {
+		return "", fmt.Errorf("AI API returned no choices")
+	}
+	return strings.TrimSpace(envelope.Choices[0].Message.Content), nil
+}

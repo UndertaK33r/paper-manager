@@ -91,7 +91,11 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 `
 	_, err := s.db.Exec(schema)
-	return err
+	if err != nil {
+		return err
+	}
+	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN fulltext TEXT NOT NULL DEFAULT ''")
+	return nil
 }
 
 func nowStr() string { return time.Now().UTC().Format(time.RFC3339) }
@@ -202,10 +206,10 @@ func firstAuthor(a string) string {
 func (s *Store) CreatePaper(p *models.Paper) (int64, error) {
 	now := nowStr()
 	res, err := s.db.Exec(`INSERT INTO papers
-		(title, authors, year, venue, doi, keywords, link, summary, notes, category_id, read, starred, pdf_path, pdf_size, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		(title, authors, year, venue, doi, keywords, link, summary, notes, category_id, read, starred, pdf_path, pdf_size, fulltext, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		p.Title, p.Authors, p.Year, p.Venue, p.DOI, p.Keywords, p.Link, p.Summary, p.Notes,
-		p.CategoryID, boolInt(p.Read), boolInt(p.Starred), p.PDFPath, p.PDFSize, now, now)
+		p.CategoryID, boolInt(p.Read), boolInt(p.Starred), p.PDFPath, p.PDFSize, p.FullText, now, now)
 	if err != nil {
 		return 0, err
 	}
@@ -215,10 +219,10 @@ func (s *Store) CreatePaper(p *models.Paper) (int64, error) {
 func (s *Store) UpdatePaper(p *models.Paper) error {
 	_, err := s.db.Exec(`UPDATE papers SET
 		title=?, authors=?, year=?, venue=?, doi=?, keywords=?, link=?, summary=?, notes=?,
-		category_id=?, read=?, starred=?, pdf_path=?, pdf_size=?, updated_at=?
+		category_id=?, read=?, starred=?, pdf_path=?, pdf_size=?, fulltext=?, updated_at=?
 		WHERE id=?`,
 		p.Title, p.Authors, p.Year, p.Venue, p.DOI, p.Keywords, p.Link, p.Summary, p.Notes,
-		p.CategoryID, boolInt(p.Read), boolInt(p.Starred), p.PDFPath, p.PDFSize, nowStr(), p.ID)
+		p.CategoryID, boolInt(p.Read), boolInt(p.Starred), p.PDFPath, p.PDFSize, p.FullText, nowStr(), p.ID)
 	return err
 }
 
