@@ -277,10 +277,194 @@
 }
 .p3r-flicker { animation: p3r-flicker 4s linear infinite; }
 
+/* ── sea field: the underwater immersive layer (light shafts + foam) ─────────
+   "入水" rule: light shafts from the top, foam band on the top 10-20% only,
+   deeper toward the bottom. Never tile caustics over the whole field. */
+.p3r-sea {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--p3r-sky, linear-gradient(180deg, #1257B8 0%, #0B2E6B 46%, #04102B 100%));
+}
+.p3r-sea::before { /* light shafts + moon-through-water glow */
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(105deg, transparent 42%, rgba(234, 247, 255, 0.16) 47%, transparent 54%),
+    linear-gradient(82deg, transparent 66%, rgba(234, 247, 255, 0.12) 72%, transparent 78%),
+    linear-gradient(122deg, transparent 20%, rgba(234, 247, 255, 0.08) 25%, transparent 31%),
+    radial-gradient(ellipse 60% 42% at 50% -10%, var(--p3r-moon-glow, rgba(64, 190, 255, 0.35)), transparent 70%);
+  mix-blend-mode: screen;
+}
+.p3r-sea::after { /* water-surface foam band, top only */
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 16%;
+  pointer-events: none;
+  filter: blur(2px);
+  opacity: 0.55;
+  background:
+    radial-gradient(circle 30px at 10% 22%, rgba(234, 247, 255, 0.5) 0 6px, transparent 7px),
+    radial-gradient(circle 46px at 32% 48%, rgba(234, 247, 255, 0.36) 0 8px, transparent 9px),
+    radial-gradient(circle 24px at 56% 26%, rgba(234, 247, 255, 0.42) 0 5px, transparent 6px),
+    radial-gradient(circle 54px at 76% 52%, rgba(234, 247, 255, 0.3) 0 9px, transparent 10px),
+    radial-gradient(circle 34px at 92% 16%, rgba(234, 247, 255, 0.45) 0 6px, transparent 7px);
+}
+
+/* ── water-curtain sheet: the P3R detail/dialog plate ─────────────────────── */
+.p3r-sheet {
+  position: relative;
+  padding: var(--p3r-space-5, 20px) var(--p3r-space-6, 24px);
+  background: linear-gradient(105deg, rgba(125, 232, 255, 0.16), rgba(18, 87, 184, 0.55));
+  backdrop-filter: blur(8px) saturate(1.2);
+  -webkit-backdrop-filter: blur(8px) saturate(1.2);
+  border: 1px solid rgba(125, 232, 255, 0.28);
+  box-shadow: inset 1px 1px 0 rgba(125, 232, 255, 0.65), 0 0 24px rgba(64, 190, 255, 0.35);
+  clip-path: var(--p3r-cut-path-md, polygon(14px 0, 100% 0, 100% 100%, 0 100%, 0 14px));
+}
+.p3r-sheet--music::after { /* faint wave/note watermark, like the game sheets */
+  content: "\266A \266A";
+  position: absolute; right: 14px; bottom: 6px;
+  font-size: 13px; letter-spacing: 0.2em;
+  color: rgba(125, 232, 255, 0.35);
+}
+.p3r-sheet__title {
+  margin: 0 0 var(--p3r-space-2, 8px);
+  font-family: var(--p3r-font-display, "Oswald", "DIN Condensed", sans-serif);
+  text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;
+  color: var(--p3r-foam, #EAF7FF);
+}
+
+/* ── glassy embossed text: the floating glowing underwater menu words ─────── */
+.p3r-glassy {
+  color: var(--p3r-blue-bright, #9EE4FF);
+  text-shadow:
+    0 1px 0 rgba(4, 16, 43, 0.85),
+    0 2px 6px rgba(4, 16, 43, 0.6),
+    0 0 18px rgba(125, 232, 255, 0.5);
+}
+
+/* ── result-screen style glass gauge (long bar, cyan/green fill) ──────────── */
+.p3r-gauge {
+  position: relative;
+  height: 14px;
+  background: linear-gradient(180deg, rgba(158, 228, 255, 0.14), rgba(4, 16, 43, 0.5));
+  border: 1px solid var(--p3r-line, rgba(244, 247, 251, 0.16));
+}
+.p3r-gauge__fill {
+  height: 100%;
+  background: linear-gradient(180deg, var(--p3r-sea-cyan, #7DE8FF), var(--p3r-blue, #2FB6FF));
+  box-shadow: 0 0 10px rgba(125, 232, 255, 0.5);
+  transition: width var(--p3r-mid, 250ms) var(--p3r-ease-out, cubic-bezier(0.22, 1, 0.36, 1));
+}
+.p3r-gauge--green .p3r-gauge__fill { background: linear-gradient(180deg, #7DF0C6, var(--p3r-green, #4ADE9C)); box-shadow: 0 0 10px rgba(77, 222, 156, 0.45); }
+
+/* ── music elements: equalizer / waveform / notes / beat cues ─────────────── */
+.p3r-eq {
+  display: inline-flex; align-items: flex-end; gap: 3px;
+  height: 14px; vertical-align: middle;
+}
+.p3r-eq i, .p3r-eq span {
+  display: block; width: 3px; height: 100%;
+  background: linear-gradient(to top, var(--p3r-blue-deep, #0E4FA8), var(--p3r-sea-cyan, #7DE8FF));
+  transform-origin: bottom;
+  animation: p3r-eq var(--p3r-ripple-dur, 800ms) ease-in-out infinite alternate;
+}
+.p3r-eq > :nth-child(1) { animation-delay: -120ms; }
+.p3r-eq > :nth-child(2) { animation-delay: -260ms; }
+.p3r-eq > :nth-child(3) { animation-delay: -20ms; }
+.p3r-eq > :nth-child(4) { animation-delay: -380ms; }
+.p3r-eq > :nth-child(5) { animation-delay: -180ms; }
+@keyframes p3r-eq {
+  from { transform: scaleY(0.25); }
+  to   { transform: scaleY(1); }
+}
+.p3r-waveform {
+  display: flex; align-items: center; gap: 2px; height: 24px;
+}
+.p3r-waveform i, .p3r-waveform span {
+  flex: 1; height: var(--h, 10px); min-height: 2px;
+  background: linear-gradient(to top, var(--p3r-blue-deep, #0E4FA8), var(--p3r-sea-cyan, #7DE8FF));
+  opacity: 0.85;
+}
+.p3r-waveform--playing { animation: p3r-waveform 1.1s ease-in-out infinite alternate; }
+@keyframes p3r-waveform {
+  from { opacity: 0.55; }
+  to   { opacity: 1; }
+}
+
+/* ── music card: album/track — the disc is the ONLY allowed circle (moon too) ─ */
+.p3r-music-card {
+  display: flex; align-items: center; gap: var(--p3r-space-4, 16px);
+  padding: var(--p3r-space-3, 12px) var(--p3r-space-4, 16px);
+  background: var(--p3r-glass-blue, rgba(14, 46, 92, 0.86));
+  border: 1px solid var(--p3r-line, rgba(244, 247, 251, 0.16));
+  clip-path: var(--p3r-cut-path-sm, polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px));
+}
+.p3r-music-card__disc {
+  width: 40px; height: 40px; border-radius: 50%;
+  flex: none;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(4, 16, 43, 0.9) 0 3px, transparent 4px),
+    repeating-radial-gradient(circle at 50% 50%, #0B2E6B 0 2px, #0E4FA8 2px 3px);
+  border: 2px solid var(--p3r-sea-cyan, #7DE8FF);
+  box-shadow: 0 0 10px rgba(125, 232, 255, 0.4);
+  animation: p3r-spin 6s linear infinite;
+}
+.p3r-music-card:not(.p3r-music-card--playing) .p3r-music-card__disc { animation-play-state: paused; }
+@keyframes p3r-spin { to { transform: rotate(360deg); } }
+.p3r-music-card__title {
+  font-family: var(--p3r-font-display, "Oswald", "DIN Condensed", sans-serif);
+  text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+  color: var(--p3r-white, #F7FBFF);
+}
+.p3r-music-card__meta {
+  font-family: var(--p3r-font-mono, "JetBrains Mono", Consolas, monospace);
+  font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--p3r-grey, #B7C6D9);
+}
+.p3r-music-card__mark { /* gold music chip */
+  margin-left: auto;
+  color: var(--p3r-gold, #F5C64B);
+  font-size: 13px;
+  text-shadow: 0 0 8px rgba(245, 198, 75, 0.45);
+}
+
+/* note / beat markers */
+.p3r-note { color: var(--p3r-sea-cyan, #7DE8FF); }
+.p3r-note::before { content: "\266A"; } /* ♪ */
+.p3r-cue { color: var(--p3r-blue-bright, #9EE4FF); font-size: 11px; letter-spacing: 0.35em; }
+.p3r-cue::before { content: "\2666\2666\2666"; } /* beat dots ◆◆◆ */
+
+/* ── submerge: dive into the Dark Hour (entrance) ─────────────────────────── */
+.p3r-submerge {
+  animation: p3r-submerge var(--p3r-submerge-dur, 600ms) var(--p3r-ease-out, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+@keyframes p3r-submerge {
+  0%   { transform: translateY(38px) scale(1.02); opacity: 0; filter: blur(6px) brightness(1.5); }
+  55%  { opacity: 1; transform: translateY(4px); filter: blur(2px) brightness(1.15); }
+  100% { transform: translateY(0) scale(1); opacity: 1; filter: blur(0) brightness(1); }
+}
+
+/* ripple ring — the water circle motif (decorative) */
+.p3r-ripple {
+  position: absolute; inset: -4px;
+  pointer-events: none;
+  border: 1px solid var(--p3r-sea-cyan, #7DE8FF);
+  border-radius: 50%;
+  animation: p3r-ripple var(--p3r-ripple-dur, 800ms) ease-out 1 both;
+}
+@keyframes p3r-ripple {
+  from { transform: scale(0.4); opacity: 0.7; }
+  to   { transform: scale(1.6); opacity: 0; }
+}
+
 /* ── motion safety ────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .p3r-wipe-in, .p3r-glitch, .p3r-cutin, .p3r-pulse, .p3r-flicker {
+  .p3r-wipe-in, .p3r-glitch, .p3r-cutin, .p3r-pulse, .p3r-flicker,
+  .p3r-submerge, .p3r-ripple, .p3r-eq > *, .p3r-waveform--playing, .p3r-music-card__disc {
     animation: none !important;
   }
-  .p3r-stat-bar__fill { transition: none; }
+  .p3r-stat-bar__fill, .p3r-gauge__fill { transition: none; }
 }

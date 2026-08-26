@@ -9,12 +9,12 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app" class="p3r-shell p3r-shell--scanlines"></div>
+<div id="app" class="p3r-shell p3r-sea"></div>
 
 <script type="text/x-template" id="app-template">
 <div class="layout">
   <header class="p3r-panel p3r-panel--blue topbar p3r-wipe-in">
-    <div class="p3r-h2">PAPER <span class="p3r-accent">MANAGER</span></div>
+    <div class="p3r-h2 p3r-glassy">PAPER <span class="p3r-accent">MANAGER</span></div>
     <div class="top-actions">
       <button class="p3r-btn" @click="openSettings">AI 设置</button>
       <button class="p3r-btn p3r-btn--primary" @click="openAdd">+ 添加论文</button>
@@ -22,15 +22,16 @@
   </header>
 
   <section class="p3r-panel stats-panel p3r-wipe-in" style="animation-delay:40ms">
-    <div class="p3r-panel__title"><span class="p3r-h3">LIBRARY STATUS</span><span class="p3r-readout">DATA READOUT</span></div>
+    <div class="p3r-panel__title"><span class="p3r-h3">LIBRARY STATUS</span><span class="p3r-readout">DATA READOUT</span><span class="p3r-eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span></div>
     <div class="stats-grid">
-      <div class="stat"><span class="p3r-readout">TOTAL</span><span class="p3r-h2">{{ stats.total || 0 }}</span></div>
-      <div class="stat"><span class="p3r-readout">UNREAD</span><span class="p3r-h2">{{ stats.unread || 0 }}</span></div>
-      <div class="stat"><span class="p3r-readout">READ</span><span class="p3r-h2">{{ stats.read || 0 }}</span></div>
-      <div class="stat"><span class="p3r-readout">STARRED</span><span class="p3r-h2">{{ stats.starred || 0 }}</span></div>
-      <div class="stat"><span class="p3r-readout">CATEGORIES</span><span class="p3r-h2">{{ stats.categories || 0 }}</span></div>
-      <div class="stat"><span class="p3r-readout">TAGS</span><span class="p3r-h2">{{ stats.tags || 0 }}</span></div>
+      <div class="stat"><span class="p3r-readout">TOTAL</span><span class="p3r-h2 p3r-glassy">{{ stats.total || 0 }}</span></div>
+      <div class="stat"><span class="p3r-readout">UNREAD</span><span class="p3r-h2 p3r-glassy">{{ stats.unread || 0 }}</span></div>
+      <div class="stat"><span class="p3r-readout">READ</span><span class="p3r-h2 p3r-glassy">{{ stats.read || 0 }}</span></div>
+      <div class="stat"><span class="p3r-readout">STARRED</span><span class="p3r-h2 p3r-glassy">{{ stats.starred || 0 }}</span></div>
+      <div class="stat"><span class="p3r-readout">CATEGORIES</span><span class="p3r-h2 p3r-glassy">{{ stats.categories || 0 }}</span></div>
+      <div class="stat"><span class="p3r-readout">TAGS</span><span class="p3r-h2 p3r-glassy">{{ stats.tags || 0 }}</span></div>
     </div>
+    <div class="p3r-waveform p3r-waveform--playing" aria-hidden="true"><i style="--h:6px"></i><i style="--h:10px"></i><i style="--h:7px"></i><i style="--h:14px"></i><i style="--h:9px"></i><i style="--h:18px"></i><i style="--h:8px"></i><i style="--h:12px"></i><i style="--h:6px"></i><i style="--h:16px"></i><i style="--h:9px"></i><i style="--h:11px"></i><i style="--h:7px"></i><i style="--h:15px"></i><i style="--h:8px"></i><i style="--h:12px"></i><i style="--h:10px"></i><i style="--h:14px"></i><i style="--h:6px"></i><i style="--h:9px"></i><i style="--h:13px"></i><i style="--h:7px"></i><i style="--h:11px"></i><i style="--h:8px"></i></div>
   </section>
 
   <section class="p3r-panel toolbar p3r-wipe-in" style="animation-delay:80ms">
@@ -120,14 +121,14 @@
     <div v-else class="empty p3r-readout">NO PAPERS FOUND — 点击右上角添加论文</div>
     <div class="pagination">
       <button class="p3r-btn small" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
-      <span class="p3r-readout">PAGE {{ page }} / {{ pages }} · TOTAL {{ total }}</span>
+      <span class="p3r-cue"></span><span class="p3r-readout">PAGE {{ page }} / {{ pages }} · TOTAL {{ total }}</span>
       <button class="p3r-btn small" :disabled="page >= pages" @click="goPage(page + 1)">下一页</button>
     </div>
   </section>
 
   <!-- 添加/编辑论文 -->
   <div v-if="showPaperModal" class="modal-overlay" @click.self="closePaperModal">
-    <div class="p3r-dialog p3r-dialog--blue paper-dialog">
+    <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge paper-dialog">
       <div class="dialog-head"><span class="p3r-h3">{{ editingId ? 'EDIT PAPER' : 'ADD PAPER' }}</span><button class="p3r-btn" @click="closePaperModal">CLOSE</button></div>
       <form class="p3r-form" @submit.prevent="submitPaperForm">
         <div class="grid2">
@@ -170,7 +171,7 @@
 
   <!-- 详情 -->
   <div v-if="showDetail" class="modal-overlay" @click.self="closeDetail">
-    <div class="p3r-dialog p3r-dialog--blue wide">
+    <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge wide">
       <div class="dialog-head"><span class="p3r-h3">{{ detail.title }}</span><button class="p3r-btn" @click="closeDetail">CLOSE</button></div>
       <div v-if="!detail.id" class="p3r-readout">LOADING...</div>
       <div v-else class="detail-body">
@@ -209,7 +210,7 @@
 
   <!-- 管理 -->
   <div v-if="showManage" class="modal-overlay" @click.self="showManage=false">
-    <div class="p3r-dialog p3r-dialog--blue wide">
+    <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge wide">
       <div class="dialog-head"><span class="p3r-h3">MANAGE</span><button class="p3r-btn" @click="showManage=false">CLOSE</button></div>
       <div class="manage-grid">
         <div class="p3r-panel"><span class="p3r-h3">分类</span><div class="inline-form"><input class="p3r-input" v-model="newCategory" placeholder="新分类"><button class="p3r-btn small p3r-btn--primary" @click="addCategory">添加</button></div><ul class="manage-list"><li v-for="c in categories" :key="c.id"><span>{{ c.name }} ({{ c.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteCategory(c.id)">删除</button></li></ul></div>
@@ -222,7 +223,7 @@
 
   <!-- AI 设置 -->
   <div v-if="showSettings" class="modal-overlay" @click.self="showSettings=false">
-    <div class="p3r-dialog p3r-dialog--blue">
+    <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge">
       <div class="dialog-head"><span class="p3r-h3">AI SETTINGS</span><button class="p3r-btn" @click="showSettings=false">CLOSE</button></div>
       <div class="p3r-form">
         <div class="p3r-panel summary-panel"><span class="p3r-readout">STATUS</span><div class="p3r-h3" :class="hasApiKey ? 'p3r-accent' : ''">{{ hasApiKey ? 'API KEY 已配置 — 上传 PDF 时将自动发送 AI 提取请求' : '未配置 API KEY — 将跳过 AI 提取' }}</div></div>

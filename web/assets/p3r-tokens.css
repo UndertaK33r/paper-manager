@@ -26,7 +26,12 @@
   --p3r-red: #FF4D5E;                /* danger / Shadow / critical */
   --p3r-red-deep: #C22B36;           /* red hover */
   --p3r-amber: #FFD34D;              /* warning / new */
-  --p3r-green: #4ADE9C;              /* success / restore (sparingly) */
+  --p3r-green: #4ADE9C;              /* success / restore / buff bars (sparingly) */
+  --p3r-sea: #1257B8;                /* sea / sky main (== sky gradient top) */
+  --p3r-sea-deep: #0B2E6B;           /* deep sea (== sky gradient middle) */
+  --p3r-sea-cyan: #7DE8FF;           /* underwater highlight cyan: shafts/edges/waveforms */
+  --p3r-foam: #EAF7FF;               /* water-surface foam, top 10-20% of the field only */
+  --p3r-gold: #F5C64B;               /* music-award gold: trophies/notes/1st marks <=1% */
 
   /* ── lines & glass ───────────────────────────────────────────────────── */
   --p3r-line: rgba(244, 247, 251, 0.16);
@@ -72,6 +77,8 @@
   --p3r-mid: 250ms;
   --p3r-slow: 450ms;
   --p3r-glitch-dur: 120ms;
+  --p3r-submerge-dur: 600ms;
+  --p3r-ripple-dur: 800ms;
 
   /* ── atmosphere ──────────────────────────────────────────────────────── */
   --p3r-sky: linear-gradient(180deg, #1257B8 0%, #0B2E6B 46%, #04102B 100%);
@@ -102,6 +109,11 @@
   --color-p3r-red-deep: #C22B36;
   --color-p3r-amber: #FFD34D;
   --color-p3r-green: #4ADE9C;
+  --color-p3r-sea: #1257B8;
+  --color-p3r-sea-deep: #0B2E6B;
+  --color-p3r-sea-cyan: #7DE8FF;
+  --color-p3r-foam: #EAF7FF;
+  --color-p3r-gold: #F5C64B;
 
   --color-p3r-line: rgba(244, 247, 251, 0.16);
   --color-p3r-line-strong: rgba(244, 247, 251, 0.32);

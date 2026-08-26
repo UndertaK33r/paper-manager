@@ -16,7 +16,12 @@
       "red": { "$type": "color", "$value": "#FF4D5E", "$description": "danger / Shadow / critical, max ~5% of frame" },
       "red-deep": { "$type": "color", "$value": "#A9232A" },
       "amber": { "$type": "color", "$value": "#FFD34D", "$description": "warning / new" },
-      "green": { "$type": "color", "$value": "#4ADE9C", "$description": "success / restore, sparingly" }
+      "green": { "$type": "color", "$value": "#4ADE9C", "$description": "success / restore / buff bars, sparingly" },
+      "sea": { "$type": "color", "$value": "#1257B8", "$description": "sea/sky main, matches sky gradient top" },
+      "sea-deep": { "$type": "color", "$value": "#0B2E6B", "$description": "deep sea, matches sky gradient middle" },
+      "sea-cyan": { "$type": "color", "$value": "#7DE8FF", "$description": "underwater highlight: light shafts, edges, waveforms" },
+      "foam": { "$type": "color", "$value": "#EAF7FF", "$description": "water-surface foam, top band only" },
+      "gold": { "$type": "color", "$value": "#F5C64B", "$description": "music-award gold, max ~1% of frame" }
     },
     "border": {
       "line": { "$type": "color", "$value": "rgba(244, 247, 251, 0.16)" },
@@ -53,6 +58,8 @@
       "duration-mid": { "$type": "duration", "$value": "250ms", "$description": "panel/card enter" },
       "duration-slow": { "$type": "duration", "$value": "450ms", "$description": "page/menu wipe" },
       "glitch": { "$type": "duration", "$value": "120ms", "$description": "once, never looping" },
+      "submerge": { "$type": "duration", "$value": "600ms", "$description": "underwater dive entrance: blue wash + sink" },
+      "ripple": { "$type": "duration", "$value": "800ms", "$description": "ripple rings, decorative" },
       "ease-out": { "$type": "cubicBezier", "$value": [0.22, 1, 0.36, 1] },
       "ease-in": { "$type": "cubicBezier", "$value": [0.4, 0, 1, 1] }
     },
