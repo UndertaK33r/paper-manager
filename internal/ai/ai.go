@@ -227,3 +227,9 @@ func (c *Client) chat(ctx context.Context, messages []map[string]string, maxToke
 	}
 	return strings.TrimSpace(envelope.Choices[0].Message.Content), nil
 }
+
+func (c *Client) Test(ctx context.Context) (string, error) {
+	return c.chat(ctx, []map[string]string{
+		{"role": "user", "content": "请只回复两个字：正常"},
+	}, 20)
+}

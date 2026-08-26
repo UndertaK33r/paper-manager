@@ -14,7 +14,7 @@ var Root = {
       showPaperModal: false, editingId: null, saving: false, form: makeEmptyForm(),
       aiExtracting: false, summarizing: false, pdfExtracting: false,
       showManage: false, newCategory: "", newTag: "", newCollection: "",
-      showSettings: false, settings: { aiBaseUrl: "https://api.deepseek.com/v1", aiModel: "deepseek-v4-flash", aiApiKey: "" }, hasApiKey: false,
+      showSettings: false, settings: { aiBaseUrl: "https://api.deepseek.com/v1", aiModel: "deepseek-v4-flash", aiApiKey: "" }, hasApiKey: false, testingAI: false, aiTestResult: "",
       uploading: false, uploadProgress: 0, uploadResult: null,
       graphNodes: [], graphEdges: [], graphWarning: "", graphTimer: null, dragNode: null,
       toast: { show: false, msg: "", error: false }
@@ -156,7 +156,12 @@ var Root = {
     deleteTag: async function (id) { if(!confirm("删除该标签？")) return; try { await this.api("/api/tags/"+id,{method:"DELETE"}); this.loadAll(); this.loadPapers(); } catch(e){ this.notify(e.message,true); } },
     addCollection: async function () { if(!this.newCollection.trim()) return; try { await this.api("/api/collections",{method:"POST",json:{name:this.newCollection}}); this.newCollection=""; this.loadAll(); } catch(e){ this.notify(e.message,true); } },
     deleteCollection: async function (id) { if(!confirm("删除该合集？")) return; try { await this.api("/api/collections/"+id,{method:"DELETE"}); this.loadAll(); this.loadPapers(); } catch(e){ this.notify(e.message,true); } },
-    openSettings: function () { this.showSettings=true; this.loadAll(); },
+    testAI: async function () {
+      this.testingAI = true; this.aiTestResult = "";
+      try { var res = await this.api("/api/ai/test", { method: "POST" }); this.aiTestResult = "连接成功 · " + res.model; this.notify("AI 连接正常"); } catch (e) { this.aiTestResult = e.message; this.notify(e.message, true); }
+      this.testingAI = false;
+    },
+    openSettings: function () { this.showSettings=true; this.aiTestResult=""; this.loadAll(); },
     saveSettings: async function () { var body={aiBaseUrl:this.settings.aiBaseUrl, aiModel:this.settings.aiModel}; if(this.settings.aiApiKey) body.aiApiKey=this.settings.aiApiKey; try { var res=await this.api("/api/settings",{method:"PUT",json:body}); this.hasApiKey=!!res.hasApiKey; this.settings.aiApiKey=""; this.notify("AI 设置已保存"); this.showSettings=false; } catch(e){ this.notify(e.message,true); } },
     clearApiKey: async function () { try { var res=await this.api("/api/settings",{method:"PUT",json:{clearApiKey:true,aiBaseUrl:this.settings.aiBaseUrl,aiModel:this.settings.aiModel}}); this.hasApiKey=!!res.hasApiKey; this.settings.aiApiKey=""; this.notify("API Key 已清除"); } catch(e){ this.notify(e.message,true); } },
     // ---------- 上传（XHR 进度，对齐老项目） ----------
@@ -201,14 +206,14 @@ var Root = {
       var cv=this.$refs.graphCanvas; if(!cv) return; var ctx=cv.getContext("2d");
       ctx.clearRect(0,0,cv.width,cv.height);
       var byId={}; this.graphNodes.forEach(function(n){ byId[n.id]=n; });
-      ctx.strokeStyle="rgba(46,159,255,0.35)"; ctx.lineWidth=1;
+      ctx.strokeStyle="rgba(0,94,173,0.25)"; ctx.lineWidth=1;
       this.graphEdges.forEach(function(e){ var a=byId[e.source]; var b=byId[e.target]; if(!a||!b) return; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); });
       var self=this;
       this.graphNodes.forEach(function(n){
         ctx.beginPath(); ctx.arc(n.x,n.y, n.in_library?9:6, 0, Math.PI*2);
-        ctx.fillStyle = n.in_library ? "#2FB6FF" : "#93A3B4"; ctx.fill();
-        ctx.strokeStyle="rgba(125,232,255,0.8)"; ctx.lineWidth=1; ctx.stroke();
-        ctx.font="12px JetBrains Mono, monospace"; ctx.fillStyle="#F7FBFF";
+        ctx.fillStyle = n.in_library ? "#005EAD" : "#90AAC0"; ctx.fill();
+        ctx.strokeStyle="#ffffff"; ctx.lineWidth=1.5; ctx.stroke();
+        ctx.font="12px JetBrains Mono, monospace"; ctx.fillStyle="#244866";
         ctx.fillText((n.title||n.id).slice(0,24), n.x+12, n.y-6);
       });
     },

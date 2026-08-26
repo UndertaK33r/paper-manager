@@ -6,15 +6,16 @@
 <title>PAPER BRAIN</title>
 <link rel="stylesheet" href="assets/p3r-tokens.css">
 <link rel="stylesheet" href="assets/p3r-ui.css">
+<link rel="stylesheet" href="assets/p3r-site.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app" class="p3r-shell p3r-sea"></div>
+<div id="app" class="p3r-site"></div>
 
 <script type="text/x-template" id="app-template">
 <div class="layout">
   <header class="p3r-panel p3r-panel--blue topbar p3r-wipe-in">
-    <div class="brand"><span class="p3r-note"></span><span class="p3r-h2 p3r-glassy">PAPER BRAIN</span></div>
+    <div class="brand"><span class="brand-title">PAPER <b>BRAIN</b></span></div>
     <nav class="nav">
       <button class="p3r-btn small" :class="{active: route==='list'}" @click="go('list')">论文库</button>
       <button class="p3r-btn small" :class="{active: route==='upload'}" @click="go('upload')">上传论文</button>
@@ -36,19 +37,11 @@
 
   <!-- ===================== 论文库 ===================== -->
   <section v-else-if="route==='list'">
-    <div class="hero p3r-sheet p3r-sheet--music p3r-submerge">
+    <div class="hero p3r-sheet p3r-submerge">
       <div class="hero-left">
-        <div class="p3r-h1 p3r-glassy">PAPER <span class="p3r-accent">BRAIN</span></div>
-        <div class="p3r-readout">LIBRARY ARCHIVE · {{ stats.total || 0 }} RECORDS</div>
+        <div class="p3r-h1">PAPER <span class="accent">BRAIN</span></div>
+        <div class="hero-sub">LIBRARY ARCHIVE · {{ stats.total || 0 }} RECORDS · {{ stats.tags || 0 }} TAGS</div>
         <div class="p3r-stat-bar"><span class="p3r-stat-bar__label">READ</span><span class="p3r-stat-bar__track"><span class="p3r-stat-bar__fill" :style="{width: readPct + '%'}"></span></span><span class="p3r-stat-bar__value">{{ stats.read || 0 }} / {{ stats.total || 0 }}</span></div>
-      </div>
-      <div class="hero-right p3r-music-card p3r-music-card--playing">
-        <div class="p3r-music-card__disc"></div>
-        <div>
-          <div class="p3r-readout">TRACK 01 · ARCHIVE</div>
-          <div class="p3r-h3">PAPER MANAGER</div>
-          <div class="p3r-eq"><i></i><i></i><i></i><i></i><i></i></div>
-        </div>
       </div>
     </div>
 
@@ -113,7 +106,7 @@
   <section v-else-if="route==='detail'" class="detail-page">
     <div v-if="!detail.id" class="p3r-readout">LOADING...</div>
     <template v-else>
-      <div class="detail-head p3r-sheet p3r-sheet--music p3r-submerge">
+      <div class="detail-head p3r-sheet p3r-submerge">
         <button class="p3r-btn small" @click="go('list')">← 返回</button>
         <div class="p3r-h2 p3r-glassy">{{ detail.title }}</div>
         <div class="p3r-readout">NO.{{ String(detail.id).padStart(4, '0') }}</div>
@@ -165,7 +158,7 @@
 
   <!-- ===================== 上传 ===================== -->
   <section v-else-if="route==='upload'" class="upload-page">
-    <div class="p3r-sheet p3r-sheet--music drop-zone p3r-submerge" @dragover.prevent @drop.prevent="onDrop" @click="$refs.fileInput && $refs.fileInput.click()">
+    <div class="p3r-sheet drop-zone p3r-submerge" @dragover.prevent @drop.prevent="onDrop" @click="$refs.fileInput && $refs.fileInput.click()">
       <div class="p3r-h2 p3r-glassy">拖拽 PDF 到这里</div>
       <div class="p3r-readout">或点击选择文件 · 自动提取元数据与全文</div>
       <input type="file" ref="fileInput" accept=".pdf,application/pdf" class="hidden-input" @change="onFileChange">
@@ -187,7 +180,7 @@
 
   <!-- 添加/编辑论文弹窗（与旧逻辑一致） -->
   <div v-if="showPaperModal" class="modal-overlay" @click.self="closePaperModal">
-    <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge paper-dialog">
+    <div class="p3r-dialog p3r-sheet p3r-submerge paper-dialog">
       <div class="dialog-head"><span class="p3r-h3">{{ editingId ? 'EDIT PAPER' : 'ADD PAPER' }}</span><button class="p3r-btn" @click="closePaperModal">CLOSE</button></div>
       <form class="p3r-form" @submit.prevent="submitPaperForm">
         <div class="grid2"><label>标题 *<input class="p3r-input" v-model="form.title" required></label><label>作者<input class="p3r-input" v-model="form.authors" placeholder="逗号分隔"></label></div>
@@ -206,7 +199,7 @@
 
   <!-- 管理弹窗 -->
   <div v-if="showManage" class="modal-overlay" @click.self="showManage=false">
-    <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge wide">
+    <div class="p3r-dialog p3r-sheet p3r-submerge wide">
       <div class="dialog-head"><span class="p3r-h3">MANAGE</span><button class="p3r-btn" @click="showManage=false">CLOSE</button></div>
       <div class="manage-grid">
         <div class="p3r-panel"><span class="p3r-h3">分类</span><div class="inline-form"><input class="p3r-input" v-model="newCategory" placeholder="新分类"><button class="p3r-btn small p3r-btn--primary" @click="addCategory">添加</button></div><ul class="manage-list"><li v-for="c in categories" :key="c.id"><span>{{ c.name }} ({{ c.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteCategory(c.id)">删除</button></li></ul></div>
@@ -219,10 +212,10 @@
 
   <!-- AI 设置弹窗 -->
   <div v-if="showSettings" class="modal-overlay" @click.self="showSettings=false">
-    <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge">
+    <div class="p3r-dialog p3r-sheet p3r-submerge">
       <div class="dialog-head"><span class="p3r-h3">AI SETTINGS</span><button class="p3r-btn" @click="showSettings=false">CLOSE</button></div>
       <div class="p3r-form">
-        <div class="p3r-panel summary-panel"><span class="p3r-readout">STATUS</span><div class="p3r-h3" :class="hasApiKey ? 'p3r-accent' : ''">{{ hasApiKey ? 'API KEY 已配置' : '未配置 API KEY — AI 功能将跳过' }}</div></div>
+        <div class="p3r-panel summary-panel"><span class="p3r-readout">STATUS</span><div class="p3r-h3" :class="hasApiKey ? 'p3r-accent' : ''">{{ hasApiKey ? 'API KEY 已配置' : '未配置 API KEY — AI 功能将跳过' }}</div><div class="actions"><button class="p3r-btn small" @click="testAI" :disabled="testingAI">{{ testingAI ? '测试中...' : '测试连接' }}</button><span class="p3r-readout" v-if="aiTestResult">{{ aiTestResult }}</span></div></div>
         <label>模型<input class="p3r-input" v-model="settings.aiModel" list="aiModelList" placeholder="deepseek-v4-flash / deepseek-chat / deepseek-reasoner / 自定义"><datalist id="aiModelList"><option value="deepseek-v4-flash"></option><option value="deepseek-chat"></option><option value="deepseek-reasoner"></option></datalist></label>
         <label>API Key<input class="p3r-input" v-model="settings.aiApiKey" type="password" placeholder="sk-...（留空保持不变）"></label>
         <div class="form-actions"><button class="p3r-btn p3r-btn--danger" @click="clearApiKey">清除 API Key</button><button class="p3r-btn p3r-btn--primary" @click="saveSettings">保存设置</button></div>

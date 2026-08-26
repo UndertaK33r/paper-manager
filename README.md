@@ -8,7 +8,7 @@
 - 数据库：SQLite（pure-Go 驱动 modernc.org/sqlite，无 CGO）
 - PDF 元数据：github.com/ledongthuc/pdf
 - AI 提取：DeepSeek（OpenAI 兼容 Chat Completions API，默认模型 deepseek-v4-flash，可自由选择/输入模型名，如 deepseek-chat / deepseek-reasoner）
-- 前端：Vue 3（已内置 vendor，无需构建）+ P3R 设计系统（p3r-tokens.css / p3r-ui.css）
+- 前端：Vue 3（已内置 vendor，无需构建）+ P3R 设计系统（现代浅色编辑部模式 p3r-site + 组件库）
 - 部署：Docker / docker-compose
 
 ## 已实现功能（MVP）
@@ -98,6 +98,7 @@ GET/POST/DELETE /api/tags[/{id}]
 GET/POST/DELETE /api/collections[/{id}]
 GET    /api/stats
 GET/PUT /api/settings                      AI 设置（aiBaseUrl/aiModel/aiApiKey/clearApiKey）
+POST   /api/ai/test                         测试 AI 连接（模型 + Key 可用性）
 ```
 
 ## 项目结构

@@ -397,3 +397,21 @@ func (s *Server) handleSummarize(w http.ResponseWriter, r *http.Request) {
 	paper, _ := s.store.GetPaper(id)
 	writeJSON(w, http.StatusOK, paper)
 }
+
+// handleAITest 测试 AI 连接（模型 + API Key 是否可用）。
+func (s *Server) handleAITest(w http.ResponseWriter, r *http.Request) {
+	cfg, ok := s.aiConfig()
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "未配置 API Key")
+		return
+	}
+	client := ai.NewClient(cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	reply, err := client.Test(ctx)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "连接失败："+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "reply": reply, "model": cfg.Model, "baseUrl": cfg.BaseURL})
+}

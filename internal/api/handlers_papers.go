@@ -111,6 +111,10 @@ func (s *Server) savePdf(r *http.Request) (string, int64, string, error) {
 		os.Remove(dst)
 		return "", 0, "", fmt.Errorf("empty PDF file")
 	}
+	if head, herr := os.ReadFile(dst); herr != nil || len(head) < 5 || string(head[:5]) != "%PDF-" {
+		os.Remove(dst)
+		return "", 0, "", fmt.Errorf("not a valid PDF file")
+	}
 	orig := filepath.Base(header.Filename)
 	orig = strings.TrimSuffix(orig, filepath.Ext(orig))
 	return name, n, strings.TrimSpace(orig), nil

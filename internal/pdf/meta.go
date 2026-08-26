@@ -2,6 +2,7 @@ package pdfmeta
 
 import (
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -20,17 +21,24 @@ func Extract(path string) (Meta, error) {
 }
 
 func ExtractWithFallback(path, fallbackTitle string) (Meta, error) {
-	f, r, err := pdf.Open(path)
-	if err != nil {
-		return Meta{}, err
-	}
-	defer f.Close()
-	info := r.Trailer().Key("Info")
 	m := Meta{}
-	m.Title = strings.TrimSpace(info.Key("Title").Text())
-	m.Author = strings.TrimSpace(info.Key("Author").Text())
-	m.Keywords = strings.TrimSpace(info.Key("Keywords").Text())
-	m.Subject = strings.TrimSpace(info.Key("Subject").Text())
+	// PDF Info 字典（尽力而为：解析失败不影响后续流程）
+	if f, r, err := pdf.Open(path); err == nil {
+		info := r.Trailer().Key("Info")
+		m.Title = strings.TrimSpace(info.Key("Title").Text())
+		m.Author = strings.TrimSpace(info.Key("Author").Text())
+		m.Keywords = strings.TrimSpace(info.Key("Keywords").Text())
+		m.Subject = strings.TrimSpace(info.Key("Subject").Text())
+		f.Close()
+	}
+	// 老项目同款流扫描提取（不依赖 xref，兼容性更好）
+	text, big, _ := ExtractPDFText(path)
+	if m.Title == "" {
+		m.Title = SniffTitle(text)
+	}
+	if m.Title == "" {
+		m.Title = SniffTitle(big)
+	}
 	if m.Title == "" {
 		m.Title = cleanTitle(fallbackTitle)
 	}
@@ -54,30 +62,41 @@ func cleanTitle(s string) string {
 }
 
 func ExtractText(path string, maxChars int) (string, error) {
-	f, r, err := pdf.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	rd, err := r.GetPlainText()
-	if err != nil {
-		return "", err
-	}
 	if maxChars <= 0 {
 		maxChars = 20000
 	}
-	data, err := io.ReadAll(io.LimitReader(rd, int64(maxChars)))
-	return string(data), err
+	text, big, err := ExtractPDFText(path)
+	if err == nil && strings.TrimSpace(text) == "" && strings.TrimSpace(big) != "" {
+		text = big
+	}
+	if err != nil || strings.TrimSpace(text) == "" {
+		// 回退 ledongthuc（少数规范 PDF）
+		f, r, oerr := pdf.Open(path)
+		if oerr == nil {
+			defer f.Close()
+			if rd, rerr := r.GetPlainText(); rerr == nil {
+				if data, derr := io.ReadAll(io.LimitReader(rd, int64(maxChars))); derr == nil {
+					return string(data), nil
+				}
+			}
+		}
+		if err != nil {
+			return "", err
+		}
+		return "", nil
+	}
+	if len(text) > maxChars {
+		text = text[:maxChars]
+	}
+	return text, nil
 }
 
 func IsValidPDF(path string) bool {
-	f, r, err := pdf.Open(path)
-	if err != nil {
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) < 5 {
 		return false
 	}
-	defer f.Close()
-	_ = r
-	return true
+	return string(data[:5]) == "%PDF-"
 }
 
 func (m Meta) HasMeta() bool {
