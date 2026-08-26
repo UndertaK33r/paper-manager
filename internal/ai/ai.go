@@ -1,22 +1,121 @@
 package ai
 
-import "fmt"
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+)
 
-// Generator generates a one-sentence summary for a paper. It is a placeholder
-// for the future AI integration (phase 2).
-type Generator interface {
-	Summarize(title, authors, abstract string) (string, error)
+type Config struct {
+	BaseURL string
+	APIKey  string
+	Model   string
+	Timeout time.Duration
 }
 
-// Noop is used when no AI service is configured.
-type Noop struct{}
-
-func (Noop) Summarize(title, authors, abstract string) (string, error) {
-	return "", fmt.Errorf("AI summarization is not configured yet")
+type Client struct {
+	cfg  Config
+	http *http.Client
 }
 
-// Factory returns the configured generator. Extend here to add OpenAI-compatible
-// or local-model integrations later.
-func Factory() Generator {
-	return Noop{}
+type MetaResult struct {
+	Title    string `json:"title"`
+	Authors  string `json:"authors"`
+	Year     string `json:"year"`
+	Venue    string `json:"venue"`
+	DOI      string `json:"doi"`
+	Keywords string `json:"keywords"`
+	Summary  string `json:"summary"`
+	Category string `json:"category"`
+}
+
+func NewClient(cfg Config) *Client {
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = 45 * time.Second
+	}
+	return &Client{cfg: cfg, http: &http.Client{Timeout: cfg.Timeout}}
+}
+
+func (c *Client) ExtractMeta(ctx context.Context, text string) (MetaResult, error) {
+	if strings.TrimSpace(c.cfg.APIKey) == "" {
+		return MetaResult{}, fmt.Errorf("AI_API_KEY not configured")
+	}
+	url := strings.TrimRight(c.cfg.BaseURL, "/") + "/chat/completions"
+	prompt := "你是学术论文元数据提取助手。请从下面论文文本中提取：title(标题)，authors(作者，逗号分隔)，year(发表年份数字)，venue(期刊或会议名)，doi，keywords(关键词，逗号分隔)，summary(一句话中文总结)，category(建议分类名，如 深度学习/NLP/系统/数据库)。只输出 JSON 对象，不要输出其他文字。\n\n论文文本：\n" + truncate(text)
+	payload := map[string]any{
+		"model": c.cfg.Model,
+		"messages": []map[string]string{
+			{"role": "system", "content": "你是一个严谨的学术元数据提取器。输出 JSON，字段名必须为：title, authors, year, venue, doi, keywords, summary, category。没有的字段填空字符串。"},
+			{"role": "user", "content": prompt},
+		},
+		"temperature": 0.2,
+		"max_tokens":  1000,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return MetaResult{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return MetaResult{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return MetaResult{}, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return MetaResult{}, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return MetaResult{}, fmt.Errorf("AI API %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var envelope struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return MetaResult{}, err
+	}
+	if len(envelope.Choices) == 0 {
+		return MetaResult{}, fmt.Errorf("AI API returned no choices")
+	}
+	content := strings.TrimSpace(envelope.Choices[0].Message.Content)
+	content = strings.TrimPrefix(content, "```json")
+	content = strings.TrimPrefix(content, "```")
+	content = strings.TrimSuffix(content, "```")
+	content = strings.TrimSpace(content)
+	var meta MetaResult
+	if err := json.Unmarshal([]byte(content), &meta); err != nil {
+		return MetaResult{}, fmt.Errorf("parse AI JSON: %w (content=%s)", err, truncateN(content, 300))
+	}
+	return meta, nil
+}
+
+func truncate(s string) string { return truncateN(s, 20000) }
+
+func truncateN(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max]
+}
+
+func Defaults() Config {
+	return Config{
+		BaseURL: "https://api.openai.com/v1",
+		Model:   "gpt-4o-mini",
+		Timeout: 45 * time.Second,
+	}
 }

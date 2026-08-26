@@ -56,6 +56,7 @@ func formPaperInput(r *http.Request) models.PaperInput {
 	in.Read = r.FormValue("read") == "1" || strings.EqualFold(r.FormValue("read"), "true")
 	in.Starred = r.FormValue("starred") == "1" || strings.EqualFold(r.FormValue("starred"), "true")
 	in.Force = r.FormValue("force") == "1" || strings.EqualFold(r.FormValue("force"), "true")
+	in.UseAI = r.FormValue("useAI") == "1" || strings.EqualFold(r.FormValue("useAI"), "true")
 	in.TagNames = csvSplit(r.FormValue("tags"))
 	in.CollectionNames = csvSplit(r.FormValue("collections"))
 	return in
@@ -169,6 +170,13 @@ func (s *Server) handleCreatePaper(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusConflict, models.DuplicateCheck{Duplicate: true, Reason: "duplicate paper", PaperID: dup.ID, Title: dup.Title})
 		return
 	}
+	if err := s.maybeAIExtract(&in, pdfPath); err != nil {
+		if pdfPath != "" {
+			os.Remove(filepath.Join(s.uploadDir, pdfPath))
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	p := s.paperFromInput(in, nil)
 	p.PDFPath = pdfPath
 	p.PDFSize = pdfSize
@@ -268,6 +276,10 @@ func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
 				os.Remove(filepath.Join(s.uploadDir, old))
 			}
 		}
+	}
+	if err := s.maybeAIExtract(&in, current.PDFPath); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	p := s.paperFromInput(in, &current)
 	if err := s.store.UpdatePaper(&p); err != nil {

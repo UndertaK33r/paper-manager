@@ -58,6 +58,7 @@ type PaperInput struct {
 	CategoryID      *int64   `json:"categoryId"`
 	Read            bool     `json:"read"`
 	Force           bool     `json:"force"`
+	UseAI           bool     `json:"useAI"`
 	Starred         bool     `json:"starred"`
 	Tags            []int64  `json:"tags"`
 	Collections     []int64  `json:"collections"`

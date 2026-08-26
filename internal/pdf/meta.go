@@ -1,6 +1,7 @@
 package pdfmeta
 
 import (
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -39,6 +40,23 @@ func titleFromFilename(path string) string {
 	base = strings.ReplaceAll(base, "-", " ")
 	base = strings.ReplaceAll(base, ".", " ")
 	return strings.TrimSpace(base)
+}
+
+func ExtractText(path string, maxChars int) (string, error) {
+	f, r, err := pdf.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	rd, err := r.GetPlainText()
+	if err != nil {
+		return "", err
+	}
+	if maxChars <= 0 {
+		maxChars = 20000
+	}
+	data, err := io.ReadAll(io.LimitReader(rd, int64(maxChars)))
+	return string(data), err
 }
 
 func IsValidPDF(path string) bool {

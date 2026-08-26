@@ -60,6 +60,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/papers/{id}/collections", s.handleAddPaperCollection)
 	mux.HandleFunc("DELETE /api/papers/{id}/collections/{collectionID}", s.handleRemovePaperCollection)
 	mux.HandleFunc("POST /api/papers/{id}/summarize", s.handleSummarize)
+	mux.HandleFunc("POST /api/papers/{id}/ai-extract", s.handleAIExtract)
 
 	mux.HandleFunc("GET /api/categories", s.handleListCategories)
 	mux.HandleFunc("POST /api/categories", s.handleCreateCategory)
@@ -74,6 +75,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/collections/{id}", s.handleDeleteCollection)
 
 	mux.HandleFunc("GET /api/stats", s.handleStats)
+	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
+	mux.HandleFunc("PUT /api/settings", s.handleUpdateSettings)
 
 	static := http.FileServer(http.Dir(s.webDir))
 	mux.Handle("/", static)

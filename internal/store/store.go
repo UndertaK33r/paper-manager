@@ -83,6 +83,11 @@ CREATE TABLE IF NOT EXISTS paper_collections (
 CREATE INDEX IF NOT EXISTS idx_papers_title ON papers(title);
 CREATE INDEX IF NOT EXISTS idx_papers_year ON papers(year);
 CREATE INDEX IF NOT EXISTS idx_papers_category ON papers(category_id);
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
 CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 `
 	_, err := s.db.Exec(schema)

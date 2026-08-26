@@ -3,160 +3,244 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>论文管理系统</title>
+<title>PAPER MANAGER</title>
+<link rel="stylesheet" href="assets/p3r-tokens.css">
+<link rel="stylesheet" href="assets/p3r-ui.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar">
-<div class="brand">📚 论文管理系统</div>
-<div class="top-actions">
-<button id="manageBtn" class="btn ghost">⚙️ 管理</button>
-<button id="addBtn" class="btn primary">＋ 添加论文</button>
-</div>
-</header>
-<main class="container">
-<section class="stats" id="stats"></section>
-<section class="toolbar">
-<input id="searchInput" class="input search" placeholder="搜索标题 / 作者 / 关键词 / DOI ...">
-<select id="categoryFilter" class="select"></select>
-<select id="tagFilter" class="select"></select>
-<select id="collectionFilter" class="select"></select>
-<input id="yearFrom" class="input num" placeholder="年份从">
-<input id="yearTo" class="input num" placeholder="年份至">
-<select id="readFilter" class="select">
-<option value="">全部状态</option>
-<option value="1">已读</option>
-<option value="0">未读</option>
-</select>
-<select id="starFilter" class="select">
-<option value="">全部收藏</option>
-<option value="1">已收藏</option>
-<option value="0">未收藏</option>
-</select>
-<select id="sortSelect" class="select">
-<option value="created">按添加时间</option>
-<option value="year">按年份</option>
-<option value="title">按标题</option>
-<option value="authors">按作者</option>
-<option value="updated">按更新时间</option>
-</select>
-<select id="orderSelect" class="select">
-<option value="desc">降序</option>
-<option value="asc">升序</option>
-</select>
-<div class="view-toggle">
-<button id="tableViewBtn" class="btn small active">表格</button>
-<button id="cardViewBtn" class="btn small">卡片</button>
-</div>
-</section>
-<section id="papersArea"></section>
-<section class="pagination" id="pagination"></section>
-</main>
+<div id="app" class="p3r-shell p3r-shell--scanlines"></div>
 
-<div class="modal hidden" id="paperModal">
-<div class="modal-card">
-<div class="modal-head">
-<h2 id="paperModalTitle">添加论文</h2>
-<button class="btn ghost" data-close="paperModal">×</button>
-</div>
-<form id="paperForm" class="form">
-<label>标题 *<input id="fTitle" name="title" class="input" required></label>
-<div class="grid2">
-<label>作者<input id="fAuthors" name="authors" class="input" placeholder="多作者用逗号分隔"></label>
-<label>发表年份<input id="fYear" name="year" class="input" type="number"></label>
-</div>
-<div class="grid2">
-<label>期刊/会议<input id="fVenue" name="venue" class="input"></label>
-<label>DOI<input id="fDOI" name="doi" class="input"></label>
-</div>
-<div class="grid2">
-<label>关键词<input id="fKeywords" name="keywords" class="input" placeholder="逗号分隔"></label>
-<label>分类<select id="fCategory" name="categoryId" class="select"></select></label>
-</div>
-<div class="grid2">
-<label>链接<input id="fLink" name="link" class="input" placeholder="代码仓库 / 补充材料 URL"></label>
-<label>PDF 文件<input id="fPDF" name="pdf" class="input" type="file" accept=".pdf,application/pdf"></label>
-</div>
-<div class="grid2">
-<label>标签<input id="fTags" name="tags" class="input" placeholder="逗号分隔，如: deep-learning, nlp"></label>
-<label>合集<input id="fCollections" name="collections" class="input" placeholder="逗号分隔，如: 组会分享"></label>
-</div>
-<label>AI 一句话总结<textarea id="fSummary" name="summary" class="textarea" rows="2" placeholder="可在编辑时手动填写，后续版本自动生成"></textarea></label>
-<label>笔记<textarea id="fNotes" name="notes" class="textarea" rows="4"></textarea></label>
-<div class="checks">
-<label class="check"><input type="checkbox" id="fRead" name="read"> 已读</label>
-<label class="check"><input type="checkbox" id="fStarred" name="starred"> 收藏</label>
-</div>
-<div class="form-actions">
-<button type="button" class="btn ghost" data-close="paperModal">取消</button>
-<button type="submit" id="savePaperBtn" class="btn primary">保存</button>
-</div>
-</form>
-</div>
-</div>
+<script type="text/x-template" id="app-template">
+<div class="layout">
+  <header class="p3r-panel p3r-panel--blue topbar p3r-wipe-in">
+    <div class="p3r-h2">PAPER <span class="p3r-accent">MANAGER</span></div>
+    <div class="top-actions">
+      <button class="p3r-btn" @click="openSettings">AI 设置</button>
+      <button class="p3r-btn p3r-btn--primary" @click="openAdd">+ 添加论文</button>
+    </div>
+  </header>
 
-<div class="modal hidden" id="detailModal">
-<div class="modal-card wide">
-<div class="modal-head">
-<h2 id="detailTitle"></h2>
-<button class="btn ghost" data-close="detailModal">×</button>
-</div>
-<div class="detail-body">
-<div class="meta-grid" id="detailMeta"></div>
-<div class="card" id="detailSummary"></div>
-<div class="detail-actions" id="detailActions"></div>
-<div class="card">
-<h3>PDF 预览</h3>
-<div id="pdfWrap" class="pdf-wrap"></div>
-</div>
-<div class="card">
-<h3>标签 / 合集</h3>
-<div id="tagChips" class="chips"></div>
-<div class="inline-form">
-<select id="detailTagSelect" class="select"></select>
-<button class="btn small" id="addTagBtn">添加标签</button>
-</div>
-<div id="collectionChips" class="chips"></div>
-<div class="inline-form">
-<select id="detailCollectionSelect" class="select"></select>
-<button class="btn small" id="addCollectionBtn">加入合集</button>
-</div>
-</div>
-<div class="card">
-<h3>笔记</h3>
-<textarea id="detailNotes" class="textarea" rows="6"></textarea>
-<div class="form-actions">
-<button class="btn primary" id="saveNotesBtn">保存笔记</button>
-</div>
-</div>
-</div>
-</div>
-</div>
+  <section class="p3r-panel stats-panel p3r-wipe-in" style="animation-delay:40ms">
+    <div class="p3r-panel__title"><span class="p3r-h3">LIBRARY STATUS</span><span class="p3r-readout">DATA READOUT</span></div>
+    <div class="stats-grid">
+      <div class="stat"><span class="p3r-readout">TOTAL</span><span class="p3r-h2">{{ stats.total || 0 }}</span></div>
+      <div class="stat"><span class="p3r-readout">UNREAD</span><span class="p3r-h2">{{ stats.unread || 0 }}</span></div>
+      <div class="stat"><span class="p3r-readout">READ</span><span class="p3r-h2">{{ stats.read || 0 }}</span></div>
+      <div class="stat"><span class="p3r-readout">STARRED</span><span class="p3r-h2">{{ stats.starred || 0 }}</span></div>
+      <div class="stat"><span class="p3r-readout">CATEGORIES</span><span class="p3r-h2">{{ stats.categories || 0 }}</span></div>
+      <div class="stat"><span class="p3r-readout">TAGS</span><span class="p3r-h2">{{ stats.tags || 0 }}</span></div>
+    </div>
+  </section>
 
-<div class="modal hidden" id="manageModal">
-<div class="modal-card wide">
-<div class="modal-head"><h2>管理</h2><button class="btn ghost" data-close="manageModal">×</button></div>
-<div class="manage-grid">
-<div class="card">
-<h3>分类</h3>
-<div class="inline-form"><input id="newCategory" class="input" placeholder="新分类名称"><button class="btn small" id="addCategoryBtn">添加</button></div>
-<ul class="manage-list" id="categoryList"></ul>
-</div>
-<div class="card">
-<h3>标签</h3>
-<div class="inline-form"><input id="newTag" class="input" placeholder="新标签名称"><button class="btn small" id="addTagGlobalBtn">添加</button></div>
-<ul class="manage-list" id="tagList"></ul>
-</div>
-<div class="card">
-<h3>合集</h3>
-<div class="inline-form"><input id="newCollection" class="input" placeholder="新合集名称"><button class="btn small" id="addCollectionGlobalBtn">添加</button></div>
-<ul class="manage-list" id="collectionList"></ul>
-</div>
-</div>
-</div>
-</div>
+  <section class="p3r-panel toolbar p3r-wipe-in" style="animation-delay:80ms">
+    <div class="toolbar-row">
+      <input class="p3r-input search" v-model="filters.search" placeholder="搜索标题 / 作者 / DOI..." @input="onSearchInput">
+      <select class="p3r-input" v-model="filters.category" @change="applyFilters">
+        <option value="">全部分类</option>
+        <option v-for="c in categories" :value="c.id" :key="c.id">{{ c.name }} ({{ c.paperCount }})</option>
+      </select>
+      <select class="p3r-input" v-model="filters.tag" @change="applyFilters">
+        <option value="">全部标签</option>
+        <option v-for="t in tags" :value="t.id" :key="t.id">{{ t.name }} ({{ t.paperCount }})</option>
+      </select>
+      <select class="p3r-input" v-model="filters.collection" @change="applyFilters">
+        <option value="">全部合集</option>
+        <option v-for="o in collections" :value="o.id" :key="o.id">{{ o.name }} ({{ o.paperCount }})</option>
+      </select>
+      <input class="p3r-input num" v-model="filters.yearFrom" placeholder="年从" @change="applyFilters">
+      <input class="p3r-input num" v-model="filters.yearTo" placeholder="年至" @change="applyFilters">
+      <select class="p3r-input" v-model="filters.read" @change="applyFilters">
+        <option value="">全部状态</option>
+        <option value="1">已读</option>
+        <option value="0">未读</option>
+      </select>
+      <select class="p3r-input" v-model="filters.starred" @change="applyFilters">
+        <option value="">全部收藏</option>
+        <option value="1">已收藏</option>
+        <option value="0">未收藏</option>
+      </select>
+      <select class="p3r-input" v-model="filters.sort" @change="loadPapers">
+        <option value="created">按添加时间</option>
+        <option value="year">按年份</option>
+        <option value="title">按标题</option>
+        <option value="authors">按作者</option>
+        <option value="updated">按更新时间</option>
+      </select>
+      <select class="p3r-input" v-model="filters.order" @change="loadPapers">
+        <option value="desc">降序</option>
+        <option value="asc">升序</option>
+      </select>
+      <div class="view-toggle">
+        <button class="p3r-btn small" :class="{active: view === 'table'}" @click="setView('table')">表格</button>
+        <button class="p3r-btn small" :class="{active: view === 'card'}" @click="setView('card')">卡片</button>
+      </div>
+    </div>
+  </section>
 
-<div id="toast" class="toast hidden"></div>
+  <section class="p3r-panel content p3r-wipe-in" style="animation-delay:120ms">
+    <div v-if="loading" class="p3r-readout">LOADING...</div>
+    <table v-else-if="view === 'table' && papers.length" class="p3r-table">
+      <thead><tr><th>标题</th><th>作者</th><th>年份</th><th>分类</th><th>标签</th><th>状态</th><th>摘要</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr v-for="p in papers" :key="p.id">
+          <td class="title-cell" @click="openDetail(p.id)">{{ p.title }}</td>
+          <td class="ellipsis">{{ p.authors }}</td>
+          <td>{{ p.year }}</td>
+          <td>{{ p.categoryName }}</td>
+          <td><span v-for="t in p.tags" class="p3r-badge" :key="t.id">{{ t.name }}</span></td>
+          <td><span v-if="p.read" class="p3r-badge">已读</span><span v-if="p.starred" class="p3r-badge">收藏</span></td>
+          <td class="ellipsis">{{ p.summary }}</td>
+          <td>
+            <div class="actions">
+              <button class="p3r-btn small" @click="openDetail(p.id)">详情</button>
+              <button class="p3r-btn small" @click="openEdit(p)">编辑</button>
+              <button class="p3r-btn small" @click="toggleRead(p.id)">{{ p.read ? '标未读' : '标已读' }}</button>
+              <button class="p3r-btn small" @click="toggleStar(p.id)">{{ p.starred ? '取消收藏' : '收藏' }}</button>
+              <button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div v-else-if="view === 'card' && papers.length" class="cards-grid">
+      <div v-for="p in papers" :key="p.id" class="card p3r-panel">
+        <div class="p3r-h3 title-cell" @click="openDetail(p.id)">{{ p.title }}</div>
+        <div class="p3r-readout">{{ p.authors }} · {{ p.year }}</div>
+        <div><span v-if="p.read" class="p3r-badge">已读</span> <span v-if="p.starred" class="p3r-badge">收藏</span> <span v-if="p.categoryName" class="p3r-badge">{{ p.categoryName }}</span></div>
+        <div class="chips"><span v-for="t in p.tags" class="p3r-badge" :key="t.id">{{ t.name }}</span></div>
+        <div class="p3r-readout">{{ p.summary }}</div>
+        <div class="actions">
+          <button class="p3r-btn small" @click="openDetail(p.id)">详情</button>
+          <button class="p3r-btn small" @click="openEdit(p)">编辑</button>
+          <button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button>
+        </div>
+      </div>
+    </div>
+    <div v-else class="empty p3r-readout">NO PAPERS FOUND — 点击右上角添加论文</div>
+    <div class="pagination">
+      <button class="p3r-btn small" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
+      <span class="p3r-readout">PAGE {{ page }} / {{ pages }} · TOTAL {{ total }}</span>
+      <button class="p3r-btn small" :disabled="page >= pages" @click="goPage(page + 1)">下一页</button>
+    </div>
+  </section>
+
+  <!-- 添加/编辑论文 -->
+  <div v-if="showPaperModal" class="modal-overlay" @click.self="closePaperModal">
+    <div class="p3r-dialog p3r-dialog--blue paper-dialog">
+      <div class="dialog-head"><span class="p3r-h3">{{ editingId ? 'EDIT PAPER' : 'ADD PAPER' }}</span><button class="p3r-btn" @click="closePaperModal">CLOSE</button></div>
+      <form class="p3r-form" @submit.prevent="submitPaperForm">
+        <div class="grid2">
+          <label>标题 *<input class="p3r-input" v-model="form.title" required></label>
+          <label>作者<input class="p3r-input" v-model="form.authors" placeholder="多作者用逗号分隔"></label>
+        </div>
+        <div class="grid2">
+          <label>发表年份<input class="p3r-input" v-model="form.year" type="number"></label>
+          <label>期刊/会议<input class="p3r-input" v-model="form.venue"></label>
+        </div>
+        <div class="grid2">
+          <label>DOI<input class="p3r-input" v-model="form.doi"></label>
+          <label>关键词<input class="p3r-input" v-model="form.keywords" placeholder="逗号分隔"></label>
+        </div>
+        <div class="grid2">
+          <label>分类<select class="p3r-input" v-model="form.categoryId"><option value="">未分类</option><option v-for="c in categories" :value="c.id" :key="c.id">{{ c.name }}</option></select></label>
+          <label>链接<input class="p3r-input" v-model="form.link" placeholder="代码仓库 / 补充材料 URL"></label>
+        </div>
+        <div class="grid2">
+          <label>标签<input class="p3r-input" v-model="form.tags" placeholder="逗号分隔"></label>
+          <label>合集<input class="p3r-input" v-model="form.collections" placeholder="逗号分隔"></label>
+        </div>
+        <div class="grid2">
+          <label>PDF 文件<input class="p3r-input" type="file" accept=".pdf,application/pdf" ref="pdfInput"></label>
+          <div class="ai-check"><label class="check-row"><input type="checkbox" v-model="form.useAI"> 使用 AI 自动提取剩余元数据</label><span class="p3r-readout">{{ hasApiKey ? 'API KEY READY' : 'NO API KEY — 将跳过 AI' }}</span></div>
+        </div>
+        <label>AI 一句话总结<textarea class="p3r-input" v-model="form.summary" rows="2" placeholder="上传 PDF 后可由 AI 自动提取"></textarea></label>
+        <label>笔记<textarea class="p3r-input" v-model="form.notes" rows="4"></textarea></label>
+        <div class="checks">
+          <label class="check-row"><input type="checkbox" v-model="form.read"> 已读</label>
+          <label class="check-row"><input type="checkbox" v-model="form.starred"> 收藏</label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="p3r-btn" @click="closePaperModal">取消</button>
+          <button type="submit" class="p3r-btn p3r-btn--primary" :disabled="saving">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 详情 -->
+  <div v-if="showDetail" class="modal-overlay" @click.self="closeDetail">
+    <div class="p3r-dialog p3r-dialog--blue wide">
+      <div class="dialog-head"><span class="p3r-h3">{{ detail.title }}</span><button class="p3r-btn" @click="closeDetail">CLOSE</button></div>
+      <div v-if="!detail.id" class="p3r-readout">LOADING...</div>
+      <div v-else class="detail-body">
+        <div class="meta-grid">
+          <div class="meta-item"><span class="p3r-readout">作者</span><span>{{ detail.authors || '—' }}</span></div>
+          <div class="meta-item"><span class="p3r-readout">年份</span><span>{{ detail.year || '—' }}</span></div>
+          <div class="meta-item"><span class="p3r-readout">期刊/会议</span><span>{{ detail.venue || '—' }}</span></div>
+          <div class="meta-item"><span class="p3r-readout">DOI</span><span>{{ detail.doi || '—' }}</span></div>
+          <div class="meta-item"><span class="p3r-readout">关键词</span><span>{{ detail.keywords || '—' }}</span></div>
+          <div class="meta-item"><span class="p3r-readout">链接</span><a v-if="detail.link" :href="detail.link" target="_blank" class="p3r-accent">{{ detail.link }}</a><span v-else>—</span></div>
+          <div class="meta-item"><span class="p3r-readout">分类</span><span>{{ detail.categoryName || '—' }}</span></div>
+          <div class="meta-item"><span class="p3r-readout">状态</span><span>{{ detail.read ? '已读' : '未读' }} / {{ detail.starred ? '收藏' : '未收藏' }}</span></div>
+        </div>
+        <div class="p3r-panel summary-panel"><span class="p3r-readout">SUMMARY</span><div>{{ detail.summary || '暂无 AI 总结，可点击下方 AI 提取自动生成' }}</div></div>
+        <div class="actions">
+          <button class="p3r-btn small" @click="toggleRead(detail.id)">{{ detail.read ? '标为未读' : '标为已读' }}</button>
+          <button class="p3r-btn small" @click="toggleStar(detail.id)">{{ detail.starred ? '取消收藏' : '加入收藏' }}</button>
+          <button class="p3r-btn small" @click="openEdit(detail)">编辑</button>
+          <button class="p3r-btn small" @click="aiExtract(detail.id)">{{ aiExtracting ? 'AI 提取中...' : 'AI 提取' }}</button>
+          <a v-if="detail.hasPdf" class="p3r-btn small" :href="'/api/papers/' + detail.id + '/pdf'" target="_blank">打开 PDF</a>
+          <a v-if="detail.hasPdf" class="p3r-btn small" :href="'/api/papers/' + detail.id + '/pdf?download=1'" target="_blank">下载 PDF</a>
+          <button class="p3r-btn small p3r-btn--danger" @click="deletePaper(detail.id)">删除</button>
+        </div>
+        <div class="p3r-panel pdf-panel"><span class="p3r-readout">PDF PREVIEW</span><iframe v-if="detail.hasPdf" :src="'/api/papers/' + detail.id + '/pdf'"></iframe><div v-else class="p3r-readout">该论文暂无 PDF</div></div>
+        <div class="p3r-panel"><span class="p3r-readout">TAGS / COLLECTIONS</span>
+          <div class="chips"><span v-for="t in detail.tags" class="p3r-badge">{{ t.name }} <a class="chip-x" @click="removeDetailTag(t.id)">×</a></span> <span v-if="!detail.tags.length" class="p3r-readout">暂无标签</span></div>
+          <div class="inline-form"><select class="p3r-input" v-model="tagSelect"><option value="">选择标签</option><option v-for="t in availableTags" :value="t.id" :key="t.id">{{ t.name }}</option></select><button class="p3r-btn small" @click="addDetailTag">添加</button></div>
+          <div class="chips"><span v-for="c in detail.collections" class="p3r-badge">{{ c.name }} <a class="chip-x" @click="removeDetailCollection(c.id)">×</a></span> <span v-if="!detail.collections.length" class="p3r-readout">暂无合集</span></div>
+          <div class="inline-form"><select class="p3r-input" v-model="collectionSelect"><option value="">选择合集</option><option v-for="c in availableCollections" :value="c.id" :key="c.id">{{ c.name }}</option></select><button class="p3r-btn small" @click="addDetailCollection">添加</button></div>
+        </div>
+        <div class="p3r-panel"><span class="p3r-readout">NOTES</span><textarea class="p3r-input" v-model="detail.notes" rows="6"></textarea><div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="saveNotes">保存笔记</button></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 管理 -->
+  <div v-if="showManage" class="modal-overlay" @click.self="showManage=false">
+    <div class="p3r-dialog p3r-dialog--blue wide">
+      <div class="dialog-head"><span class="p3r-h3">MANAGE</span><button class="p3r-btn" @click="showManage=false">CLOSE</button></div>
+      <div class="manage-grid">
+        <div class="p3r-panel"><span class="p3r-h3">分类</span><div class="inline-form"><input class="p3r-input" v-model="newCategory" placeholder="新分类"><button class="p3r-btn small p3r-btn--primary" @click="addCategory">添加</button></div><ul class="manage-list"><li v-for="c in categories" :key="c.id"><span>{{ c.name }} ({{ c.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteCategory(c.id)">删除</button></li></ul></div>
+        <div class="p3r-panel"><span class="p3r-h3">标签</span><div class="inline-form"><input class="p3r-input" v-model="newTag" placeholder="新标签"><button class="p3r-btn small p3r-btn--primary" @click="addTag">添加</button></div><ul class="manage-list"><li v-for="t in tags" :key="t.id"><span>{{ t.name }} ({{ t.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteTag(t.id)">删除</button></li></ul></div>
+        <div class="p3r-panel"><span class="p3r-h3">合集</span><div class="inline-form"><input class="p3r-input" v-model="newCollection" placeholder="新合集"><button class="p3r-btn small p3r-btn--primary" @click="addCollection">添加</button></div><ul class="manage-list"><li v-for="o in collections" :key="o.id"><span>{{ o.name }} ({{ o.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteCollection(o.id)">删除</button></li></ul></div>
+      </div>
+      <div class="form-actions"><button class="p3r-btn" @click="showManage=false">关闭</button></div>
+    </div>
+  </div>
+
+  <!-- AI 设置 -->
+  <div v-if="showSettings" class="modal-overlay" @click.self="showSettings=false">
+    <div class="p3r-dialog p3r-dialog--blue">
+      <div class="dialog-head"><span class="p3r-h3">AI SETTINGS</span><button class="p3r-btn" @click="showSettings=false">CLOSE</button></div>
+      <div class="p3r-form">
+        <div class="p3r-panel summary-panel"><span class="p3r-readout">STATUS</span><div class="p3r-h3" :class="hasApiKey ? 'p3r-accent' : ''">{{ hasApiKey ? 'API KEY 已配置 — 上传 PDF 时将自动发送 AI 提取请求' : '未配置 API KEY — 将跳过 AI 提取' }}</div></div>
+        <label>API Base URL<input class="p3r-input" v-model="settings.aiBaseUrl" placeholder="https://api.openai.com/v1"></label>
+        <label>Model<input class="p3r-input" v-model="settings.aiModel" placeholder="gpt-4o-mini"></label>
+        <label>API Key<input class="p3r-input" v-model="settings.aiApiKey" type="password" placeholder="sk-...（留空保持不变）"></label>
+        <div class="form-actions">
+          <button class="p3r-btn p3r-btn--danger" @click="clearApiKey">清除 API Key</button>
+          <button class="p3r-btn p3r-btn--primary" @click="saveSettings">保存设置</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div v-if="toast.show" class="toast" :class="{error: toast.error}">{{ toast.msg }}</div>
+</div>
+</script>
+
+<script src="assets/vue.global.prod.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
