@@ -32,7 +32,7 @@
 </div>
 <div class="layout">
   <header class="p3r-panel p3r-panel--blue topbar p3r-wipe-in">
-    <div class="brand"><span class="p3r-h2 p3r-glassy">PAPER BRAIN</span></div>
+    <div class="brand"><svg class="note-ico" viewBox="0 0 24 24" width="18" height="18"><path fill="#000" d="M9 18V5l10-2v13a3 3 0 1 1-2-2.83V8.5L11 10v8a3 3 0 1 1-2-2.83z"/></svg><span class="p3r-h2 p3r-glassy">PAPER BRAIN</span></div>
     <nav class="nav">
       <button class="p3r-btn small" :class="{active: route==='list'}" @click="go('list')">论文库</button>
       <button class="p3r-btn small" :class="{active: route==='upload'}" @click="go('upload')">上传论文</button>
@@ -124,7 +124,7 @@
     <div v-if="!detail.id" class="p3r-readout">LOADING...</div>
     <template v-else>
       <div class="detail-head p3r-sheet p3r-sheet--music p3r-submerge">
-        <button class="p3r-btn small" @click="go('list')">← 返回</button>
+        <button class="p3r-btn small" @click="go('list')"><span class="note-inline">♪</span> 返回</button>
         <div class="p3r-h2 p3r-glassy">{{ detail.title }}</div>
         <div class="p3r-readout">NO.{{ String(detail.id).padStart(4, '0') }}</div>
       </div>
@@ -164,7 +164,7 @@
           <iframe v-if="detail.hasPdf" :src="pdfUrl(detail.id)" :class="{wide: fullWidth}"></iframe>
           <div v-else class="p3r-readout">该论文暂无 PDF</div>
         </div>
-        <div class="p3r-panel">
+        <div class="p3r-panel grid-full">
           <span class="p3r-readout">NOTES</span>
           <textarea class="p3r-input" v-model="detail.notes" rows="8"></textarea>
           <div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="saveDetail">保存笔记</button><button class="p3r-btn small" @click="reDetect(detail.id)">重新识别元数据</button>

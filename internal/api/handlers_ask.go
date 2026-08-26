@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"paper-manager/internal/ai"
+	"paper-manager/internal/models"
 )
 
 type askSource struct {
@@ -33,6 +34,17 @@ func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	fallback := false
+	if len(items) == 0 {
+		// 未命中时回退到最近论文，避免中文提问英文库直接空召回
+		res, lerr := s.store.ListPapers(models.PaperQuery{Page: 1, PageSize: 3, Sort: "created", Order: "desc"})
+		if lerr != nil {
+			writeError(w, http.StatusInternalServerError, lerr.Error())
+			return
+		}
+		items = res.Papers
+		fallback = true
 	}
 	if len(items) == 0 {
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -65,7 +77,11 @@ func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request) {
 	client := ai.NewClient(cfg)
 	ctx2, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	answer, aerr := client.Ask(ctx2, fmt.Sprintf("论文库相关片段：\n%s\n\n问题：%s", ctx.String(), query))
+	note := ""
+	if fallback {
+		note = "\n（提示：以下是最新的几篇论文，并不一定与问题直接相关；若它们没有提到你问的内容，请明确说明论文库中没有找到相关内容，不要编造。）"
+	}
+	answer, aerr := client.Ask(ctx2, fmt.Sprintf("论文库相关片段：\n%s\n%s\n\n问题：%s", ctx.String(), note, query))
 	if aerr != nil {
 		writeError(w, http.StatusBadGateway, "AI 问答失败: "+aerr.Error())
 		return

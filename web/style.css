@@ -103,7 +103,7 @@ label { font-size: 13px; color: var(--k-ink-soft, #4A4A4A); }
 label .p3r-input, .p3r-form label .p3r-input { display: block; width: 100%; margin-top: 6px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .checks { display: flex; gap: 18px; align-items: center; }
-.check-row { display: flex; align-items: center; gap: 6px; color: var(--k-ink); }
+.check-row { display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--k-ink); }
 
 /* ---- 工具栏 / 分段 ---- */
 .toolbar { margin-bottom: 20px; }
@@ -253,6 +253,20 @@ label .p3r-input, .p3r-form label .p3r-input { display: block; width: 100%; marg
 @media (prefers-reduced-motion: reduce) {
   .staff-note { animation: none; }
 }
+
+/* 锋利：去掉按钮切角缺口 / seg 圆环 */
+.p3r-btn { clip-path: none !important; }
+.seg { border-radius: 0 !important; }
+.seg .p3r-btn { border-radius: 0 !important; }
+
+/* 黑色音符图标 */
+.brand::before { content: none !important; }
+.note-ico { flex: none; display: block; color: #000; }
+.note-inline { font-family: var(--k-font, sans-serif); color: var(--k-ink, #000); }
+
+/* NOTES 面板跨整行对齐 */
+.grid-full { grid-column: 1 / -1; }
+.detail-grid > .grid-full { grid-column: 1 / -1; }
 
 @media (max-width: 760px) {
   .layout { padding: 16px 14px 64px; }
