@@ -13,7 +13,7 @@ var Root = {
       showDetail: false, detail: {}, tagSelect: "", collectionSelect: "", aiExtracting: false, summarizing: false, pdfExtracting: false,
       showManage: false, newCategory: "", newTag: "", newCollection: "",
       showSettings: false,
-      settings: { aiBaseUrl: "https://api.openai.com/v1", aiModel: "gpt-4o-mini", aiApiKey: "" },
+      settings: { aiBaseUrl: "https://api.deepseek.com/v1", aiModel: "deepseek-v4-flash", aiApiKey: "" },
       hasApiKey: false,
       toast: { show: false, msg: "", error: false }
     };
@@ -287,7 +287,6 @@ var Root = {
       try { await this.api("/api/collections/" + id, { method: "DELETE" }); this.notify("已删除"); await this.loadAll(); await this.loadPapers(); }
       catch (e) { this.notify(e.message, true); }
     },
-    isKnownModel: function (m) { return ["deepseek-chat", "deepseek-reasoner"].indexOf(m) >= 0; },
     openSettings: async function () {
       try { await this.loadAll(); } catch (e) {}
       this.showSettings = true;

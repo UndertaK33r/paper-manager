@@ -256,6 +256,7 @@ func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "title is required")
 		return
 	}
+	newPDF := false
 	if isMultipart {
 		name, size, origName, perr := s.savePdf(r)
 		if perr != nil {
@@ -263,6 +264,7 @@ func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if name != "" {
+			newPDF = true
 			meta, merr := pdfmeta.ExtractWithFallback(filepath.Join(s.uploadDir, name), origName)
 			if merr != nil {
 				os.Remove(filepath.Join(s.uploadDir, name))
@@ -290,10 +292,12 @@ func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
 	if current.FullText == "" {
 		current.FullText = s.store.PaperFullText(id)
 	}
-	_ = s.maybeEnrich(&in, current.PDFPath)
-	if err := s.maybeAIExtract(&in, current.PDFPath); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+	if newPDF {
+		_ = s.maybeEnrich(&in, current.PDFPath)
+		if err := s.maybeAIExtract(&in, current.PDFPath); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 	p := s.paperFromInput(in, &current)
 	if err := s.store.UpdatePaper(&p); err != nil {

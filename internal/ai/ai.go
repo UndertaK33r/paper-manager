@@ -36,7 +36,7 @@ type MetaResult struct {
 
 func NewClient(cfg Config) *Client {
 	if cfg.Timeout <= 0 {
-		cfg.Timeout = 45 * time.Second
+		cfg.Timeout = 120 * time.Second
 	}
 	return &Client{cfg: cfg, http: &http.Client{Timeout: cfg.Timeout}}
 }
@@ -114,9 +114,9 @@ func truncateN(s string, max int) string {
 
 func Defaults() Config {
 	return Config{
-		BaseURL: "https://api.deepseek.com",
-		Model:   "deepseek-chat",
-		Timeout: 45 * time.Second,
+		BaseURL: "https://api.deepseek.com/v1",
+		Model:   "deepseek-v4-flash",
+		Timeout: 120 * time.Second,
 	}
 }
 

@@ -228,7 +228,8 @@
       <div class="p3r-form">
         <div class="p3r-panel summary-panel"><span class="p3r-readout">STATUS</span><div class="p3r-h3" :class="hasApiKey ? 'p3r-accent' : ''">{{ hasApiKey ? 'API KEY 已配置 — 上传 PDF 时将自动发送 AI 提取请求' : '未配置 API KEY — 将跳过 AI 提取' }}</div></div>
         <div class="model-row"><label>供应商</label><span class="p3r-readout">DEEPSEEK — 默认</span></div>
-        <label>模型选择<select class="p3r-input" v-model="settings.aiModel"><option value="deepseek-chat">DeepSeek Chat（deepseek-chat）</option><option value="deepseek-reasoner">DeepSeek Reasoner（deepseek-reasoner）</option><option v-if="!isKnownModel(settings.aiModel)" :value="settings.aiModel">{{ settings.aiModel }}</option></select></label>
+        <label>模型选择<input class="p3r-input" v-model="settings.aiModel" list="aiModelList" placeholder="deepseek-v4-flash / deepseek-chat / deepseek-reasoner / 自定义">
+        <datalist id="aiModelList"><option value="deepseek-v4-flash"></option><option value="deepseek-chat"></option><option value="deepseek-reasoner"></option></datalist></label>
         <label>API Key<input class="p3r-input" v-model="settings.aiApiKey" type="password" placeholder="请输入 DeepSeek API Key（留空保持不变）"></label>
         <div class="form-actions">
           <button class="p3r-btn p3r-btn--danger" @click="clearApiKey">清除 API Key</button>

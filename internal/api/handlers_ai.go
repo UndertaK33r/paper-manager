@@ -28,14 +28,14 @@ func (s *Server) aiConfig() (ai.Config, bool) {
 		base = os.Getenv("AI_BASE_URL")
 	}
 	if base == "" {
-		base = "https://api.deepseek.com"
+		base = "https://api.deepseek.com/v1"
 	}
 	model := s.store.GetSetting("ai_model")
 	if model == "" {
 		model = os.Getenv("AI_MODEL")
 	}
 	if model == "" {
-		model = "deepseek-chat"
+		model = "deepseek-v4-flash"
 	}
 	return ai.Config{BaseURL: base, APIKey: key, Model: model, Timeout: 45 * time.Second}, true
 }
@@ -96,7 +96,7 @@ func (s *Server) maybeAIExtract(in *models.PaperInput, pdfPath string) error {
 		return nil
 	}
 	client := ai.NewClient(cfg)
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	result, err := client.ExtractMeta(ctx, text)
 	if err != nil {
@@ -144,14 +144,14 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 		base = os.Getenv("AI_BASE_URL")
 	}
 	if base == "" {
-		base = "https://api.deepseek.com"
+		base = "https://api.deepseek.com/v1"
 	}
 	model := s.store.GetSetting("ai_model")
 	if model == "" {
 		model = os.Getenv("AI_MODEL")
 	}
 	if model == "" {
-		model = "deepseek-chat"
+		model = "deepseek-v4-flash"
 	}
 	key := s.store.GetSetting("ai_api_key")
 	if key == "" {
@@ -215,7 +215,7 @@ func (s *Server) handleAIExtract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := ai.NewClient(cfg)
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	result, err := client.ExtractMeta(ctx, text)
 	if err != nil {
@@ -329,7 +329,7 @@ func (s *Server) handleExtractPDF(w http.ResponseWriter, r *http.Request) {
 			text, terr := pdfmeta.ExtractText(filepath.Join(s.uploadDir, name), 20000)
 			if terr == nil && strings.TrimSpace(text) != "" {
 				client := ai.NewClient(cfg)
-				ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 				defer cancel()
 				if result, aerr := client.ExtractMeta(ctx, text); aerr == nil {
 					fillAIMeta(&in, result)
@@ -379,7 +379,7 @@ func (s *Server) handleSummarize(w http.ResponseWriter, r *http.Request) {
 	}
 	paperContext := "标题：" + p.Title + "\n作者：" + p.Authors + "\n年份：" + strconv.Itoa(p.Year) + "\n期刊/会议：" + p.Venue + "\n现有关键词：" + p.Keywords + "\n正文片段：\n" + text
 	client := ai.NewClient(cfg)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	summary, serr := client.Summarize(ctx, paperContext)
 	if serr != nil {
