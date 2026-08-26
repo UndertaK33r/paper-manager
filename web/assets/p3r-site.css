@@ -1,0 +1,241 @@
+/* ============================================================================
+   p3r-site.css — "Atlus 官网风" editorial components (Light Mode)
+   Part of the `p3r-aesthetic` skill. Zero dependencies.
+   Official-site facts sampled from www.atlus.co.jp (2026):
+   - brand palette: atlus-blue #005EAD / atlus-red #E60012 / text #244866 /
+     sub #90AAC0 / line #DBE3E9 / gray #687C8D / white base
+   - typography: LINE Seed JP (JP) + Lexend (latin/numerals) on the real site;
+     substitute Noto Sans SC for Chinese, Lexend for latin/numbers
+   - cards: 16/9, 1px #DBE3E9 border, 10px radius, hover img scale(1.06) .3s
+   - pills: bg #DBE3E9, radius 28px; hero active slide scale 1.2-1.29 + blue glow
+   NOTE: this is the LIGHT editorial mode of the brand shell. Use it for
+   site-level pages (top/news/titles). Keep the dark .p3r-sea/.p3r-panel mode
+   for immersive P3R sections. Never mix both in one screen.
+   ========================================================================== */
+
+:root {
+  --p3r-site-bg: #ffffff;
+  --p3r-site-text: #244866;
+  --p3r-site-sub: #90AAC0;
+  --p3r-site-line: #DBE3E9;
+  --p3r-site-blue: #005EAD;
+  --p3r-site-red: #E60012;
+  --p3r-site-gray: #687C8D;
+  --p3r-site-frame: 0 0 1.73611vw 0 rgba(0, 94, 173, 0.102);
+}
+
+.p3r-site {
+  background: var(--p3r-site-bg);
+  color: var(--p3r-site-text);
+  font-family: var(--p3r-font-body, "Lexend", "Noto Sans SC", system-ui, sans-serif);
+}
+
+/* ── header: logo left, actions right (menu/terms/cta) ────────────────────── */
+.p3r-site-header {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 40px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--p3r-site-line);
+}
+.p3r-site-header__logo {
+  font-family: var(--p3r-font-display, "Oswald", sans-serif);
+  font-weight: 700; font-size: 22px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--p3r-site-text); text-decoration: none;
+}
+.p3r-site-header__logo b { color: var(--p3r-site-red); }
+.p3r-site-header__actions { display: flex; align-items: center; gap: 10px; }
+.p3r-site-btn {
+  appearance: none; cursor: pointer;
+  padding: 8px 18px;
+  font-family: var(--p3r-font-body, inherit);
+  font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #fff; background: var(--p3r-site-blue);
+  border: none; border-radius: 28px;
+  transition: background 0.2s ease-in-out;
+}
+.p3r-site-btn:hover { background: var(--p3r-site-red); }
+.p3r-site-btn--ghost {
+  background: transparent; color: var(--p3r-site-text);
+  border: 1px solid var(--p3r-site-line);
+}
+.p3r-site-btn--ghost:hover { background: var(--p3r-site-line); color: var(--p3r-site-text); }
+
+/* ── hero: cover-flow carousel of portrait key visuals ────────────────────── */
+.p3r-site-hero {
+  position: relative;
+  padding: 40px 0 42px;
+  overflow: hidden;
+}
+.p3r-site-hero__track {
+  display: flex; align-items: center; justify-content: center; gap: 2.4vw;
+  min-height: 460px;
+}
+.p3r-site-hero__slide {
+  flex: none; width: 315px;
+  opacity: 0.45;
+  filter: brightness(0.82);
+  transform: scale(1);
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease, filter 0.45s ease;
+}
+.p3r-site-hero__slide img {
+  display: block; width: 100%; height: auto;
+  box-shadow: var(--p3r-site-frame);
+}
+.p3r-site-hero__slide--active {
+  opacity: 1; filter: none;
+  transform: scale(1.22);
+  z-index: 2;
+  box-shadow: 0 0 1.73611vw 0 rgba(0, 94, 173, 0.102);
+}
+.p3r-site-hero__arrow {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 44px; height: 44px; line-height: 42px; text-align: center;
+  border-radius: 50%;
+  color: var(--p3r-site-blue); background: #fff;
+  border: 1px solid var(--p3r-site-line);
+  cursor: pointer; font-size: 18px;
+  transition: background 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+.p3r-site-hero__arrow:hover { background: var(--p3r-site-blue); color: #fff; }
+.p3r-site-hero__arrow--prev { left: 8vw; }
+.p3r-site-hero__arrow--next { right: 8vw; }
+.p3r-site-hero__dots {
+  display: flex; justify-content: center; gap: 10px; margin-top: 8px;
+}
+.p3r-site-hero__dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--p3r-site-line); cursor: pointer;
+  transition: background 0.2s ease;
+}
+.p3r-site-hero__dot--active { background: var(--p3r-site-blue); }
+
+/* ── section shell (official rhythm) ──────────────────────────────────────── */
+.p3r-site-section { margin: 80px 20px 0; }
+.p3r-site-section__head {
+  position: relative;
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 36px;
+}
+.p3r-site-section__head h2 {
+  position: relative; z-index: 1;
+  margin: 0;
+  font-family: var(--p3r-font-display, "Oswald", sans-serif);
+  font-size: clamp(30px, 4vw, 54px); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em; line-height: 1;
+  color: var(--p3r-site-text);
+}
+.p3r-site-section__head h2::before { /* heading slab, echoes heading_bg_*.svg */
+  content: "";
+  position: absolute; z-index: -1;
+  left: -0.7em; top: -0.28em; bottom: -0.18em;
+  width: 3.4em;
+  background: linear-gradient(97deg, var(--p3r-site-blue) 0 78%, rgba(0, 94, 173, 0.15) 78%);
+  transform: skewX(-14deg);
+  opacity: 0.16;
+}
+.p3r-site-section__head--red h2::before { background: linear-gradient(97deg, var(--p3r-site-red) 0 78%, rgba(230, 0, 18, 0.14) 78%); }
+.p3r-site-section__head .p3r-site-section__en {
+  font-size: 14px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--p3r-site-blue);
+}
+
+/* ── news: 3-col card grid (16/9 + rounded + hover zoom) ──────────────────── */
+.p3r-site-news { display: flex; gap: 40px; align-items: flex-start; }
+.p3r-site-news__aside { flex: none; width: 260px; position: sticky; top: 120px; }
+.p3r-site-news__grid {
+  flex: 1; max-width: 1040px;
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 2.08vw 2.08vw;
+}
+.p3r-site-card { display: block; position: relative; text-decoration: none; color: inherit; }
+.p3r-site-card__img {
+  aspect-ratio: 16 / 9;
+  display: flex; align-items: center;
+  background: #fff;
+  border: 1px solid var(--p3r-site-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.p3r-site-card__img img {
+  width: 100%; height: 100%; object-fit: cover;
+  transition: transform 0.3s ease-in-out;
+}
+.p3r-site-card:hover .p3r-site-card__img img { transform: scale(1.06); }
+.p3r-site-card__meta {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 20px 0 16px;
+}
+.p3r-site-card__meta ul { display: flex; gap: 10px; list-style: none; margin: 0; padding: 0; }
+.p3r-site-card__date {
+  font-family: var(--p3r-font-mono, "JetBrains Mono", Consolas, monospace);
+  font-size: 14px; font-weight: 700; color: var(--p3r-site-sub); letter-spacing: 0;
+}
+.p3r-site-card__category {
+  background: var(--p3r-site-line);
+  border-radius: 28px;
+  font-size: 12px; line-height: 1.4;
+  padding: 4px 10px; text-align: center; color: var(--p3r-site-text);
+}
+.p3r-site-card__title {
+  font-size: 15px; font-weight: 700; line-height: 1.5; color: var(--p3r-site-text);
+}
+
+/* ── titles wall: portrait key-visual cards (like title-visual_p*.jpg) ────── */
+.p3r-site-titles {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(204px, 1fr));
+  gap: 3.125vw 2.0833333333vw;
+  justify-items: center;
+}
+.p3r-site-title-card { width: 100%; max-width: 315px; display: block; text-decoration: none; }
+.p3r-site-title-card img {
+  display: block; width: 100%; height: auto;
+  border-radius: 10px; overflow: hidden;
+  box-shadow: var(--p3r-site-frame);
+  transition: transform 0.3s ease-in-out;
+}
+.p3r-site-title-card:hover img { transform: scale(1.06); }
+
+/* ── footer ───────────────────────────────────────────────────────────────── */
+.p3r-site-footer {
+  margin-top: 120px;
+  padding: 56px 40px 24px;
+  background: #04102B;
+  color: #fff;
+}
+.p3r-site-footer__logo {
+  font-family: var(--p3r-font-display, "Oswald", sans-serif);
+  font-weight: 700; font-size: 26px; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.p3r-site-footer__logo b { color: var(--p3r-site-red); }
+.p3r-site-footer__nav {
+  display: flex; flex-wrap: wrap; gap: 48px;
+  margin: 32px 0;
+}
+.p3r-site-footer__nav a {
+  color: rgba(255, 255, 255, 0.82); text-decoration: none;
+  font-size: 13px; letter-spacing: 0.06em;
+  transition: color 0.2s ease;
+}
+.p3r-site-footer__nav a:hover { color: #fff; }
+.p3r-site-footer__copy {
+  font-size: 12px; letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ── scroll reveal (driven by p3r-site.js) ────────────────────────────────── */
+.p3r-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.p3r-reveal--on { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .p3r-site-hero__slide, .p3r-site-card__img img, .p3r-site-title-card img,
+  .p3r-site-btn, .p3r-site-hero__arrow, .p3r-site-hero__dot, .p3r-reveal {
+    transition: none !important;
+  }
+  .p3r-site-hero__slide:not(.p3r-site-hero__slide--active) { opacity: 1; filter: none; }
+}

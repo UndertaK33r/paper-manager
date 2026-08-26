@@ -8,7 +8,7 @@ var Root = {
       route: "list", token: localStorage.getItem("pm-token") || "", loginPass: "", loginError: "",
       stats: {}, categories: [], tags: [], collections: [],
       papers: [], total: 0, page: 1, pages: 1, pageSize: 20, loading: true,
-      view: "table", search: "", statusFilter: "", categoryFilter: "", tagFilter: "", sort: "created", order: "desc",
+      view: "wall", heroIndex: 0, search: "", statusFilter: "", categoryFilter: "", tagFilter: "", sort: "created", order: "desc",
       askOpen: false, question: "", answer: "", sources: [], asking: false,
       detail: {}, tagSelect: "", collectionSelect: "", fullWidth: false,
       showPaperModal: false, editingId: null, saving: false, form: makeEmptyForm(),
@@ -22,6 +22,15 @@ var Root = {
   },
   computed: {
     readPct: function () { if (!this.stats.total) return 0; return Math.round(this.stats.read / this.stats.total * 100); },
+    heroSlides: function () {
+      var gs = ["linear-gradient(160deg,#005EAD 0%,#0B6FD0 55%,#7DE8FF 100%)", "linear-gradient(160deg,#0B3A66 0%,#005EAD 55%,#38BDF8 100%)", "linear-gradient(160deg,#123F8C 0%,#1E5DB5 55%,#9EE4FF 100%)", "linear-gradient(160deg,#04102B 0%,#0B2E6B 55%,#2FB6FF 100%)"];
+      var src = this.papers.slice(0, 5);
+      if (!src.length) {
+        return [{ title: "PAPER", authors: "YOUR ARCHIVE", year: "—", bg: gs[0] }, { title: "BRAIN", authors: "PERSONAL LIBRARY", year: "—", bg: gs[1] }, { title: "KNOWLEDGE", authors: "SEARCH · READ · ASK", year: "—", bg: gs[2] }];
+      }
+      var self = this;
+      return src.map(function (p, i) { return { id: p.id, title: p.title, authors: p.authors, year: p.year, bg: self.coverBg(p.id) }; });
+    },
     statusOptions: function () { return [{v:"",t:"全部"},{v:"unread",t:"待读"},{v:"reading",t:"在读"},{v:"read",t:"已读"}]; },
     availableTags: function () { var self=this; return this.tags.filter(function(t){ return !(self.detail.tags||[]).some(function(x){return x.id===t.id;}); }); },
     availableCollections: function () { var self=this; return this.collections.filter(function(c){ return !(self.detail.collections||[]).some(function(x){return x.id===c.id;}); }); }
@@ -32,6 +41,12 @@ var Root = {
       clearTimeout(this._toastTimer); this._toastTimer=setTimeout(function(){ self.toast.show=false; }, 2600);
     },
     statusLabel: function (s) { return s==="read" ? "已读" : (s==="reading" ? "在读" : "待读"); },
+    coverBg: function (id) {
+      var gs = ["linear-gradient(160deg,#005EAD 0%,#0B6FD0 55%,#7DE8FF 100%)", "linear-gradient(160deg,#0B3A66 0%,#005EAD 55%,#38BDF8 100%)", "linear-gradient(160deg,#123F8C 0%,#1E5DB5 55%,#9EE4FF 100%)", "linear-gradient(160deg,#04102B 0%,#0B2E6B 55%,#2FB6FF 100%)"];
+      return gs[id % gs.length];
+    },
+    heroPrev: function () { if (this.heroSlides.length) this.heroIndex = (this.heroIndex - 1 + this.heroSlides.length) % this.heroSlides.length; },
+    heroNext: function () { if (this.heroSlides.length) this.heroIndex = (this.heroIndex + 1) % this.heroSlides.length; },
     pdfUrl: function (id) { return "/api/papers/" + id + "/pdf"; },
     api: async function (path, opts) {
       opts = opts || {}; opts.headers = opts.headers || {};
@@ -242,7 +257,19 @@ var Root = {
     window.addEventListener("hashchange", function(){ self.parseHash(); });
     this.parseHash();
     this.loadAll().then(function(){ self.loadPapers(); });
-  }
+    if (!(typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
+      this._heroTimer = setInterval(function () { self.heroNext(); }, 4000);
+    }
+    this.$watch("route", function () {
+      self.$nextTick(function () {
+        setTimeout(function () {
+          var els = document.querySelectorAll(".p3r-reveal:not(.p3r-reveal--on)");
+          for (var i = 0; i < els.length; i++) els[i].classList.add("p3r-reveal--on");
+        }, 60);
+      });
+    });
+  },
+  beforeUnmount: function () { if (this._heroTimer) clearInterval(this._heroTimer); }
 };
 
 Root.template = document.getElementById("app-template").innerHTML;

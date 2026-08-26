@@ -10,7 +10,7 @@ body {
 a { color: var(--p3r-site-blue, #005EAD); text-decoration: none; }
 b { font-weight: 700; }
 
-.layout { max-width: 1180px; margin: 0 auto; padding: 20px 24px 64px; }
+.layout { max-width: 1180px; margin: 0 auto; padding: 0 24px 64px; }
 
 /* ---- 顶栏 ---- */
 .topbar {
@@ -219,4 +219,65 @@ label { color: #244866; font-size: 13px; }
   .p3r-table { display: block; overflow-x: auto; }
   .grid2 { grid-template-columns: 1fr; }
   .detail-grid { grid-template-columns: 1fr; }
+}
+
+/* ===== 官网模式（Atlus Site） ===== */
+.p3r-site-header { margin-bottom: 28px; border-radius: 0 0 14px 14px; }
+.p3r-site-btn.active { background: var(--p3r-site-blue); color: #fff; border-color: var(--p3r-site-blue); }
+.p3r-site-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.site-btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 24px; }
+
+/* hero cover-flow（Vue 控制，站点样式保留） */
+.hero-track { display: flex; align-items: center; justify-content: center; gap: 2.4vw; min-height: 440px; }
+.p3r-site-hero { position: relative; padding: 24px 0 12px; overflow: hidden; }
+.p3r-site-hero__slide { cursor: pointer; }
+.hero-arrow--prev { left: 6vw; }
+.hero-arrow--next { right: 6vw; }
+.hero-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--p3r-site-line); cursor: pointer; margin: 0 5px; transition: background 0.2s ease; }
+.hero-dot--active { background: var(--p3r-site-blue); }
+.p3r-site-hero__dots { display: flex; justify-content: center; gap: 0; margin-top: 10px; }
+
+/* CSS 生成的 key visual 占位（几何剪影 + 渐变 + 大标题） */
+.p3r-cover {
+  width: 100%; aspect-ratio: 315 / 443;
+  border-radius: 10px; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 20px; color: #fff; position: relative;
+  box-shadow: var(--p3r-site-frame, 0 0 1.73611vw 0 rgba(0,94,173,.102));
+}
+.p3r-cover--wide { aspect-ratio: 16 / 9; padding: 14px; justify-content: flex-end; }
+.p3r-cover::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.18) 0%, transparent 32%), radial-gradient(ellipse 80% 60% at 20% 0%, rgba(255,255,255,.16), transparent 60%);
+  pointer-events: none;
+}
+.p3r-cover__en { position: absolute; top: 16px; left: 18px; font-family: "Lexend", sans-serif; font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(255,255,255,.75); }
+.p3r-cover__title { position: relative; font-family: "Lexend", "Noto Sans SC", sans-serif; font-weight: 800; font-size: 21px; line-height: 1.25; text-shadow: 0 1px 8px rgba(4,16,43,.45); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.p3r-cover__meta { position: relative; margin-top: 6px; font-size: 12px; color: rgba(255,255,255,.85); }
+
+/* news 布局适配 */
+.p3r-site-news { gap: 28px; }
+.p3r-site-news__aside { width: 250px; }
+.p3r-site-news__aside .p3r-input, .p3r-site-news__aside .seg, .p3r-site-news__aside .aside-actions { margin-bottom: 10px; }
+.p3r-site-news__aside .search { width: 100%; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; background: #F2F6FA; border: 1px solid var(--p3r-site-line); border-radius: 24px; padding: 3px; }
+.aside-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.p3r-site-news__grid { flex: 1; max-width: 1040px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px 24px; }
+.p3r-site-news__grid:has(> .p3r-table) { display: block; }
+.p3r-site-news__grid > .empty, .p3r-site-news__grid > .p3r-readout { grid-column: 1 / -1; }
+.p3r-site-card { cursor: pointer; }
+.p3r-site-card .p3r-cover { transition: transform 0.3s ease-in-out; }
+.p3r-site-card:hover .p3r-cover { transform: scale(1.06); }
+.p3r-site-card__snippet { margin-top: 8px; font-size: 13px; line-height: 1.6; color: var(--p3r-site-sub); }
+.ask-panel { background: #fff; border: 1px solid var(--p3r-site-line); border-radius: 12px; padding: 16px 18px; margin: 20px 0 0; }
+.pagination { display: flex; justify-content: center; align-items: center; gap: 12px; padding: 28px 0 0; }
+@media (max-width: 900px) {
+  .p3r-site-news { flex-direction: column; }
+  .p3r-site-news__aside { position: static; width: 100%; }
+  .p3r-site-news__grid { grid-template-columns: repeat(2, 1fr); }
+  .hero-track { gap: 12px; }
+}
+@media (max-width: 640px) {
+  .p3r-site-news__grid { grid-template-columns: 1fr; }
+  .p3r-site-hero__slide { width: 240px; }
 }

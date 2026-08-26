@@ -14,15 +14,15 @@
 
 <script type="text/x-template" id="app-template">
 <div class="layout">
-  <header class="p3r-panel p3r-panel--blue topbar p3r-wipe-in">
-    <div class="brand"><span class="brand-title">PAPER <b>BRAIN</b></span></div>
-    <nav class="nav">
-      <button class="p3r-btn small" :class="{active: route==='list'}" @click="go('list')">论文库</button>
-      <button class="p3r-btn small" :class="{active: route==='upload'}" @click="go('upload')">上传论文</button>
-      <button class="p3r-btn small" :class="{active: route==='graph'}" @click="go('graph')">知识图谱</button>
-      <button class="p3r-btn small" @click="openSettings">AI 设置</button>
-      <button class="p3r-btn small" @click="openManage">管理</button>
-    </nav>
+  <header class="p3r-site-header">
+    <a class="p3r-site-header__logo" href="#/">PAPER <b>BRAIN</b></a>
+    <div class="p3r-site-header__actions">
+      <button class="p3r-site-btn" :class="{active: route==='list'}" @click="go('list')">论文库</button>
+      <button class="p3r-site-btn" :class="{active: route==='upload'}" @click="go('upload')">上传论文</button>
+      <button class="p3r-site-btn" :class="{active: route==='graph'}" @click="go('graph')">知识图谱</button>
+      <button class="p3r-site-btn p3r-site-btn--ghost" @click="openSettings">AI 设置</button>
+      <button class="p3r-site-btn p3r-site-btn--ghost" @click="openManage">管理</button>
+    </div>
   </header>
 
   <!-- ===================== 登录 ===================== -->
@@ -37,71 +37,86 @@
 
   <!-- ===================== 论文库 ===================== -->
   <section v-else-if="route==='list'">
-    <div class="hero p3r-sheet p3r-submerge">
-      <div class="hero-left">
-        <div class="p3r-h1">PAPER <span class="accent">BRAIN</span></div>
-        <div class="hero-sub">LIBRARY ARCHIVE · {{ stats.total || 0 }} RECORDS · {{ stats.tags || 0 }} TAGS</div>
-        <div class="p3r-stat-bar"><span class="p3r-stat-bar__label">READ</span><span class="p3r-stat-bar__track"><span class="p3r-stat-bar__fill" :style="{width: readPct + '%'}"></span></span><span class="p3r-stat-bar__value">{{ stats.read || 0 }} / {{ stats.total || 0 }}</span></div>
+    <div class="p3r-site-hero">
+      <button class="p3r-site-hero__arrow hero-arrow hero-arrow--prev" @click="heroPrev">‹</button>
+      <div class="hero-track">
+        <div v-for="(sl,i) in heroSlides" :key="'h'+i" class="p3r-site-hero__slide" :class="{'p3r-site-hero__slide--active': i===heroIndex}" @click="sl.id && openDetail(sl.id)">
+          <div class="p3r-cover" :style="{background: sl.bg}">
+            <div class="p3r-cover__en">PAPER BRAIN</div>
+            <div class="p3r-cover__title">{{ sl.title }}</div>
+            <div class="p3r-cover__meta">{{ sl.authors }} · {{ sl.year || '—' }}</div>
+          </div>
+        </div>
+      </div>
+      <button class="p3r-site-hero__arrow hero-arrow hero-arrow--next" @click="heroNext">›</button>
+      <div class="p3r-site-hero__dots">
+        <span v-for="(sl,i) in heroSlides" :key="'d'+i" class="hero-dot" :class="{'hero-dot--active': i===heroIndex}" @click="heroIndex=i"></span>
       </div>
     </div>
 
-    <div class="p3r-panel toolbar p3r-wipe-in">
-      <div class="toolbar-row">
-        <input class="p3r-input search" v-model="search" @input="onSearch" placeholder="搜索标题 / 作者 / DOI / 正文...">
+    <div class="p3r-site-news">
+      <aside class="p3r-site-news__aside">
+        <div class="p3r-site-section__head p3r-site-section__head--red"><h2>LIBRARY</h2><span class="p3r-site-section__en">ARCHIVE</span></div>
+        <input class="p3r-input search" v-model="search" @input="onSearch" placeholder="搜索标题 / 作者 / 正文...">
         <div class="seg">
-          <button v-for="st in statusOptions" class="p3r-btn small" :class="{active: statusFilter===st.v}" @click="setStatus(st.v)">{{ st.t }}</button>
+          <button v-for="st in statusOptions" class="p3r-site-btn site-btn-sm" :class="{active: statusFilter===st.v}" @click="setStatus(st.v)">{{ st.t }}</button>
         </div>
         <select class="p3r-input" v-model="categoryFilter" @change="applyFilters"><option value="">全部分类</option><option v-for="c in categories" :value="c.id" :key="c.id">{{ c.name }}</option></select>
         <select class="p3r-input" v-model="tagFilter" @change="applyFilters"><option value="">全部标签</option><option v-for="t in tags" :value="t.name" :key="t.id">{{ t.name }}</option></select>
-        <div class="view-toggle"><button class="p3r-btn small" :class="{active: view==='table'}" @click="view='table'">表格</button><button class="p3r-btn small" :class="{active: view==='card'}" @click="view='card'">卡片</button></div>
-        <button class="p3r-btn small" @click="exportBib">导出 BibTeX</button>
-        <button class="p3r-btn small" :class="{active: askOpen}" @click="askOpen=!askOpen">✦ 问论文库</button>
+        <div class="aside-actions">
+          <button class="p3r-site-btn site-btn-sm" :class="{active: view==='wall'}" @click="view='wall'">卡片</button>
+          <button class="p3r-site-btn site-btn-sm" :class="{active: view==='table'}" @click="view='table'">列表</button>
+          <button class="p3r-site-btn site-btn-sm" @click="exportBib">BibTeX</button>
+          <button class="p3r-site-btn site-btn-sm" :class="{active: askOpen}" @click="askOpen=!askOpen">✦ 问论文库</button>
+        </div>
+      </aside>
+      <div class="p3r-site-news__grid">
+        <div v-if="loading" class="p3r-readout">LOADING...</div>
+        <table v-else-if="view==='table' && papers.length" class="p3r-table">
+          <thead><tr><th>NO.</th><th>标题</th><th>作者</th><th>年份</th><th>分类</th><th>标签</th><th>状态</th><th>摘要</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="p in papers" :key="p.id">
+              <td class="p3r-readout">NO.{{ String(p.id).padStart(4, '0') }}</td>
+              <td class="title-cell" @click="openDetail(p.id)">{{ p.title }}</td>
+              <td class="ellipsis">{{ p.authors }}</td>
+              <td>{{ p.year }}</td>
+              <td>{{ p.categoryName }}</td>
+              <td><span v-for="t in p.tags" class="p3r-badge" :key="t.id">{{ t.name }}</span></td>
+              <td><span class="p3r-badge" :class="{'p3r-badge--red': p.status==='read'}">{{ statusLabel(p.status) }}</span> <span v-if="p.starred" class="p3r-badge">★</span></td>
+              <td class="ellipsis">{{ p.snippet || p.summary }}</td>
+              <td><div class="actions"><button class="p3r-btn small" @click="openDetail(p.id)">详情</button><button class="p3r-btn small" @click="openEdit(p)">编辑</button><button class="p3r-btn small" @click="cycleStatus(p.id)">状态</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button></div></td>
+            </tr>
+          </tbody>
+        </table>
+        <a v-else-if="view==='wall' && papers.length" v-for="p in papers" :key="p.id" class="p3r-site-card" href="javascript:void(0)" @click="openDetail(p.id)">
+          <div class="p3r-site-card__img">
+            <div class="p3r-cover p3r-cover--wide" :style="{background: coverBg(p.id)}">
+              <div class="p3r-cover__title">{{ p.title }}</div>
+            </div>
+          </div>
+          <div class="p3r-site-card__meta">
+            <span class="p3r-site-card__date">{{ p.year || '----' }}</span>
+            <ul><li class="p3r-site-card__category">{{ statusLabel(p.status) }}</li><li v-for="t in p.tags" class="p3r-site-card__category">{{ t.name }}</li></ul>
+          </div>
+          <div class="p3r-site-card__title">{{ p.title }}</div>
+          <div class="p3r-site-card__snippet">{{ p.snippet || p.summary }}</div>
+        </a>
+        <div v-else class="empty">NO PAPERS FOUND — 去上传第一篇论文</div>
       </div>
     </div>
 
-    <div v-if="askOpen" class="p3r-sheet p3r-submerge ask-panel">
-      <div class="inline-form"><input class="p3r-input" v-model="question" placeholder="用中文提问你的论文库..." @keyup.enter="ask"><button class="p3r-btn p3r-btn--primary" @click="ask" :disabled="asking">提问</button></div>
+    <div v-if="askOpen" class="ask-panel">
+      <div class="inline-form"><input class="p3r-input" v-model="question" placeholder="用中文提问你的论文库..." @keyup.enter="ask"><button class="p3r-site-btn" @click="ask" :disabled="asking">提问</button></div>
       <div v-if="answer" class="ask-answer">{{ answer }}</div>
       <details v-for="s in sources" :key="s.id" class="ask-source"><summary>[{{ s.id }}] {{ s.title }}</summary><div class="p3r-readout">{{ s.excerpt }}</div></details>
     </div>
 
-    <section class="p3r-panel content p3r-wipe-in">
-      <div v-if="loading" class="p3r-readout">LOADING...</div>
-      <table v-else-if="view==='table' && papers.length" class="p3r-table">
-        <thead><tr><th>NO.</th><th>标题</th><th>作者</th><th>年份</th><th>分类</th><th>标签</th><th>状态</th><th>摘要</th><th>操作</th></tr></thead>
-        <tbody>
-          <tr v-for="(p,i) in papers" :key="p.id">
-            <td class="p3r-readout">NO.{{ String(p.id).padStart(4, '0') }}</td>
-            <td class="title-cell" @click="openDetail(p.id)">{{ p.title }}</td>
-            <td class="ellipsis">{{ p.authors }}</td>
-            <td>{{ p.year }}</td>
-            <td>{{ p.categoryName }}</td>
-            <td><span v-for="t in p.tags" class="p3r-badge" :key="t.id">{{ t.name }}</span></td>
-            <td><span class="p3r-badge" :class="{'p3r-badge--red': p.status==='read'}">{{ statusLabel(p.status) }}</span> <span v-if="p.starred" class="p3r-badge">★</span></td>
-            <td class="ellipsis">{{ p.snippet || p.summary }}</td>
-            <td><div class="actions"><button class="p3r-btn small" @click="openDetail(p.id)">详情</button><button class="p3r-btn small" @click="openEdit(p)">编辑</button><button class="p3r-btn small" @click="cycleStatus(p.id)">状态</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button></div></td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-else-if="view==='card' && papers.length" class="cards-grid">
-        <div v-for="(p,i) in papers" :key="p.id" class="paper-card p3r-panel">
-          <div class="p3r-readout">NO.{{ String(p.id).padStart(4, '0') }} · {{ statusLabel(p.status) }}</div>
-          <div class="p3r-h3 title-cell" @click="openDetail(p.id)">{{ p.title }}</div>
-          <div class="p3r-readout">{{ p.authors }} · {{ p.year }}</div>
-          <div class="chips"><span v-for="t in p.tags" class="p3r-badge" :key="t.id">{{ t.name }}</span></div>
-          <div class="muted">{{ p.snippet || p.summary }}</div>
-          <div class="actions"><button class="p3r-btn small" @click="openDetail(p.id)">详情</button><button class="p3r-btn small" @click="openEdit(p)">编辑</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button></div>
-        </div>
-      </div>
-      <div v-else class="empty"><span class="p3r-note"></span><span class="p3r-readout">NO PAPERS FOUND — 去上传第一篇论文</span></div>
-      <div class="pagination">
-        <button class="p3r-btn small" :disabled="page<=1" @click="goPage(page-1)">上一页</button>
-        <span class="p3r-cue"></span><span class="p3r-readout">PAGE {{ page }} / {{ pages }} · TOTAL {{ total }}</span>
-        <button class="p3r-btn small" :disabled="page>=pages" @click="goPage(page+1)">下一页</button>
-      </div>
-    </section>
+    <div class="pagination">
+      <button class="p3r-site-btn site-btn-sm" :disabled="page<=1" @click="goPage(page-1)">上一页</button>
+      <span class="p3r-readout">PAGE {{ page }} / {{ pages }} · TOTAL {{ total }}</span>
+      <button class="p3r-site-btn site-btn-sm" :disabled="page>=pages" @click="goPage(page+1)">下一页</button>
+    </div>
   </section>
-
   <!-- ===================== 详情 ===================== -->
   <section v-else-if="route==='detail'" class="detail-page">
     <div v-if="!detail.id" class="p3r-readout">LOADING...</div>
@@ -157,7 +172,7 @@
   </section>
 
   <!-- ===================== 上传 ===================== -->
-  <section v-else-if="route==='upload'" class="upload-page">
+  <section v-else-if="route==='upload'" class="upload-page"><div class="p3r-site-section__head"><h2>UPLOAD</h2><span class="p3r-site-section__en">CAPTURE</span></div>
     <div class="p3r-sheet drop-zone p3r-submerge" @dragover.prevent @drop.prevent="onDrop" @click="$refs.fileInput && $refs.fileInput.click()">
       <div class="p3r-h2 p3r-glassy">拖拽 PDF 到这里</div>
       <div class="p3r-readout">或点击选择文件 · 自动提取元数据与全文</div>
@@ -173,7 +188,7 @@
   </section>
 
   <!-- ===================== 图谱 ===================== -->
-  <section v-else-if="route==='graph'" class="graph-page">
+  <section v-else-if="route==='graph'" class="graph-page"><div class="p3r-site-section__head"><h2>CITATION</h2><span class="p3r-site-section__en">GRAPH</span></div>
     <div class="p3r-panel toolbar"><span class="p3r-h3">CITATION GRAPH</span><span class="p3r-readout">{{ graphWarning || 'OPENALEX 引用网络' }}</span><button class="p3r-btn small p3r-btn--primary" @click="loadGraph(true)">重新拉取</button></div>
     <div class="p3r-panel graph-wrap"><canvas ref="graphCanvas" width="1200" height="720" @mousedown="onGraphDown" @mousemove="onGraphMove" @mouseup="onGraphUp" @mouseleave="onGraphUp"></canvas></div>
   </section>
@@ -223,11 +238,24 @@
     </div>
   </div>
 
+  <footer class="p3r-site-footer">
+    <div class="p3r-site-footer__logo">PAPER <b>BRAIN</b></div>
+    <nav class="p3r-site-footer__nav">
+      <a href="#/" @click="go('list')">论文库</a>
+      <a href="#/upload" @click="go('upload')">上传论文</a>
+      <a href="#/graph" @click="go('graph')">知识图谱</a>
+      <a href="javascript:void(0)" @click="openSettings">AI 设置</a>
+      <a href="javascript:void(0)" @click="openManage">管理</a>
+    </nav>
+    <div class="p3r-site-footer__copy">© 2026 PAPER BRAIN · PERSONAL RESEARCH ARCHIVE</div>
+  </footer>
+
   <div v-if="toast.show" class="toast" :class="{error: toast.error}">{{ toast.msg }}</div>
 </div>
 </script>
 
 <script src="assets/vue.global.prod.js"></script>
 <script src="app.js"></script>
+<script src="assets/p3r-site.js"></script>
 </body>
 </html>
