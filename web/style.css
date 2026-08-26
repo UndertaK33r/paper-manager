@@ -180,3 +180,73 @@ textarea.p3r-input { width: 100%; resize: vertical; font-family: var(--p3r-font-
   .detail-grid { grid-template-columns: 1fr; }
   .nav { width: 100%; }
 }
+
+/* ===== 浅海波光粼粼（动态背景） ===== */
+.sea-light { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.sea-light .caustic {
+  position: absolute; inset: -22%;
+  mix-blend-mode: screen;
+  filter: blur(7px);
+  opacity: 0.5;
+  will-change: transform;
+}
+.caustic--1 {
+  background:
+    radial-gradient(circle at 28% 18%, rgba(125, 232, 255, 0.34), transparent 42%),
+    radial-gradient(circle at 72% 55%, rgba(64, 190, 255, 0.30), transparent 48%),
+    radial-gradient(circle at 46% 88%, rgba(125, 232, 255, 0.20), transparent 38%),
+    radial-gradient(circle at 88% 12%, rgba(234, 247, 255, 0.16), transparent 30%);
+  animation: caustic-drift 18s ease-in-out infinite alternate;
+}
+.caustic--2 {
+  opacity: 0.42;
+  background:
+    radial-gradient(circle at 60% 25%, rgba(125, 232, 255, 0.26), transparent 40%),
+    radial-gradient(circle at 22% 70%, rgba(46, 159, 255, 0.28), transparent 44%),
+    radial-gradient(circle at 80% 80%, rgba(234, 247, 255, 0.14), transparent 34%);
+  animation: caustic-drift 26s ease-in-out infinite alternate-reverse;
+}
+.caustic--3 {
+  opacity: 0.36;
+  background:
+    radial-gradient(circle at 45% 38%, rgba(234, 247, 255, 0.20), transparent 30%),
+    radial-gradient(circle at 15% 55%, rgba(125, 232, 255, 0.22), transparent 36%),
+    radial-gradient(circle at 70% 92%, rgba(64, 190, 255, 0.24), transparent 40%);
+  animation: caustic-drift 34s ease-in-out infinite alternate;
+}
+@keyframes caustic-drift {
+  from { transform: translate3d(-4%, -2%, 0) scale(1); }
+  to   { transform: translate3d(4.5%, 3%, 0) scale(1.08); }
+}
+.sea-light .shaft {
+  position: absolute; top: -20%; height: 140%; width: 18vw;
+  background: linear-gradient(100deg, transparent, rgba(234, 247, 255, 0.10) 45%, rgba(125, 232, 255, 0.15) 50%, rgba(234, 247, 255, 0.10) 55%, transparent);
+  mix-blend-mode: screen;
+  filter: blur(2px);
+  will-change: transform, opacity;
+  animation: shaft-sway 14s ease-in-out infinite alternate;
+}
+.shaft--1 { left: 10%; transform: rotate(8deg); }
+.shaft--2 { right: 14%; transform: rotate(-6deg); animation-delay: -7s; animation-duration: 18s; }
+@keyframes shaft-sway {
+  from { transform: translateX(-3vw) rotate(8deg); opacity: 0.45; }
+  to   { transform: translateX(3.5vw) rotate(11deg); opacity: 0.85; }
+}
+.sea-light::after {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.020) 0 44px, transparent 44px 132px);
+  mix-blend-mode: screen;
+  animation: shimmer 30s linear infinite;
+}
+@keyframes shimmer {
+  from { background-position: 0 0; }
+  to   { background-position: 220px 120px; }
+}
+.p3r-sea { animation: sea-breathe 14s ease-in-out infinite alternate; }
+@keyframes sea-breathe {
+  from { filter: brightness(1); }
+  to   { filter: brightness(1.14) saturate(1.06); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sea-light .caustic, .sea-light .shaft, .sea-light::after, .p3r-sea { animation: none !important; }
+}
