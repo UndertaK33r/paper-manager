@@ -14,7 +14,7 @@ var Root = {
       showPaperModal: false, editingId: null, saving: false, form: makeEmptyForm(),
       aiExtracting: false, summarizing: false, pdfExtracting: false,
       showManage: false, newCategory: "", newTag: "", newCollection: "",
-      showSettings: false, settings: { aiBaseUrl: "https://api.deepseek.com/v1", aiModel: "deepseek-v4-flash", aiApiKey: "" }, hasApiKey: false, testingAI: false, aiTestResult: "",
+      showSettings: false, settings: { aiBaseUrl: "https://tokendance.space/gateway/v1", aiModel: "deepseek-v3.2", aiApiKey: "" }, aiModels: [], hasApiKey: false, testingAI: false, aiTestResult: "",
       uploading: false, uploadProgress: 0, uploadResult: null,
       graphNodes: [], graphEdges: [], graphWarning: "", graphTimer: null, dragNode: null,
       toast: { show: false, msg: "", error: false }
@@ -162,7 +162,9 @@ var Root = {
       try { var res = await this.api("/api/ai/test", { method: "POST" }); this.aiTestResult = "连接成功 · " + res.model; this.notify("AI 连接正常"); } catch (e) { this.aiTestResult = e.message; this.notify(e.message, true); }
       this.testingAI = false;
     },
-    openSettings: function () { this.showSettings=true; this.aiTestResult=""; this.loadAll(); },
+    loadAIModels: async function (base) { try { var url = "/api/ai/models"; if (base) url += "?base=" + encodeURIComponent(base); var res = await this.api(url); this.aiModels = res.models || []; if (!this.settings.aiModel && this.aiModels.length) this.settings.aiModel = this.aiModels[0].id; } catch (e) {} },
+    refreshModels: async function () { this.loadAIModels(this.settings.aiBaseUrl); this.notify("模型列表已刷新"); },
+    openSettings: function () { this.showSettings=true; this.aiTestResult=""; this.loadAll(); this.loadAIModels(); },
     saveSettings: async function () { var body={aiBaseUrl:this.settings.aiBaseUrl, aiModel:this.settings.aiModel}; if(this.settings.aiApiKey) body.aiApiKey=this.settings.aiApiKey; try { var res=await this.api("/api/settings",{method:"PUT",json:body}); this.hasApiKey=!!res.hasApiKey; this.settings.aiApiKey=""; this.notify("AI 设置已保存"); this.showSettings=false; } catch(e){ this.notify(e.message,true); } },
     clearApiKey: async function () { try { var res=await this.api("/api/settings",{method:"PUT",json:{clearApiKey:true,aiBaseUrl:this.settings.aiBaseUrl,aiModel:this.settings.aiModel}}); this.hasApiKey=!!res.hasApiKey; this.settings.aiApiKey=""; this.notify("API Key 已清除"); } catch(e){ this.notify(e.message,true); } },
     // ---------- 上传（XHR 进度，对齐老项目） ----------

@@ -114,8 +114,8 @@ func truncateN(s string, max int) string {
 
 func Defaults() Config {
 	return Config{
-		BaseURL: "https://api.deepseek.com/v1",
-		Model:   "deepseek-v4-flash",
+		BaseURL: "https://tokendance.space/gateway/v1",
+		Model:   "deepseek-v3.2",
 		Timeout: 120 * time.Second,
 	}
 }

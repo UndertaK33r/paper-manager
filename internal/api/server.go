@@ -89,6 +89,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
 	mux.HandleFunc("PUT /api/settings", s.handleUpdateSettings)
 	mux.HandleFunc("POST /api/ai/test", s.handleAITest)
+	mux.HandleFunc("GET /api/ai/models", s.handleAIModels)
 
 	static := http.FileServer(http.Dir(s.webDir))
 	mux.Handle("/", static)
