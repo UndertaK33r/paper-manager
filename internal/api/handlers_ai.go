@@ -2,8 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -30,14 +28,14 @@ func (s *Server) aiConfig() (ai.Config, bool) {
 		base = os.Getenv("AI_BASE_URL")
 	}
 	if base == "" {
-		base = "https://tokendance.space/gateway/v1"
+		base = "https://api.deepseek.com/v1"
 	}
 	model := s.store.GetSetting("ai_model")
 	if model == "" {
 		model = os.Getenv("AI_MODEL")
 	}
 	if model == "" {
-		model = "deepseek-v3.2"
+		model = "deepseek-v4-flash"
 	}
 	return ai.Config{BaseURL: base, APIKey: key, Model: model, Timeout: 45 * time.Second}, true
 }
@@ -146,14 +144,14 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 		base = os.Getenv("AI_BASE_URL")
 	}
 	if base == "" {
-		base = "https://tokendance.space/gateway/v1"
+		base = "https://api.deepseek.com/v1"
 	}
 	model := s.store.GetSetting("ai_model")
 	if model == "" {
 		model = os.Getenv("AI_MODEL")
 	}
 	if model == "" {
-		model = "deepseek-v3.2"
+		model = "deepseek-v4-flash"
 	}
 	key := s.store.GetSetting("ai_api_key")
 	if key == "" {
@@ -416,89 +414,4 @@ func (s *Server) handleAITest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "reply": reply, "model": cfg.Model, "baseUrl": cfg.BaseURL})
-}
-
-type aiModelItem struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	ContextLength int    `json:"context_length"`
-}
-
-// handleAIModels 拉取词元跳动/任意 OpenAI 兼容网关的模型列表（兼容 /models），失败时返回内置候选。
-func (s *Server) handleAIModels(w http.ResponseWriter, r *http.Request) {
-	base := r.URL.Query().Get("base")
-	if base == "" {
-		base = s.store.GetSetting("ai_base_url")
-	}
-	if base == "" {
-		base = os.Getenv("AI_BASE_URL")
-	}
-	if base == "" {
-		base = "https://tokendance.space/gateway/v1"
-	}
-	base = strings.TrimRight(base, "/")
-	models := []aiModelItem{}
-	if data, err := fetchAIModels(base); err == nil && len(data) > 0 {
-		models = data
-	} else {
-		models = fallbackAIModels()
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"baseUrl": base, "models": models})
-}
-
-func fetchAIModels(base string) ([]aiModelItem, error) {
-	client := &http.Client{Timeout: 8 * time.Second}
-	req, err := http.NewRequest(http.MethodGet, base+"/models", nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "paper-manager/1.0")
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status %d", resp.StatusCode)
-	}
-	var envelope struct {
-		Data []struct {
-			ID                 string   `json:"id"`
-			Name               string   `json:"name"`
-			ContextLength      int      `json:"context_length"`
-			SupportedProtocols []string `json:"supported_protocols"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
-		return nil, err
-	}
-	out := []aiModelItem{}
-	for _, m := range envelope.Data {
-		if m.ID == "" || m.Name == "" {
-			continue
-		}
-		// 只保留 OpenAI chat-completions 兼容模型
-		ok := false
-		for _, proto := range m.SupportedProtocols {
-			if proto == "openai:chat-completions" || proto == "openai:chat" {
-				ok = true
-				break
-			}
-		}
-		if !ok {
-			continue
-		}
-		out = append(out, aiModelItem{ID: m.ID, Name: m.Name, ContextLength: m.ContextLength})
-	}
-	return out, nil
-}
-
-func fallbackAIModels() []aiModelItem {
-	return []aiModelItem{
-		{ID: "deepseek-v3.2", Name: "DeepSeek V3.2"},
-		{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash"},
-		{ID: "minimax-m2.5", Name: "MiniMax M2.5"},
-		{ID: "deepseek-chat", Name: "DeepSeek Chat"},
-		{ID: "deepseek-reasoner", Name: "DeepSeek Reasoner"},
-	}
 }
