@@ -268,9 +268,16 @@
       <div class="p3r-form">
         <div class="p3r-panel summary-panel"><span class="p3r-readout">STATUS</span><div class="p3r-h3" :class="hasApiKey ? 'p3r-accent' : ''">{{ hasApiKey ? 'API KEY 已配置' : '未配置 API KEY — AI 功能将跳过' }}</div><div class="actions"><button class="p3r-btn small" @click="testAI" :disabled="testingAI">{{ testingAI ? '测试中...' : '测试连接' }}</button><span class="p3r-readout" v-if="aiTestResult">{{ aiTestResult }}</span></div></div>
         <label>接口地址<input class="p3r-input" v-model="settings.aiBaseUrl" placeholder="https://tokendance.space/gateway/v1 或 https://api.deepseek.com/v1"><span class="p3r-readout">OpenAI 兼容网关地址，修改后点「刷新模型列表」</span></label>
-        <label>模型<input class="p3r-input" v-model="settings.aiModel" list="aiModelList" placeholder="选择或输入模型名"></label>
-        <datalist id="aiModelList"><option v-for="m in aiModels" :key="m.id" :value="m.id">{{ m.name }}</option></datalist>
-        <div class="actions"><button class="p3r-btn small" @click="refreshAIModels" :disabled="aiModelsLoading">{{ aiModelsLoading ? '加载中...' : '刷新模型列表' }}</button><span class="p3r-readout" v-if="!aiModelsLoading">{{ aiModels.length ? '共 ' + aiModels.length + ' 个模型，也可手动输入' : '' }}</span></div>
+        <label>模型
+          <select v-if="!customModel" class="p3r-input" v-model="settings.aiModel" @change="onModelChange" :disabled="aiModelsLoading">
+            <option v-if="aiModelsLoading && !aiModels.length" value="" disabled>加载中...</option>
+            <option v-for="m in aiModels" :key="m.id" :value="m.id">{{ m.name && m.name !== m.id ? m.id + '（' + m.name + '）' : m.id }}</option>
+            <option value="__custom__">手动输入…</option>
+          </select>
+          <input v-else class="p3r-input" v-model="settings.aiModel" placeholder="输入模型名，如 deepseek-chat / gpt-4o-mini">
+          <span class="p3r-readout">模型来自接口地址的 /models，打开设置时自动拉取；<a class="chip-x" @click.prevent="customModel = !customModel">{{ customModel ? '改回列表选择' : '没有想要的模型？手动输入' }}</a></span>
+        </label>
+        <div class="actions"><button class="p3r-btn small" @click="refreshAIModels" :disabled="aiModelsLoading">{{ aiModelsLoading ? '加载中...' : '刷新模型列表' }}</button><span class="p3r-readout" v-if="!aiModelsLoading && aiModels.length">共 {{ aiModels.length }} 个模型</span></div>
         <label>API Key<input class="p3r-input" v-model="settings.aiApiKey" type="password" placeholder="sk-...（留空保持不变）"></label>
         <div class="form-actions"><button class="p3r-btn p3r-btn--danger" @click="clearApiKey">清除 API Key</button><button class="p3r-btn p3r-btn--primary" @click="saveSettings">保存设置</button></div>
       </div>

@@ -22,7 +22,7 @@ var Root = {
       aiExtracting: false, summarizing: false, pdfExtracting: false,
       showManage: false, newCategory: "", newTag: "", newCollection: "",
       showSettings: false, settings: { aiBaseUrl: "https://tokendance.space/gateway/v1", aiModel: "deepseek-v3.2", aiApiKey: "" }, hasApiKey: false, testingAI: false, aiTestResult: "",
-      aiModels: [], aiModelsLoading: false,
+      aiModels: [], aiModelsLoading: false, customModel: false,
       uploading: false, uploadProgress: 0, uploadResult: null,
       graphNodes: [], graphEdges: [], graphWarning: "", graphTimer: null, dragNode: null,
       toast: { show: false, msg: "", error: false }
@@ -412,6 +412,15 @@ var Root = {
         if (res.baseUrl) this.settings.aiBaseUrl = res.baseUrl;
       } catch (e) { this.notify(e.message, true); }
       this.aiModelsLoading = false;
+      var cur = this.settings.aiModel || "";
+      var inList = this.aiModels.some(function (m) { return m.id === cur; });
+      this.customModel = !!cur && !inList; // 已存模型不在列表（网关换过/手输过）→ 手动输入模式
+    },
+    onModelChange: function () {
+      if (this.settings.aiModel === "__custom__") {
+        this.customModel = true;
+        this.settings.aiModel = "";
+      }
     },
     saveSettings: async function () { var body={aiBaseUrl:this.settings.aiBaseUrl, aiModel:this.settings.aiModel}; if(this.settings.aiApiKey) body.aiApiKey=this.settings.aiApiKey; try { var res=await this.api("/api/settings",{method:"PUT",json:body}); this.hasApiKey=!!res.hasApiKey; this.settings.aiApiKey=""; this.notify("AI 设置已保存"); this.showSettings=false; } catch(e){ this.notify(e.message,true); } },
     clearApiKey: async function () { try { var res=await this.api("/api/settings",{method:"PUT",json:{clearApiKey:true,aiBaseUrl:this.settings.aiBaseUrl,aiModel:this.settings.aiModel}}); this.hasApiKey=!!res.hasApiKey; this.settings.aiApiKey=""; this.notify("API Key 已清除"); } catch(e){ this.notify(e.message,true); } },
