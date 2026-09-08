@@ -1,9 +1,11 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	pdfmeta "paper-manager/internal/pdf"
 )
@@ -213,4 +215,34 @@ func (s *Server) handleRedetect(w http.ResponseWriter, r *http.Request) {
 	}
 	paper, _ := s.store.GetPaper(id)
 	writeJSON(w, http.StatusOK, paper)
+}
+
+// handleExportNotes 导出全部论文笔记为 Markdown 文件（附件下载）。
+func (s *Server) handleExportNotes(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.store.AllNotes()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	fmtTime := func(s string) string {
+		if t, err := time.Parse(time.RFC3339, s); err == nil {
+			return t.Local().Format("2006-01-02 15:04")
+		}
+		return s
+	}
+	var b strings.Builder
+	b.WriteString("# 论文笔记\n\n")
+	b.WriteString(fmt.Sprintf("> 导出时间：%s · 共 %d 篇\n\n", time.Now().Local().Format("2006-01-02 15:04"), len(rows)))
+	for _, row := range rows {
+		b.WriteString("## " + strings.TrimSpace(row.Title) + "\n\n")
+		if strings.TrimSpace(row.Authors) != "" {
+			b.WriteString(strings.TrimSpace(row.Authors) + "  \n")
+		}
+		b.WriteString("> 最后修改：" + fmtTime(row.Updated) + "\n\n")
+		b.WriteString(strings.TrimSpace(row.Notes) + "\n\n---\n\n")
+	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"notes-%s.md\"", time.Now().Local().Format("20060102-1504")))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(b.String()))
 }

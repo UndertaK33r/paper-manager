@@ -67,6 +67,32 @@ var Root = {
       clearTimeout(this._toastTimer); this._toastTimer=setTimeout(function(){ self.toast.show=false; }, 2600);
     },
     statusLabel: function (s) { return s==="read" ? "已读" : (s==="reading" ? "在读" : "待读"); },
+    fmtDate: function (s) {
+      if (!s) return "";
+      var d = new Date(s); if (isNaN(d)) return s;
+      var p = function (x) { return ("0" + x).slice(-2); };
+      return d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+    },
+    // ---------- 笔记导出 ----------
+    downloadText: function (filename, text) {
+      var blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+      URL.revokeObjectURL(a.href);
+    },
+    exportNotes: function () {
+      var p = this.detail; if (!p || !p.id) return;
+      var lines = ["# " + (p.title || "未命名论文"), ""];
+      var meta = [];
+      if (p.authors) meta.push(p.authors);
+      if (p.year) meta.push(p.year);
+      if (p.venue) meta.push(p.venue);
+      if (meta.length) lines.push(meta.join(" · "), "");
+      lines.push("> 最后修改：" + (this.fmtDate(p.updatedAt) || "未知"), "");
+      lines.push((p.notes || "").trim() || "（空）");
+      this.downloadText("笔记-" + (p.title || p.id) + ".md", lines.join("\n"));
+      this.notify("笔记已导出");
+    },
     pdfUrl: function (id) { return "/api/papers/" + id + "/pdf"; },
     api: async function (path, opts) {
       opts = opts || {}; opts.headers = opts.headers || {};
@@ -364,6 +390,7 @@ var Root = {
     exportBib: function () { var q=[]; function add(k,v){ if(v!=="") q.push(k+"="+encodeURIComponent(v)); } add("search",this.search); add("status",this.statusFilter); add("category",this.categoryFilter); add("tags",this.tagFilter); window.open("/api/papers/export.bib?"+q.join("&"), "_blank"); },
     ask: async function () { if(!this.question.trim()) return; this.asking=true; this.answer=""; this.sources=[]; try { var res=await this.api("/api/ask",{method:"POST",json:{query:this.question}}); this.answer=res.answer; this.sources=res.sources||[]; } catch(e){ this.notify(e.message,true); } this.asking=false; },
     openManage: function () { this.showManage=true; },
+    exportAllNotes: function () { window.open("/api/papers/export/notes", "_blank"); },
     addCategory: async function () { if(!this.newCategory.trim()) return; try { await this.api("/api/categories",{method:"POST",json:{name:this.newCategory}}); this.newCategory=""; this.loadAll(); } catch(e){ this.notify(e.message,true); } },
     deleteCategory: async function (id) { if(!confirm("删除该分类？")) return; try { await this.api("/api/categories/"+id,{method:"DELETE"}); this.loadAll(); this.loadPapers(); } catch(e){ this.notify(e.message,true); } },
     addTag: async function () { if(!this.newTag.trim()) return; try { await this.api("/api/tags",{method:"POST",json:{name:this.newTag}}); this.newTag=""; this.loadAll(); } catch(e){ this.notify(e.message,true); } },

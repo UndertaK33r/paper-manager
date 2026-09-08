@@ -174,6 +174,7 @@
               <span class="fs-notes__status p3r-readout" v-if="notesSavedAt">已保存 {{ notesSavedAt }}</span>
               <div class="fs-notes__btns"><button class="p3r-btn small" @click="fsNotesMin=!fsNotesMin">{{ fsNotesMin ? '展开笔记' : '收起' }}</button><button class="p3r-btn small p3r-btn--primary" @click="saveNotes()">保存</button></div>
             </div>
+            <div v-show="!fsNotesMin" class="fs-notes__date p3r-readout" v-if="detail.updatedAt">最后修改 {{ fmtDate(detail.updatedAt) }}</div>
             <textarea v-show="!fsNotesMin" class="p3r-input fs-notes__input" v-model="detail.notes" @input="autosaveNotes" rows="5" placeholder="边读边记，停止输入后自动保存..."></textarea>
           </div>
           <div class="fs-trans" v-if="pdfFullscreen || fullWidth" :class="{ 'fs-trans--min': fsTransMin }">
@@ -195,9 +196,12 @@
           </div>
         </div>
         <div class="p3r-panel grid-full">
-          <span class="p3r-readout">NOTES</span>
+          <div class="notes-head">
+            <span class="p3r-readout">NOTES</span>
+            <span v-if="detail.updatedAt" class="p3r-readout notes-date">最后修改 {{ fmtDate(detail.updatedAt) }}</span>
+          </div>
           <textarea class="p3r-input" v-model="detail.notes" rows="8"></textarea>
-          <div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="saveDetail">保存笔记</button><button class="p3r-btn small" @click="reDetect(detail.id)">重新识别元数据</button>
+          <div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="saveDetail">保存笔记</button><button class="p3r-btn small" @click="exportNotes">导出笔记</button><button class="p3r-btn small" @click="reDetect(detail.id)">重新识别元数据</button>
           <button class="p3r-btn small" @click="reExtract(detail.id)">重新提取全文</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(detail.id)">删除论文</button></div>
         </div>
       </div>
@@ -248,7 +252,7 @@
   <!-- 管理弹窗 -->
   <div v-if="showManage" class="modal-overlay" @click.self="showManage=false">
     <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge wide">
-      <div class="dialog-head"><span class="p3r-h3">MANAGE</span><button class="p3r-btn" @click="showManage=false">CLOSE</button></div>
+      <div class="dialog-head"><span class="p3r-h3">MANAGE</span><div class="actions"><button class="p3r-btn small" @click="exportAllNotes">导出全部笔记</button><button class="p3r-btn" @click="showManage=false">CLOSE</button></div></div>
       <div class="manage-grid">
         <div class="p3r-panel"><span class="p3r-h3">分类</span><div class="inline-form"><input class="p3r-input" v-model="newCategory" placeholder="新分类"><button class="p3r-btn small p3r-btn--primary" @click="addCategory">添加</button></div><ul class="manage-list"><li v-for="c in categories" :key="c.id"><span>{{ c.name }} ({{ c.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteCategory(c.id)">删除</button></li></ul></div>
         <div class="p3r-panel"><span class="p3r-h3">标签</span><div class="inline-form"><input class="p3r-input" v-model="newTag" placeholder="新标签"><button class="p3r-btn small p3r-btn--primary" @click="addTag">添加</button></div><ul class="manage-list"><li v-for="t in tags" :key="t.id"><span>{{ t.name }} ({{ t.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteTag(t.id)">删除</button></li></ul></div>

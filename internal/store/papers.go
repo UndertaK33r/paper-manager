@@ -322,3 +322,31 @@ func (s *Store) UpdateTranslation(id int64, text string) error {
 	_, err := s.db.Exec("UPDATE papers SET translation = ? WHERE id = ?", text, id)
 	return err
 }
+
+// NoteRow 是一条非空笔记的导出行。
+type NoteRow struct {
+	ID       int64
+	Title    string
+	Authors  string
+	Notes    string
+	Updated  string
+}
+
+// AllNotes 返回所有非空笔记（按修改时间倒序），用于笔记导出。
+func (s *Store) AllNotes() ([]NoteRow, error) {
+	rows, err := s.db.Query(`SELECT id, title, authors, notes, updated_at
+		FROM papers WHERE TRIM(notes) != '' ORDER BY updated_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []NoteRow{}
+	for rows.Next() {
+		var r NoteRow
+		if err := rows.Scan(&r.ID, &r.Title, &r.Authors, &r.Notes, &r.Updated); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}

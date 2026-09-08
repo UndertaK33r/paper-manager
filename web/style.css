@@ -452,6 +452,10 @@ label .p3r-input, .p3r-form label .p3r-input { display: block; width: 100%; marg
 .fs-notes__btns { margin-left: auto; display: flex; gap: 6px; }
 .fs-notes__input { width: 100%; margin-top: 10px; max-height: 34vh; }
 .fs-notes--min { width: auto !important; min-width: 300px; padding-bottom: 12px; }
+/* 笔记上方最后修改日期行 */
+.notes-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.notes-date { color: var(--k-mute, #8c8c8c); text-transform: none; letter-spacing: 0.02em; }
+.fs-notes__date { margin-top: 8px; color: var(--k-mute, #8c8c8c); text-transform: none; letter-spacing: 0.02em; }
 
 /* 全屏/全宽阅读时的右侧悬浮译文窗 */
 .fs-trans {
