@@ -42,8 +42,7 @@
 }
 [data-theme="midnight"] .p3r-panel,
 [data-theme="midnight"] .p3r-sheet { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-[data-theme="midnight"] .p3r-btn--primary { background: linear-gradient(135deg, #9ec5ff, #4f7fdb); border-color: transparent; color: #0b1220; }
-[data-theme="midnight"] .p3r-btn:hover { border-color: #9ec5ff; box-shadow: 0 0 14px rgba(158, 197, 255, 0.25); }
+[data-theme="midnight"] .p3r-btn--primary { background: #9ec5ff; border-color: transparent; color: #0b1220; }
 [data-theme="midnight"] .p3r-badge { border-color: rgba(158, 197, 255, 0.4); color: #c6d8f5; }
 [data-theme="midnight"] .p3r-readout { color: #8fa3c8; }
 [data-theme="midnight"] .hero { border-bottom: 1px solid rgba(120, 160, 230, 0.3); }
@@ -55,50 +54,7 @@
   background: rgba(18, 29, 50, 0.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
 }
 
-/* ── 深夜装饰：五线谱换成科技网格，音符换成几何辉光 ── */
-[data-theme="midnight"] .staff {
-  background:
-    repeating-linear-gradient(90deg, rgba(120, 160, 230, 0.09) 0 1px, transparent 1px 130px),
-    repeating-linear-gradient(0deg, rgba(120, 160, 230, 0.055) 0 1px, transparent 1px 130px);
-  opacity: 1;
-}
-[data-theme="midnight"] .staff-note { color: transparent; }
-[data-theme="midnight"] .staff-note::before {
-  content: "◆"; color: #9ec5ff; font-size: inherit;
-  text-shadow: 0 0 12px rgba(158, 197, 255, 0.9), 0 0 3px rgba(158, 197, 255, 0.9);
-}
-[data-theme="midnight"] .staff-note:nth-child(3n)::before { content: "+"; font-weight: 300; }
-[data-theme="midnight"] .staff-note:nth-child(4n)::before { content: "□"; font-size: 0.7em; }
-[data-theme="midnight"] .note-ico { display: none; }
-[data-theme="midnight"] {
-  --brand-icon: "⬡"; --brand-icon-color: #9ec5ff; --brand-icon-size: 19px;
-}
-[data-theme="midnight"] .brand::before {
-  text-shadow: 0 0 12px rgba(158, 197, 255, 0.8);
-}
-[data-theme="midnight"] .note-inline { color: transparent; }
-[data-theme="midnight"] .note-inline::before { content: "◂"; color: var(--k-ink); }
-[data-theme="midnight"] .p3r-cue::before { content: "··"; letter-spacing: 0.3em; }
-[data-theme="midnight"] .p3r-divider::after { content: "· · ·"; }
 
-[data-theme="paper"] .staff-note { display: none; }
-[data-theme="paper"] .staff {
-  background: repeating-linear-gradient(90deg, rgba(158, 43, 34, 0.055) 0 1px, transparent 1px 96px);
-  opacity: 1;
-}
-[data-theme="paper"] .note-ico { display: none; }
-[data-theme="paper"] {
-  --brand-icon: "文"; --brand-icon-color: #f9f4e8; --brand-icon-size: 13px;
-}
-[data-theme="paper"] .brand::before {
-  background: #9e2b22;
-  font-family: "Songti SC", "STSong", "SimSun", serif;
-  line-height: 1; padding: 4px 5px 3px;
-  border-radius: 2px; box-shadow: 0 1px 2px rgba(90, 30, 20, 0.3);
-}
-[data-theme="paper"] .note-inline { color: transparent; }
-[data-theme="paper"] .note-inline::before { content: "❮"; color: var(--k-ink); }
-[data-theme="paper"] .p3r-cue::before { content: "❖"; letter-spacing: 0.25em; }
 
 /* ── 护眼（paper）：暖米纸 + 揉皱纸质感 + 衬线标题 + 报纸双线 ────────────── */
 :root[data-theme="paper"] {
@@ -137,8 +93,6 @@
 [data-theme="paper"] .p3r-readout { font-family: Georgia, "Times New Roman", "Songti SC", serif; letter-spacing: 0.06em; }
 [data-theme="paper"] .paper-card .p3r-readout { font-family: var(--k-font, sans-serif); }
 [data-theme="paper"] .p3r-table th { font-family: var(--k-font, sans-serif); }
-[data-theme="paper"] .staff { opacity: 0.05; }
-[data-theme="paper"] .p3r-divider::after { content: "❦"; letter-spacing: 0; }
 [data-theme="paper"] .paper-card .title-cell { font-family: Georgia, "Times New Roman", "Songti SC", serif; font-weight: 600; }
 [data-theme="paper"] .md-body h1, [data-theme="paper"] .md-body h2,
 [data-theme="paper"] .md-body h3, [data-theme="paper"] .md-body h4 { font-family: Georgia, "Times New Roman", "Songti SC", serif; }

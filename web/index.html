@@ -14,26 +14,9 @@
 <div id="app" class="k-base"></div>
 
 <script type="text/x-template" id="app-template">
-<div class="staff-notes" aria-hidden="true">
-  <div class="staff"></div>
-  <span class="staff-note n1">♪</span>
-  <span class="staff-note n2">♬</span>
-  <span class="staff-note n3">♫</span>
-  <span class="staff-note n4">♪</span>
-  <span class="staff-note n5">♬</span>
-  <span class="staff-note n6">♩</span>
-  <span class="staff-note n7">♬</span>
-  <span class="staff-note n8">♪</span>
-  <span class="staff-note n9">♫</span>
-  <span class="staff-note n10">♩</span>
-  <span class="staff-note n11">♪</span>
-  <span class="staff-note n12">♬</span>
-  <span class="staff-note n13">♫</span>
-  <span class="staff-note n14">♪</span>
-</div>
 <div class="layout">
-  <header class="p3r-panel p3r-panel--blue topbar p3r-wipe-in">
-    <div class="brand"><svg class="note-ico" viewBox="0 0 24 24" width="18" height="18"><path fill="#000" d="M9 18V5l10-2v13a3 3 0 1 1-2-2.83V8.5L11 10v8a3 3 0 1 1-2-2.83z"/></svg><span class="p3r-h2 p3r-glassy">PAPER BRAIN</span></div>
+  <header class="topbar">
+    <div class="brand">PAPER BRAIN</div>
     <nav class="nav">
       <button class="p3r-btn small" :class="{active: route==='list'}" @click="go('list')">论文库</button>
       <button class="p3r-btn small" :class="{active: route==='upload'}" @click="go('upload')">上传论文</button>
@@ -45,8 +28,8 @@
 
   <!-- ===================== 登录 ===================== -->
   <section v-if="route==='login'" class="center-page">
-    <div class="p3r-dialog p3r-sheet p3r-submerge" style="max-width:420px">
-      <div class="dialog-head"><span class="p3r-h3">ENTER ARCHIVE</span></div>
+    <div class="p3r-dialog" style="max-width:420px">
+      <div class="dialog-head"><span class="p3r-h3">登录</span></div>
       <label class="p3r-form-label">访问密码<input type="password" class="p3r-input" v-model="loginPass" @keyup.enter="doLogin"></label>
       <div v-if="loginError" class="p3r-readout p3r-readout--red">{{ loginError }}</div>
       <div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="doLogin">登录</button></div>
@@ -55,15 +38,15 @@
 
   <!-- ===================== 论文库 ===================== -->
   <section v-else-if="route==='list'">
-    <div class="hero p3r-sheet p3r-sheet--music p3r-submerge">
-      <div class="hero-left">
-        <div class="p3r-h1 p3r-glassy">PAPER <span class="p3r-accent">BRAIN</span></div>
-        <div class="p3r-readout">LIBRARY ARCHIVE · {{ stats.total || 0 }} RECORDS</div>
-        <div class="p3r-stat-bar"><span class="p3r-stat-bar__label">READ</span><span class="p3r-stat-bar__track"><span class="p3r-stat-bar__fill" :style="{width: readPct + '%'}"></span></span><span class="p3r-stat-bar__value">{{ stats.read || 0 }} / {{ stats.total || 0 }}</span></div>
+    <div class="page-head">
+      <div>
+        <div class="p3r-h1">论文库</div>
+        <div class="p3r-readout">共 {{ stats.total || 0 }} 篇 · 已读 {{ stats.read || 0 }} · 收藏 {{ stats.starred || 0 }}</div>
       </div>
+      <div class="p3r-stat-bar page-progress"><span class="p3r-stat-bar__label">进度</span><span class="p3r-stat-bar__track"><span class="p3r-stat-bar__fill" :style="{width: readPct + '%'}"></span></span><span class="p3r-stat-bar__value">{{ readPct }}%</span></div>
     </div>
 
-    <div class="p3r-panel toolbar p3r-wipe-in">
+    <div class="toolbar">
       <div class="toolbar-row">
         <input class="p3r-input search" v-model="search" @input="onSearch" placeholder="搜索标题 / 作者 / DOI / 正文...">
         <div class="seg">
@@ -76,7 +59,7 @@
       </div>
     </div>
 
-    <section class="p3r-panel content p3r-wipe-in">
+    <section class="content">
       <div v-if="loading" class="p3r-readout">LOADING...</div>
       <table v-else-if="view==='table' && papers.length" class="p3r-table">
         <thead><tr><th>NO.</th><th>标题</th><th>作者</th><th>年份</th><th>分类</th><th>标签</th><th>状态</th><th>操作</th></tr></thead>
@@ -102,10 +85,10 @@
           <div class="actions"><button class="p3r-btn small" @click="openDetail(p.id)">详情</button><button class="p3r-btn small" @click="openEdit(p)">编辑</button><button class="p3r-btn small" @click="cycleStatus(p.id)">状态</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button></div>
         </div>
       </div>
-      <div v-else class="empty"><span class="p3r-note"></span><span class="p3r-readout">NO PAPERS FOUND — 去上传第一篇论文</span></div>
+      <div v-else class="empty"><span class="p3r-note"></span><span class="p3r-readout">暂无论文，去上传第一篇</span></div>
       <div class="pagination">
         <button class="p3r-btn small" :disabled="page<=1" @click="goPage(page-1)">上一页</button>
-        <span class="p3r-cue"></span><span class="p3r-readout">PAGE {{ page }} / {{ pages }} · TOTAL {{ total }}</span>
+        <span class="p3r-cue"></span><span class="p3r-readout">第 {{ page }} / {{ pages }} 页 · 共 {{ total }} 篇</span>
         <button class="p3r-btn small" :disabled="page>=pages" @click="goPage(page+1)">下一页</button>
       </div>
     </section>
@@ -115,14 +98,14 @@
   <section v-else-if="route==='detail'" class="detail-page">
     <div v-if="!detail.id" class="p3r-readout">LOADING...</div>
     <template v-else>
-      <div class="detail-head p3r-sheet p3r-sheet--music p3r-submerge">
-        <button class="p3r-btn small" @click="go('list')"><span class="note-inline">♪</span> 返回</button>
-        <div class="p3r-h2 p3r-glassy">{{ detail.title }}</div>
+      <div class="detail-head">
+        <button class="p3r-btn small" @click="go('list')">返回</button>
+        <div class="detail-title">{{ detail.title }}</div>
         <div class="p3r-readout">NO.{{ String(detail.id).padStart(4, '0') }}</div>
       </div>
       <div class="detail-grid">
         <div class="p3r-panel">
-          <span class="p3r-readout">BASIC INFO</span>
+          <span class="p3r-readout">基本信息</span>
           <div class="grid2">
             <label>标题<input class="p3r-input" v-model="detail.title"></label>
             <label>作者<input class="p3r-input" v-model="detail.authors"></label>
@@ -140,13 +123,13 @@
           <div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="saveDetail">保存修改</button></div>
         </div>
         <div class="p3r-sheet">
-          <span class="p3r-readout">TAGS / COLLECTIONS</span>
+          <span class="p3r-readout">标签与合集</span>
           <div class="chips"><span v-for="t in detail.tags" class="p3r-badge">{{ t.name }} <a class="chip-x" @click="removeDetailTag(t.id)">×</a></span></div>
           <div class="inline-form"><input class="p3r-input" v-model="tagSelect" list="detailTagList" placeholder="输入或选择标签，可新建" @keyup.enter="addDetailTag"><datalist id="detailTagList"><option v-for="t in availableTags" :key="t.id" :value="t.name"></option></datalist><button class="p3r-btn small" @click="addDetailTag">添加</button></div>
           <div class="chips"><span v-for="c in detail.collections" class="p3r-badge">{{ c.name }} <a class="chip-x" @click="removeDetailCollection(c.id)">×</a></span></div>
           <div class="inline-form"><input class="p3r-input" v-model="collectionSelect" list="detailCollectionList" placeholder="输入或选择合集，可新建" @keyup.enter="addDetailCollection"><datalist id="detailCollectionList"><option v-for="c in availableCollections" :key="c.id" :value="c.name"></option></datalist><button class="p3r-btn small" @click="addDetailCollection">添加</button></div>
           <div class="p3r-divider"></div>
-          <span class="p3r-readout">AI SUMMARY</span>
+          <span class="p3r-readout">AI 摘要</span>
           <div v-if="!detail.summary" class="muted">暂无摘要，点击下方「AI 提取元数据」生成</div>
           <div v-else class="summary-wrap">
             <div ref="summaryBody" class="md-body summary-body" :class="{ collapsed: !summaryExpanded }" v-html="renderedSummary"></div>
@@ -155,7 +138,7 @@
           <div class="form-actions" style="margin-top:16px"><button class="p3r-btn small" @click="aiExtract(detail.id)">AI 提取元数据</button><button class="p3r-btn small" @click="summarize(detail.id)">生成摘要</button></div>
         </div>
         <div class="p3r-panel pdf-panel" ref="pdfPanel">
-          <span class="p3r-readout">PDF READER</span>
+          <span class="p3r-readout">PDF 阅读</span>
           <div class="actions"><a v-if="detail.hasPdf" class="p3r-btn small" :href="pdfUrl(detail.id)" target="_blank">打开</a><a v-if="detail.hasPdf" class="p3r-btn small" :href="pdfUrl(detail.id)+'?download=1'">下载</a><button class="p3r-btn small" @click="fullWidth=!fullWidth">全宽阅读</button><button class="p3r-btn small" @click="toggleFullscreen">全屏</button></div>
           <iframe v-if="detail.hasPdf && !pdfJsOk" :src="pdfUrl(detail.id)" :class="{wide: fullWidth}"></iframe>
           <div v-if="detail.hasPdf && pdfJsOk" class="pdfjs-view" ref="pdfView"></div>
@@ -170,7 +153,7 @@
           </div>
           <div class="fs-notes" v-if="pdfFullscreen || fullWidth" :class="{ 'fs-notes--min': fsNotesMin }">
             <div class="fs-notes__head">
-              <span class="p3r-readout">READING NOTES</span>
+              <span class="p3r-readout">笔记</span>
               <span class="fs-notes__status p3r-readout" v-if="notesSavedAt">已保存 {{ notesSavedAt }}</span>
               <div class="fs-notes__btns"><button class="p3r-btn small" @click="fsNotesMin=!fsNotesMin">{{ fsNotesMin ? '展开笔记' : '收起' }}</button><button class="p3r-btn small p3r-btn--primary" @click="saveNotes()">保存</button></div>
             </div>
@@ -197,7 +180,7 @@
         </div>
         <div class="p3r-panel grid-full">
           <div class="notes-head">
-            <span class="p3r-readout">NOTES</span>
+            <span class="p3r-readout">笔记</span>
             <span v-if="detail.updatedAt" class="p3r-readout notes-date">最后修改 {{ fmtDate(detail.updatedAt) }}</span>
           </div>
           <textarea class="p3r-input" v-model="detail.notes" rows="8"></textarea>
@@ -210,15 +193,15 @@
 
   <!-- ===================== 上传 ===================== -->
   <section v-else-if="route==='upload'" class="upload-page">
-    <div class="p3r-sheet p3r-sheet--music drop-zone p3r-submerge" @dragover.prevent @drop.prevent="onDrop" @click="$refs.fileInput && $refs.fileInput.click()">
-      <div class="p3r-h2 p3r-glassy">拖拽 PDF 到这里</div>
+    <div class="drop-zone" @dragover.prevent @drop.prevent="onDrop" @click="$refs.fileInput && $refs.fileInput.click()">
+      <div class="p3r-h2">拖拽 PDF 到这里</div>
       <div class="p3r-readout">或点击选择文件 · 自动提取元数据与全文</div>
       <input type="file" ref="fileInput" accept=".pdf,application/pdf" class="hidden-input" @change="onFileChange">
     </div>
     <div v-if="uploading" class="p3r-gauge"><div class="p3r-gauge__fill" :style="{width: uploadProgress+'%'}"></div></div>
-    <div v-if="uploadResult" class="p3r-sheet p3r-submerge">
+    <div v-if="uploadResult" class="p3r-sheet">
       <span class="p3r-readout">收录完成</span>
-      <div class="p3r-h3 p3r-glassy">{{ uploadResult.title }}</div>
+      <div class="p3r-h3">{{ uploadResult.title }}</div>
       <div class="p3r-readout">{{ uploadResult.authors }} · {{ uploadResult.year }}</div>
       <div class="actions"><button class="p3r-btn p3r-btn--primary" @click="openDetail(uploadResult.id)">查看详情</button><button class="p3r-btn" @click="resetUpload">继续上传</button></div>
     </div>
@@ -226,21 +209,21 @@
 
   <!-- ===================== 图谱 ===================== -->
   <section v-else-if="route==='graph'" class="graph-page">
-    <div class="p3r-panel toolbar"><span class="p3r-h3">CITATION GRAPH</span><span class="p3r-readout">{{ graphWarning || 'OPENALEX 引用网络' }}</span><button class="p3r-btn small p3r-btn--primary" @click="loadGraph(true)">重新拉取</button></div>
+    <div class="p3r-panel toolbar"><span class="p3r-h3">引用图谱</span><span class="p3r-readout">{{ graphWarning || 'OpenAlex 引用网络' }}</span><button class="p3r-btn small p3r-btn--primary" @click="loadGraph(true)">重新拉取</button></div>
     <div class="p3r-panel graph-wrap"><canvas ref="graphCanvas" width="1200" height="720" @mousedown="onGraphDown" @mousemove="onGraphMove" @mouseup="onGraphUp" @mouseleave="onGraphUp" @touchstart.prevent="onGraphTouchStart" @touchmove.prevent="onGraphTouchMove" @touchend.prevent="onGraphTouchEnd"></canvas></div>
   </section>
 
   <!-- 添加/编辑论文弹窗（与旧逻辑一致） -->
   <div v-if="showPaperModal" class="modal-overlay" @click.self="closePaperModal">
-    <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge paper-dialog">
-      <div class="dialog-head"><span class="p3r-h3">{{ editingId ? 'EDIT PAPER' : 'ADD PAPER' }}</span><button class="p3r-btn" @click="closePaperModal">CLOSE</button></div>
+    <div class="p3r-dialog paper-dialog">
+      <div class="dialog-head"><span class="p3r-h3">{{ editingId ? '编辑论文' : '添加论文' }}</span><button class="p3r-btn" @click="closePaperModal">关闭</button></div>
       <form class="p3r-form" @submit.prevent="submitPaperForm">
         <div class="grid2"><label>标题 *<input class="p3r-input" v-model="form.title" required></label><label>作者<input class="p3r-input" v-model="form.authors" placeholder="逗号分隔"></label></div>
         <div class="grid2"><label>年份<input class="p3r-input" v-model="form.year" type="number"></label><label>期刊/会议<input class="p3r-input" v-model="form.venue"></label></div>
         <div class="grid2"><label>DOI<input class="p3r-input" v-model="form.doi"></label><label>关键词<input class="p3r-input" v-model="form.keywords"></label></div>
         <div class="grid2"><label>分类<select class="p3r-input" v-model="form.categoryId"><option value="">未分类</option><option v-for="c in categories" :value="c.id" :key="c.id">{{ c.name }}</option></select></label><label>链接<input class="p3r-input" v-model="form.link"></label></div>
         <div class="grid2"><label>标签<input class="p3r-input" v-model="form.tags" placeholder="逗号分隔"></label><label>合集<input class="p3r-input" v-model="form.collections" placeholder="逗号分隔"></label></div>
-        <div class="grid2"><label>PDF 文件<input class="p3r-input" type="file" ref="pdfInput" accept=".pdf,application/pdf" @change="onPdfChange"></label><div class="ai-check"><label class="check-row"><input type="checkbox" v-model="form.useAI"> 使用 AI 补充提取</label><span class="p3r-readout">{{ hasApiKey ? 'API KEY READY' : 'NO API KEY — 跳过 AI' }}</span></div></div>
+        <div class="grid2"><label>PDF 文件<input class="p3r-input" type="file" ref="pdfInput" accept=".pdf,application/pdf" @change="onPdfChange"></label><div class="ai-check"><label class="check-row"><input type="checkbox" v-model="form.useAI"> 使用 AI 补充提取</label><span class="p3r-readout">{{ hasApiKey ? '已配置 Key' : '未配置 Key，将跳过 AI' }}</span></div></div>
         <label>一句话总结<textarea class="p3r-input" v-model="form.summary" rows="2"></textarea></label>
         <label>笔记<textarea class="p3r-input" v-model="form.notes" rows="4"></textarea></label>
         <div class="checks"><label class="check-row"><input type="checkbox" v-model="form.read"> 已读</label><label class="check-row"><input type="checkbox" v-model="form.starred"> 收藏</label></div>
@@ -251,8 +234,8 @@
 
   <!-- 管理弹窗 -->
   <div v-if="showManage" class="modal-overlay" @click.self="showManage=false">
-    <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge wide">
-      <div class="dialog-head"><span class="p3r-h3">MANAGE</span><div class="actions"><button class="p3r-btn small" @click="exportAllNotes">导出全部笔记</button><button class="p3r-btn" @click="showManage=false">CLOSE</button></div></div>
+    <div class="p3r-dialog wide">
+      <div class="dialog-head"><span class="p3r-h3">管理</span><div class="actions"><button class="p3r-btn small" @click="exportAllNotes">导出全部笔记</button><button class="p3r-btn" @click="showManage=false">关闭</button></div></div>
       <div class="manage-grid">
         <div class="p3r-panel"><span class="p3r-h3">分类</span><div class="inline-form"><input class="p3r-input" v-model="newCategory" placeholder="新分类"><button class="p3r-btn small p3r-btn--primary" @click="addCategory">添加</button></div><ul class="manage-list"><li v-for="c in categories" :key="c.id"><span>{{ c.name }} ({{ c.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteCategory(c.id)">删除</button></li></ul></div>
         <div class="p3r-panel"><span class="p3r-h3">标签</span><div class="inline-form"><input class="p3r-input" v-model="newTag" placeholder="新标签"><button class="p3r-btn small p3r-btn--primary" @click="addTag">添加</button></div><ul class="manage-list"><li v-for="t in tags" :key="t.id"><span>{{ t.name }} ({{ t.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteTag(t.id)">删除</button></li></ul></div>
@@ -263,10 +246,10 @@
 
   <!-- AI 设置弹窗 -->
   <div v-if="showSettings" class="modal-overlay" @click.self="showSettings=false">
-    <div class="p3r-dialog p3r-sheet p3r-sheet--music p3r-submerge">
-      <div class="dialog-head"><span class="p3r-h3">AI SETTINGS</span><button class="p3r-btn" @click="showSettings=false">CLOSE</button></div>
+    <div class="p3r-dialog">
+      <div class="dialog-head"><span class="p3r-h3">AI 设置</span><button class="p3r-btn" @click="showSettings=false">关闭</button></div>
       <div class="p3r-form">
-        <div class="p3r-panel summary-panel"><span class="p3r-readout">STATUS</span><div class="p3r-h3" :class="hasApiKey ? 'p3r-accent' : ''">{{ hasApiKey ? 'API KEY 已配置' : '未配置 API KEY — AI 功能将跳过' }}</div><div class="actions"><button class="p3r-btn small" @click="testAI" :disabled="testingAI">{{ testingAI ? '测试中...' : '测试连接' }}</button><span class="p3r-readout" v-if="aiTestResult">{{ aiTestResult }}</span></div></div>
+        <div class="p3r-panel summary-panel"><span class="p3r-readout">状态</span><div class="p3r-h3" :class="hasApiKey ? 'p3r-accent' : ''">{{ hasApiKey ? '已配置 API Key' : '未配置 API Key，AI 功能将跳过' }}</div><div class="actions"><button class="p3r-btn small" @click="testAI" :disabled="testingAI">{{ testingAI ? '测试中...' : '测试连接' }}</button><span class="p3r-readout" v-if="aiTestResult">{{ aiTestResult }}</span></div></div>
         <label>接口地址<input class="p3r-input" v-model="settings.aiBaseUrl" placeholder="https://tokendance.space/gateway/v1 或 https://api.deepseek.com/v1"><span class="p3r-readout">OpenAI 兼容网关地址，修改后点「刷新模型列表」</span></label>
         <label>模型
           <select v-if="!customModel" class="p3r-input" v-model="settings.aiModel" @change="onModelChange" :disabled="aiModelsLoading">

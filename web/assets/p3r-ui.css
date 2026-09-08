@@ -199,15 +199,11 @@
 
 /* ── angled divider with center diamond ───────────────────────────────────── */
 .p3r-divider {
-  position: relative; height: 1px; margin: var(--p3r-space-8, 32px) 0;
-  background: var(--p3r-line, rgba(244, 247, 251, 0.16));
-  transform: skewX(-18deg);
+  position: relative; height: 1px; margin: 24px 0;
+  background: var(--k-line, #e5e5e5);
+  transform: none;
 }
-.p3r-divider::after {
-  content: "\25C6";
-  position: absolute; left: 50%; top: -6px; transform: translateX(-50%) skewX(18deg);
-  color: var(--p3r-blue, #2FB6FF); font-size: 11px;
-}
+.p3r-divider::after { content: none; }
 
 /* ── list rows ────────────────────────────────────────────────────────────── */
 .p3r-list { border-top: 1px solid var(--p3r-line, rgba(244, 247, 251, 0.16)); }
@@ -435,7 +431,7 @@
 .p3r-note { color: var(--p3r-sea-cyan, #7DE8FF); }
 .p3r-note::before { content: "\266A"; } /* ♪ */
 .p3r-cue { color: var(--p3r-blue-bright, #9EE4FF); font-size: 11px; letter-spacing: 0.35em; }
-.p3r-cue::before { content: "\2666\2666\2666"; } /* beat dots ◆◆◆ */
+.p3r-cue::before { content: none; }
 
 /* ── submerge: dive into the Dark Hour (entrance) ─────────────────────────── */
 .p3r-submerge {
