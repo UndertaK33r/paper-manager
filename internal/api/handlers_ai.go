@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,14 +30,14 @@ func (s *Server) aiConfig() (ai.Config, bool) {
 		base = os.Getenv("AI_BASE_URL")
 	}
 	if base == "" {
-		base = "https://api.deepseek.com/v1"
+		base = "https://tokendance.space/gateway/v1"
 	}
 	model := s.store.GetSetting("ai_model")
 	if model == "" {
 		model = os.Getenv("AI_MODEL")
 	}
 	if model == "" {
-		model = "deepseek-v4-flash"
+		model = "deepseek-v3.2"
 	}
 	return ai.Config{BaseURL: base, APIKey: key, Model: model, Timeout: 45 * time.Second}, true
 }
@@ -54,12 +56,20 @@ func (s *Server) maybeEnrich(in *models.PaperInput, pdfPath string) error {
 	if strings.TrimSpace(in.Title) == "" {
 		in.Title = meta.SniffTitle(text)
 	}
+	localTitle := strings.TrimSpace(in.Title)
 	var info *meta.Info
 	if strings.TrimSpace(in.DOI) != "" {
-		info, _ = meta.EnrichByDOI(context.Background(), in.DOI)
+		// 带上本地标题做校验：DOI 对不上号（多半来自参考文献）就不采信
+		info, _ = meta.EnrichByDOI(context.Background(), in.DOI, localTitle)
+		if info == nil {
+			// DOI 不可信时不写入，避免留下错误溯源信息
+			if meta.TitlePlausible(localTitle) {
+				in.DOI = ""
+			}
+		}
 	}
-	if info == nil && strings.TrimSpace(in.Title) != "" {
-		info, _ = meta.SearchByTitle(context.Background(), in.Title)
+	if info == nil && meta.TitlePlausible(localTitle) && meta.TitleTokens(localTitle) >= 3 {
+		info, _ = meta.SearchByTitle(context.Background(), localTitle)
 	}
 	if info == nil {
 		return nil
@@ -144,14 +154,14 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 		base = os.Getenv("AI_BASE_URL")
 	}
 	if base == "" {
-		base = "https://api.deepseek.com/v1"
+		base = "https://tokendance.space/gateway/v1"
 	}
 	model := s.store.GetSetting("ai_model")
 	if model == "" {
 		model = os.Getenv("AI_MODEL")
 	}
 	if model == "" {
-		model = "deepseek-v4-flash"
+		model = "deepseek-v3.2"
 	}
 	key := s.store.GetSetting("ai_api_key")
 	if key == "" {
@@ -414,4 +424,213 @@ func (s *Server) handleAITest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "reply": reply, "model": cfg.Model, "baseUrl": cfg.BaseURL})
+}
+
+type aiModelItem struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	ContextLength int    `json:"context_length"`
+}
+
+// handleAIModels 拉取词元跳动/任意 OpenAI 兼容网关的模型列表（GET {base}/models），
+// 失败时返回内置候选，保证下拉永远有得选。
+func (s *Server) handleAIModels(w http.ResponseWriter, r *http.Request) {
+	base := r.URL.Query().Get("base")
+	if base == "" {
+		base = s.store.GetSetting("ai_base_url")
+	}
+	if base == "" {
+		base = os.Getenv("AI_BASE_URL")
+	}
+	if base == "" {
+		base = "https://tokendance.space/gateway/v1"
+	}
+	base = strings.TrimRight(base, "/")
+	models := []aiModelItem{}
+	if data, err := fetchAIModels(base); err == nil && len(data) > 0 {
+		models = data
+	} else {
+		models = fallbackAIModels()
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"baseUrl": base, "models": models})
+}
+
+func fetchAIModels(base string) ([]aiModelItem, error) {
+	client := &http.Client{Timeout: 8 * time.Second}
+	req, err := http.NewRequest(http.MethodGet, base+"/models", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "paper-manager/1.0")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status %d", resp.StatusCode)
+	}
+	var envelope struct {
+		Data []struct {
+			ID                 string   `json:"id"`
+			Name               string   `json:"name"`
+			ContextLength      int      `json:"context_length"`
+			SupportedProtocols []string `json:"supported_protocols"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+	out := []aiModelItem{}
+	for _, m := range envelope.Data {
+		if m.ID == "" || m.Name == "" {
+			continue
+		}
+		// 只保留 OpenAI chat-completions 兼容模型
+		ok := false
+		for _, proto := range m.SupportedProtocols {
+			if proto == "openai:chat-completions" || proto == "openai:chat" {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			continue
+		}
+		out = append(out, aiModelItem{ID: m.ID, Name: m.Name, ContextLength: m.ContextLength})
+	}
+	return out, nil
+}
+
+func fallbackAIModels() []aiModelItem {
+	return []aiModelItem{
+		{ID: "deepseek-v3.2", Name: "DeepSeek V3.2"},
+		{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash"},
+		{ID: "minimax-m2.5", Name: "MiniMax M2.5"},
+		{ID: "deepseek-chat", Name: "DeepSeek Chat"},
+		{ID: "deepseek-reasoner", Name: "DeepSeek Reasoner"},
+	}
+}
+
+// handleGetTranslation 返回论文的已存译文。
+func (s *Server) handleGetTranslation(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	text, err := s.store.GetTranslation(id)
+	if err != nil {
+		text = ""
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"translation": text})
+}
+
+// handleTranslatePaper 把论文全文分块交给 AI 翻译成中文并存储。
+// 单块失败自动重试一次；仍失败时保存已完成部分并带 warning 返回。
+func (s *Server) handleTranslatePaper(w http.ResponseWriter, r *http.Request) {
+	id, ok := s.idParam(r, "id")
+	if !ok {
+		writeError(w, http.StatusBadRequest, "invalid paper id")
+		return
+	}
+	cfg, ok := s.aiConfig()
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "未配置 AI API Key")
+		return
+	}
+	cfg.Timeout = 180 * time.Second // 单块翻译输出较长，放宽超时
+
+	text := s.store.PaperFullText(id)
+	if strings.TrimSpace(text) == "" {
+		if p, perr := s.store.GetPaper(id); perr == nil && p.HasPDF && p.PDFPath != "" {
+			text, _ = pdfmeta.ExtractText(filepath.Join(s.uploadDir, p.PDFPath), 200000)
+		}
+	}
+	if strings.TrimSpace(text) == "" {
+		writeError(w, http.StatusBadRequest, "论文没有可用全文，请先上传 PDF 或重新提取全文")
+		return
+	}
+	const (
+		chunkSize   = 6000
+		maxTotal    = 60000 // 防 token 失控
+	)
+	if len(text) > maxTotal {
+		text = text[:maxTotal]
+	}
+	chunks := ai.SplitChunks(text, chunkSize)
+
+	client := ai.NewClient(cfg)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
+	defer cancel()
+
+	done := make([]string, 0, len(chunks))
+	var firstErr error
+	for _, chunk := range chunks {
+		out, err := client.Translate(ctx, chunk)
+		if err != nil {
+			time.Sleep(time.Second)
+			out, err = client.Translate(ctx, chunk) // 失败重试一次
+		}
+		if err != nil {
+			firstErr = err
+			break
+		}
+		done = append(done, out)
+	}
+	if len(done) == 0 {
+		writeError(w, http.StatusBadGateway, "AI 翻译失败: "+errString(firstErr))
+		return
+	}
+	translated := strings.Join(done, "\n\n")
+	if err := s.store.UpdateTranslation(id, translated); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	resp := map[string]any{"translation": translated, "chunks": len(chunks), "translated": len(done)}
+	if firstErr != nil {
+		resp["warning"] = "部分内容翻译失败，已保存完成部分；可点「重新翻译」重试"
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+// handleTranslateText 即时翻译一小段文本（粘贴难句）。
+func (s *Server) handleTranslateText(w http.ResponseWriter, r *http.Request) {
+	cfg, ok := s.aiConfig()
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "未配置 AI API Key")
+		return
+	}
+	var body struct {
+		Text string `json:"text"`
+	}
+	if err := readJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	text := strings.TrimSpace(body.Text)
+	if text == "" {
+		writeError(w, http.StatusBadRequest, "text required")
+		return
+	}
+	if len(text) > 4000 {
+		text = text[:4000]
+	}
+	cfg.Timeout = 60 * time.Second
+	client := ai.NewClient(cfg)
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	defer cancel()
+	out, err := client.Translate(ctx, text)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "AI 翻译失败: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"translation": out})
 }

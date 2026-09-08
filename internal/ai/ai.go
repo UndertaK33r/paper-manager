@@ -46,7 +46,7 @@ func (c *Client) ExtractMeta(ctx context.Context, text string) (MetaResult, erro
 		return MetaResult{}, fmt.Errorf("AI_API_KEY not configured")
 	}
 	url := strings.TrimRight(c.cfg.BaseURL, "/") + "/chat/completions"
-	prompt := "你是学术论文元数据提取助手。请从下面论文文本中提取：title(标题)，authors(作者，逗号分隔)，year(发表年份数字)，venue(期刊或会议名)，doi，keywords(关键词，逗号分隔)，summary(一句话中文总结)，category(建议分类名，如 深度学习/NLP/系统/数据库)。只输出 JSON 对象，不要输出其他文字。\n\n论文文本：\n" + truncate(text)
+	prompt := "你是学术论文元数据提取助手。请从下面论文文本中提取：title(标题)，authors(作者，逗号分隔)，year(发表年份，如 \"2025\")，venue(期刊或会议名)，doi，keywords(关键词，逗号分隔)，summary(一句话中文总结)，category(建议分类名，如 深度学习/NLP/系统/数据库)。只输出 JSON 对象，不要输出其他文字。\n\n论文文本：\n" + truncate(text)
 	payload := map[string]any{
 		"model": c.cfg.Model,
 		"messages": []map[string]string{
@@ -54,7 +54,7 @@ func (c *Client) ExtractMeta(ctx context.Context, text string) (MetaResult, erro
 			{"role": "user", "content": prompt},
 		},
 		"temperature": 0.2,
-		"max_tokens":  1000,
+		"max_tokens":  2000,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -92,15 +92,176 @@ func (c *Client) ExtractMeta(ctx context.Context, text string) (MetaResult, erro
 		return MetaResult{}, fmt.Errorf("AI API returned no choices")
 	}
 	content := strings.TrimSpace(envelope.Choices[0].Message.Content)
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
+	// 模型可能在 JSON 前后附说明文字或 markdown 围栏，按括号配平截取对象
+	if obj := extractJSONObject(content); obj != "" {
+		content = obj
+	}
 	var meta MetaResult
 	if err := json.Unmarshal([]byte(content), &meta); err != nil {
+		// 输出被 max_tokens 截断时 JSON 不完整：截到最后一个完整的
+		// 顶层字段并补上闭合括号，保住已生成的字段（宁缺毋全崩）
+		if repaired := repairTruncatedJSON(content); repaired != "" {
+			if err2 := json.Unmarshal([]byte(repaired), &meta); err2 == nil {
+				return meta, nil
+			}
+		}
 		return MetaResult{}, fmt.Errorf("parse AI JSON: %w (content=%s)", err, truncateN(content, 300))
 	}
 	return meta, nil
+}
+
+// repairTruncatedJSON 修复被截断的 JSON 对象：扫到最后一个"完整的顶层
+// 成员"的结尾，裁掉其后未写完的部分，再补 "}"。无法定位时返回空串。
+func repairTruncatedJSON(s string) string {
+	start := strings.Index(s, "{")
+	if start < 0 {
+		return ""
+	}
+	valueEnd := -1 // 最近一个顶层成员 value 结束的位置（含闭合符）
+	depth := 0
+	inStr := false
+	esc := false
+	pendingValue := false // 冒号之后：下一个顶层字符串是值而不是键名
+	for i := start; i < len(s); i++ {
+		c := s[i]
+		if inStr {
+			switch {
+			case esc:
+				esc = false
+			case c == '\\':
+				esc = true
+			case c == '"':
+				inStr = false
+				if depth == 1 && pendingValue {
+					valueEnd = i // 顶层字符串值结束
+					pendingValue = false
+				}
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inStr = true
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+			if depth == 1 {
+				valueEnd = i // 完整的嵌套值（对象/数组）结束
+				pendingValue = false
+			}
+			if depth == 0 {
+				return "" // 本来就是完整对象，无需修复
+			}
+		case ':':
+			if depth == 1 {
+				pendingValue = true
+			}
+		case ',':
+			if depth == 1 {
+				pendingValue = false // 成员结束，之后是下一个键名
+			}
+		default:
+			// 数字 / true / false / null 的内容字符推进边界（仅在值的位置）；
+			// 空白不推进，避免冒号后、值开始前把边界推过头
+			if depth == 1 && pendingValue && c != ' ' && c != '\n' && c != '\r' && c != '\t' {
+				valueEnd = i
+			}
+		}
+	}
+	if valueEnd <= start {
+		return ""
+	}
+	cut := strings.TrimRight(s[start:valueEnd+1], ", \n\r\t")
+	return cut + "}"
+}
+
+// extractJSONObject 从任意文本中截取第一个完整的 JSON 对象（括号配平，
+// 忽略字符串内的花括号）。找不到时返回空串。
+func extractJSONObject(s string) string {
+	start := strings.Index(s, "{")
+	if start < 0 {
+		return ""
+	}
+	depth := 0
+	inStr := false
+	esc := false
+	for i := start; i < len(s); i++ {
+		c := s[i]
+		if inStr {
+			switch {
+			case esc:
+				esc = false
+			case c == '\\':
+				esc = true
+			case c == '"':
+				inStr = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inStr = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return s[start : i+1]
+			}
+		}
+	}
+	return ""
+}
+
+// UnmarshalJSON 宽容地解析模型输出：LLM 的 JSON 字段类型经常抖动
+// （year 可能是数字、authors/keywords 可能是数组），统一转成字符串，
+// 避免 "cannot unmarshal number into Go struct field" 之类失败。
+func (m *MetaResult) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	m.Title = flexString(raw["title"])
+	m.Authors = flexString(raw["authors"])
+	m.Year = flexString(raw["year"])
+	m.Venue = flexString(raw["venue"])
+	m.DOI = flexString(raw["doi"])
+	m.Keywords = flexString(raw["keywords"])
+	m.Summary = flexString(raw["summary"])
+	m.Category = flexString(raw["category"])
+	return nil
+}
+
+// flexString 把任意 JSON 值宽容地转成字符串：字符串原样、数字/布尔
+// 转文本、数组（字符串元素）逗号拼接、null/对象返回空串。
+func flexString(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return strings.TrimSpace(s)
+	}
+	var n json.Number
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n.String()
+	}
+	var arr []json.RawMessage
+	if err := json.Unmarshal(raw, &arr); err == nil {
+		parts := make([]string, 0, len(arr))
+		for _, it := range arr {
+			if v := flexString(it); v != "" {
+				parts = append(parts, v)
+			}
+		}
+		return strings.Join(parts, ", ")
+	}
+	var b bool
+	if err := json.Unmarshal(raw, &b); err == nil && b {
+		return "true"
+	}
+	return ""
 }
 
 func truncate(s string) string { return truncateN(s, 20000) }
@@ -128,7 +289,7 @@ func (c *Client) Summarize(ctx context.Context, paperContext string) (string, er
 	payload := map[string]any{
 		"model": c.cfg.Model,
 		"messages": []map[string]string{
-			{"role": "system", "content": "你是学术论文阅读助手。请用中文输出结构化总结，按四段：1) 研究问题 2) 方法 3) 主要结果 4) 意义。每段 1-3 句话，语言精炼，不要输出无关内容。"},
+			{"role": "system", "content": "你是学术论文阅读助手。请用中文、以 Markdown 格式输出结构化总结，包含四个小节，用 ### 标题：研究问题、方法、主要结果、意义；要点用 - 列表逐条列出，关键术语与重要结论用 **加粗**。语言精炼，不要输出无关内容。"},
 			{"role": "user", "content": paperContext},
 		},
 		"temperature": 0.3,
@@ -232,4 +393,95 @@ func (c *Client) Test(ctx context.Context) (string, error) {
 	return c.chat(ctx, []map[string]string{
 		{"role": "user", "content": "请只回复两个字：正常"},
 	}, 20)
+}
+
+// Translate 把英文学术论文片段翻译成简体中文。
+func (c *Client) Translate(ctx context.Context, text string) (string, error) {
+	if strings.TrimSpace(c.cfg.APIKey) == "" {
+		return "", fmt.Errorf("AI_API_KEY not configured")
+	}
+	url := strings.TrimRight(c.cfg.BaseURL, "/") + "/chat/completions"
+	payload := map[string]any{
+		"model": c.cfg.Model,
+		"messages": []map[string]string{
+			{"role": "system", "content": "你是专业的学术翻译。把用户给出的英文学术论文片段翻译成简体中文：忠实原文、术语准确、语句通顺；保持原文段落顺序；数学符号、变量名、模型名/数据集名等专有名词保留英文。只输出译文，不要解释。"},
+			{"role": "user", "content": text},
+		},
+		"temperature": 0.2,
+		"max_tokens":  4000,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("AI API %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var envelope struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return "", err
+	}
+	if len(envelope.Choices) == 0 {
+		return "", fmt.Errorf("AI API returned no choices")
+	}
+	return strings.TrimSpace(envelope.Choices[0].Message.Content), nil
+}
+
+// SplitChunks 把长文按空行段落聚合为不超过 size 字符的块；单个超长段落硬切。
+// 用于分块调用 AI 翻译全文。
+func SplitChunks(text string, size int) []string {
+	if size <= 0 {
+		size = 6000
+	}
+	paras := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n\n")
+	chunks := []string{}
+	var cur strings.Builder
+	flush := func() {
+		if cur.Len() > 0 {
+			chunks = append(chunks, strings.TrimSpace(cur.String()))
+			cur.Reset()
+		}
+	}
+	for _, p := range paras {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		// 单段超长：按 size 硬切
+		for len(p) > size {
+			flush()
+			chunks = append(chunks, p[:size])
+			p = p[size:]
+		}
+		if cur.Len()+len(p)+2 > size {
+			flush()
+		}
+		if cur.Len() > 0 {
+			cur.WriteString("\n\n")
+		}
+		cur.WriteString(p)
+	}
+	flush()
+	return chunks
 }

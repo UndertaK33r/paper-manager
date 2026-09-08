@@ -97,6 +97,7 @@ CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 	}
 	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN fulltext TEXT NOT NULL DEFAULT ''")
 	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN status TEXT NOT NULL DEFAULT 'unread'")
+	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN translation TEXT NOT NULL DEFAULT ''")
 	_, _ = s.db.Exec("UPDATE papers SET status = 'read' WHERE read = 1 AND status = 'unread'")
 	return nil
 }

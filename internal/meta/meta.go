@@ -24,14 +24,54 @@ type Info struct {
 }
 
 var doiRe = regexp.MustCompile(`10\.\d{4,9}/[^\s]+`)
+var doiPrefixedRe = regexp.MustCompile(`(?i)(?:https?://doi\.org/|doi:\s*|DOI:\s*)(10\.\d{4,9}/[^\s]+)`)
 
+// SniffDOI 从文本中嗅探论文自身的 DOI。优先取带前缀
+// （doi.org/ 或 doi:）的匹配——裸 DOI 常来自参考文献列表，属于别的论文。
+// 只扫描前 16KB（第一页附近），进一步降低误抓引用的风险。
 func SniffDOI(text string) string {
-	m := doiRe.FindString(text)
-	if m == "" {
-		return ""
+	if len(text) > 16<<10 {
+		text = text[:16<<10]
 	}
-	m = strings.TrimRight(m, ".,;)]}")
-	return m
+	trim := func(s string) string {
+		return strings.TrimRight(s, ".,;:)]}\"'")
+	}
+	if m := doiPrefixedRe.FindStringSubmatch(text); m != nil {
+		return trim(m[1])
+	}
+	if m := doiRe.FindString(text); m != "" {
+		return trim(m)
+	}
+	return ""
+}
+
+// TitlePlausible 判断一个标题是否"像一个真标题"：
+// 长度合理、字母/数字占比足够、不是 URL/DOI/纯符号乱码。
+// 用于决定是否值得拿它去在线库检索，避免拿乱码匹配出错误论文。
+func TitlePlausible(s string) bool {
+	s = strings.TrimSpace(s)
+	rs := []rune(s)
+	if len(rs) < 8 || len(rs) > 300 {
+		return false
+	}
+	low := strings.ToLower(s)
+	for _, bad := range []string{"http://", "https://", "www.", "doi.org", "arxiv:"} {
+		if strings.Contains(low, bad) {
+			return false
+		}
+	}
+	alnum := 0
+	for _, r := range rs {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			alnum++
+		}
+	}
+	return float64(alnum) >= float64(len(rs))*0.45
+}
+
+// titleTokens 返回标题的有效词数（用于决定是否发起在线检索）。
+func TitleTokens(s string) int {
+	return len(tokenSet(strings.ToLower(s)))
 }
 
 func SniffTitle(text string) string {
@@ -45,7 +85,10 @@ func SniffTitle(text string) string {
 			continue
 		}
 		low := strings.ToLower(line)
-		if strings.HasPrefix(low, "doi") || strings.HasPrefix(low, "copyright") || strings.HasPrefix(low, "abstract") || strings.HasPrefix(low, "http") || strings.HasPrefix(low, "www") || strings.HasPrefix(low, "arxiv:") || strings.HasPrefix(low, "@") {
+		if strings.HasPrefix(low, "doi") || strings.HasPrefix(low, "copyright") || strings.HasPrefix(low, "abstract") || strings.HasPrefix(low, "http") || strings.HasPrefix(low, "www") || strings.HasPrefix(low, "arxiv:") || strings.HasPrefix(low, "@") || strings.HasPrefix(low, "©") {
+			continue
+		}
+		if !TitlePlausible(line) {
 			continue
 		}
 		return line
@@ -53,27 +96,47 @@ func SniffTitle(text string) string {
 	return ""
 }
 
-func EnrichByDOI(ctx context.Context, doi string) (*Info, error) {
+func EnrichByDOI(ctx context.Context, doi, localTitle string) (*Info, error) {
 	if doi == "" {
 		return nil, nil
 	}
+	info := fetchByDOI(ctx, doi)
+	if info == nil {
+		return nil, nil
+	}
+	// 校验：PDF 里嗅探到的标题与 DOI 结果对不上时，这个 DOI
+	// 很可能来自参考文献（别的论文），丢弃在线结果，宁缺毋错。
+	if TitlePlausible(localTitle) && titleOverlap(localTitle, info.Title) < 0.5 {
+		return nil, nil
+	}
+	return info, nil
+}
+
+func fetchByDOI(ctx context.Context, doi string) *Info {
 	if info, err := openAlexDOI(ctx, doi); err == nil && info != nil && info.Title != "" {
-		return info, nil
+		return info
 	}
 	if info, err := crossrefByDOI(ctx, doi); err == nil && info != nil && info.Title != "" {
-		return info, nil
+		return info
 	}
-	return nil, nil
+	return nil
 }
 
 func SearchByTitle(ctx context.Context, title string) (*Info, error) {
 	if title == "" {
 		return nil, nil
 	}
-	if info, err := crossrefSearch(ctx, title); err == nil && info != nil {
+	// 乱码/过短标题不发起检索：Crossref 的模糊检索几乎必返回"高分"结果，
+	// 与错误标题匹配就是完全错误的元数据来源。
+	if !TitlePlausible(title) || TitleTokens(title) < 3 {
+		return nil, nil
+	}
+	// arXiv 优先：ti 短语检索精确，几乎不会返回"标题包含本标题"的他文；
+	// Crossref 兜底。
+	if info, err := arxivSearch(ctx, title); err == nil && info != nil {
 		return info, nil
 	}
-	if info, err := arxivSearch(ctx, title); err == nil && info != nil {
+	if info, err := crossrefSearch(ctx, title); err == nil && info != nil {
 		return info, nil
 	}
 	return nil, nil
@@ -234,7 +297,7 @@ func crossrefSearch(ctx context.Context, title string) (*Info, error) {
 		if len(item.Title) == 0 || item.Score < 50 {
 			continue
 		}
-		if titleOverlap(title, item.Title[0]) < 0.4 {
+		if titleOverlap(title, item.Title[0]) < 0.7 {
 			continue
 		}
 		info := &Info{Title: item.Title[0], DOI: item.DOI, Abstract: cleanAbstract(item.Abstract), Source: "crossref"}
@@ -284,7 +347,7 @@ func arxivSearch(ctx context.Context, title string) (*Info, error) {
 		return nil, err
 	}
 	for _, e := range feed.Entries {
-		if titleOverlap(title, e.Title) < 0.5 {
+		if titleOverlap(title, e.Title) < 0.55 {
 			continue
 		}
 		info := &Info{Title: strings.TrimSpace(e.Title), Abstract: strings.TrimSpace(e.Summary), Source: "arxiv"}
@@ -303,18 +366,13 @@ func arxivSearch(ctx context.Context, title string) (*Info, error) {
 	return nil, nil
 }
 
+// titleOverlap 计算两个标题的 Jaccard 相似度（|A∩B| / |A∪B|）。
+// 对称比较：一方标题"包含"另一方（如复现论文在原标题前加前缀）时
+// 相似度会明显低于 1，不会像单向交集那样被误判成同一篇。
 func titleOverlap(a, b string) float64 {
-	normA := normalizeTitle(a)
-	normB := normalizeTitle(b)
-	if normA == "" || normB == "" {
-		return 0
-	}
-	if strings.Contains(normA, normB) || strings.Contains(normB, normA) {
-		return 1
-	}
-	tokA := tokenSet(normA)
-	tokB := tokenSet(normB)
-	if len(tokA) == 0 {
+	tokA := tokenSet(normalizeTitle(a))
+	tokB := tokenSet(normalizeTitle(b))
+	if len(tokA) == 0 || len(tokB) == 0 {
 		return 0
 	}
 	inter := 0
@@ -323,7 +381,11 @@ func titleOverlap(a, b string) float64 {
 			inter++
 		}
 	}
-	return float64(inter) / float64(len(tokA))
+	union := len(tokA) + len(tokB) - inter
+	if union == 0 {
+		return 0
+	}
+	return float64(inter) / float64(union)
 }
 
 func normalizeTitle(s string) string {

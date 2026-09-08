@@ -39,7 +39,24 @@ var doiRe = regexp.MustCompile(`(?i)\b10\.\d{4,9}/[^\s"'<>()\[\]{}]+`)
 
 // ExtractPDFText 提取 PDF 文本。返回 (全文, 大字号文本)：后者用于标题嗅探
 // （论文标题通常是页面中字号最大的文本）。加密或扫描版 PDF 返回空串。
+//
+// 主路径是字体感知的结构化提取（ExtractStructured，正确处理 CID/子集字体），
+// 失败时退回旧的流扫描器。
 func ExtractPDFText(path string) (string, string, error) {
+	if doc, err := ExtractStructured(path); err == nil && strings.TrimSpace(doc.Text) != "" {
+		var big strings.Builder
+		for _, l := range doc.Lines {
+			if l.Size >= 13.5 {
+				big.WriteString(l.Text)
+				big.WriteByte('\n')
+			}
+		}
+		return doc.Text, strings.TrimSpace(big.String()), nil
+	}
+	return extractPDFTextLegacy(path)
+}
+
+func extractPDFTextLegacy(path string) (string, string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", "", err
@@ -99,6 +116,10 @@ func SniffTitle(text string) string {
 			continue
 		}
 		if strings.Trim(line, "0123456789 ") == "" {
+			continue
+		}
+		// 字母/数字占比过低的多为乱码或装饰符号
+		if !plausibleLine(line) {
 			continue
 		}
 		return line

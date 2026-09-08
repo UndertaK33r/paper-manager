@@ -306,3 +306,19 @@ func (s *Store) SearchRelaxed(query string, limit int) ([]models.Paper, error) {
 	}
 	return out, rows.Err()
 }
+
+// GetTranslation 读取论文的 AI 中文译文（独立于 paperCols，避免进列表查询）。
+func (s *Store) GetTranslation(id int64) (string, error) {
+	var v string
+	err := s.db.QueryRow("SELECT translation FROM papers WHERE id = ?", id).Scan(&v)
+	if err != nil {
+		return "", err
+	}
+	return v, nil
+}
+
+// UpdateTranslation 保存译文（只更新该列，不影响其他字段）。
+func (s *Store) UpdateTranslation(id int64, text string) error {
+	_, err := s.db.Exec("UPDATE papers SET translation = ? WHERE id = ?", text, id)
+	return err
+}

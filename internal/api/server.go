@@ -60,6 +60,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/papers/{id}/status", s.handleSetStatus)
 	mux.HandleFunc("POST /api/papers/{id}/re-extract", s.handleReExtract)
 	mux.HandleFunc("POST /api/papers/{id}/re-detect", s.handleRedetect)
+	mux.HandleFunc("GET /api/papers/{id}/translation", s.handleGetTranslation)
+	mux.HandleFunc("POST /api/papers/{id}/translate", s.handleTranslatePaper)
+	mux.HandleFunc("POST /api/ai/translate-text", s.handleTranslateText)
 	mux.HandleFunc("POST /api/papers/{id}/toggle-star", s.handleToggleStar)
 	mux.HandleFunc("POST /api/papers/{id}/tags", s.handleAddPaperTag)
 	mux.HandleFunc("DELETE /api/papers/{id}/tags/{tagID}", s.handleRemovePaperTag)
@@ -88,6 +91,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/graph", s.handleGraph)
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
 	mux.HandleFunc("PUT /api/settings", s.handleUpdateSettings)
+	mux.HandleFunc("GET /api/ai/models", s.handleAIModels)
 	mux.HandleFunc("POST /api/ai/test", s.handleAITest)
 
 	static := http.FileServer(http.Dir(s.webDir))
