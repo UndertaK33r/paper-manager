@@ -300,9 +300,6 @@ var Root = {
     },
     onPdfMouseUp: function () {
       var self = this;
-      var now = Date.now();
-      if (now - (this._lastSelCheck || 0) < 200) return; // selectionchange 高频，节流
-      this._lastSelCheck = now;
       setTimeout(function () {
         var sel = window.getSelection();
         if (!sel || sel.isCollapsed || !self._pdf || !self.pdfJsOk) { self.selPopup.show = false; return; }
@@ -540,9 +537,8 @@ var Root = {
     };
     document.addEventListener("fullscreenchange", fsSync);
     document.addEventListener("webkitfullscreenchange", fsSync);
-    // 划词翻译：mouseup（桌面）+ selectionchange（移动端长按选择）
+    // 划词翻译：mouseup 后检查选区
     document.addEventListener("mouseup", function(){ self.onPdfMouseUp(); });
-    document.addEventListener("selectionchange", function(){ self.onPdfMouseUp(); });
     var rsz=function(){ self.$nextTick(function(){ self.layoutPdfPages(true); }); };
     window.addEventListener("resize", rsz);
     this.parseHash();
