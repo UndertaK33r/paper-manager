@@ -254,7 +254,6 @@
         <div class="p3r-panel"><span class="p3r-h3">标签</span><div class="inline-form"><input class="p3r-input" v-model="newTag" placeholder="新标签"><button class="p3r-btn small p3r-btn--primary" @click="addTag">添加</button></div><ul class="manage-list"><li v-for="t in tags" :key="t.id"><span>{{ t.name }} ({{ t.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteTag(t.id)">删除</button></li></ul></div>
         <div class="p3r-panel"><span class="p3r-h3">合集</span><div class="inline-form"><input class="p3r-input" v-model="newCollection" placeholder="新合集"><button class="p3r-btn small p3r-btn--primary" @click="addCollection">添加</button></div><ul class="manage-list"><li v-for="o in collections" :key="o.id"><span>{{ o.name }} ({{ o.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteCollection(o.id)">删除</button></li></ul></div>
       </div>
-      <div class="form-actions"><button class="p3r-btn" @click="showManage=false">关闭</button></div>
     </div>
   </div>
 
@@ -277,7 +276,7 @@
   <div v-if="toast.show" class="toast" :class="{error: toast.error}">{{ toast.msg }}</div>
 
   <!-- 悬浮球：问论文库 / 主题 -->
-  <div v-if="askOpen" class="ask-float">
+  <div v-if="askOpen && !uiBlocked" class="ask-float">
     <div class="ask-float__head"><span class="p3r-readout">问论文库 · RAG</span><a class="chip-x" @click="askOpen=false">×</a></div>
     <div class="ask-float__body">
       <div v-if="asking" class="p3r-readout">思考中...</div>
@@ -291,13 +290,13 @@
     </div>
   </div>
 
-  <div v-if="themeOpen" class="fab-pop">
+  <div v-if="themeOpen && !uiBlocked" class="fab-pop">
     <button v-for="t in themeOptions" :key="t.v" class="fab-pop__item" :class="{cur: theme===t.v}" @click="pickTheme(t.v)">
       <span>{{ t.t }}</span><span v-if="theme===t.v" class="p3r-readout">✓</span>
     </button>
   </div>
 
-  <div class="fabs">
+  <div class="fabs" v-if="!uiBlocked">
     <div class="fab" :class="{active: askOpen}" @click="askOpen=!askOpen; themeOpen=false" title="问论文库">{{ askOpen ? '×' : '问' }}</div>
     <div class="fab" :class="{active: themeOpen}" @click="themeOpen=!themeOpen; askOpen=false" title="主题">◐</div>
   </div>

@@ -194,7 +194,7 @@ label .p3r-input, .p3r-form label .p3r-input { display: block; width: 100%; marg
   background: var(--k-bg, #fff); border: 1px solid var(--k-line-strong, #DCDCDC);
   border-radius: var(--panel-radius, 0); clip-path: var(--panel-clip, none);
   box-shadow: var(--dialog-shadow, 0 24px 60px rgba(0, 0, 0, 0.16));
-  max-width: 720px; margin: auto; padding: 28px;
+  width: 100%; max-width: 720px; margin: auto; padding: 28px;
 }
 .p3r-dialog::after { content: ""; }
 .p3r-dialog.wide { max-width: 1000px; }
@@ -224,7 +224,8 @@ label .p3r-input, .p3r-form label .p3r-input { display: block; width: 100%; marg
 .ask-source summary { cursor: pointer; color: var(--k-ink); text-decoration: underline; }
 .inline-form { display: flex; gap: 8px; margin: 12px 0; }
 .inline-form .p3r-input { flex: 1; }
-.manage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 8px; }
+.manage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 8px; }
+.manage-list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .manage-list { list-style: none; padding: 0; margin: 14px 0 0; max-height: 260px; overflow-y: auto; }
 .manage-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--k-line, #ECECEC); }
 .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }

@@ -34,7 +34,8 @@ var Root = {
     availableTags: function () { var self=this; return this.tags.filter(function(t){ return !(self.detail.tags||[]).some(function(x){return x.id===t.id;}); }); },
     availableCollections: function () { var self=this; return this.collections.filter(function(c){ return !(self.detail.collections||[]).some(function(x){return x.id===c.id;}); }); },
     renderedSummary: function () { return window.mdRender ? window.mdRender(this.detail.summary) : ""; },
-    renderedAnswer: function () { return window.mdRender ? window.mdRender(this.answer) : ""; }
+    renderedAnswer: function () { return window.mdRender ? window.mdRender(this.answer) : ""; },
+    uiBlocked: function () { return !!(this.showManage || this.showSettings || this.showPaperModal); }
   },
   watch: {
     // 摘要变化（打开新论文 / AI 重新生成）时重置展开态并重新测量是否溢出
