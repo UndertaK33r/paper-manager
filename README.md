@@ -21,6 +21,19 @@ docker compose up -d --build
 
 数据保存在 `./data` 目录，备份直接拷贝。
 
+## 分享给别人
+
+两种方式，按场景选：
+
+1. **免安装分发**（各自使用各自的数据）：推荐 Mac/Linux 用户复制一行命令安装（自动下载并绕过 macOS Gatekeeper 拦截）：
+   ```bash
+   curl -fsSL https://github.com/UndertaK33r/paper-manager/releases/latest/download/install.sh | bash
+   ```
+   或者到 [Releases](https://github.com/UndertaK33r/paper-manager/releases) 下载对应系统的压缩包，解压后双击运行。Mac 会提示「已损坏 / 无法验证开发者」：打开 系统设置 → 隐私与安全性 → 底部点「仍要打开」，或终端执行 `xattr -cr <程序文件>`（详见压缩包内使用说明）。
+   - 本地构建：`./build.sh`，产物在 `dist/`
+   - 打 tag 推送（如 `git tag v1.0.0 && git push --tags`）会自动构建并发布 Release
+2. **部署一份集中使用**（共享同一批论文，推荐实验室场景）：在一台常开的机器上 `docker compose up -d`，把 `http://<机器IP>:8080` 发给同学即可；跨网络可用 Tailscale 组网。
+
 ## 本地开发
 
 ```bash

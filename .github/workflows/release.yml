@@ -27,6 +27,7 @@ jobs:
       - name: 打包
         run: |
           cp 使用说明.txt dist/
+          cp install.sh dist/
           cd dist
           for f in paper-manager-*; do
             zip -q "${f}.zip" "$f" 使用说明.txt
@@ -34,5 +35,7 @@ jobs:
       - name: 发布 Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.zip
+          files: |
+            dist/*.zip
+            install.sh
           generate_release_notes: true
