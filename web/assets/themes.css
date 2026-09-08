@@ -5,7 +5,7 @@
    变量，这里按 data-theme 整套覆盖；颜色沿用 --k-* 令牌。
    ========================================================================== */
 
-/* ── 深夜：深海军蓝 + 玻璃拟态面板 + 胶囊按钮 + 冰蓝辉光 ─────────────────── */
+/* ── 黑夜（midnight）：深海军蓝 + 玻璃拟态面板 + 胶囊按钮 + 冰蓝辉光 ─────── */
 :root[data-theme="midnight"] {
   color-scheme: dark;
   /* 颜色 */
@@ -100,7 +100,7 @@
 [data-theme="paper"] .note-inline::before { content: "❮"; color: var(--k-ink); }
 [data-theme="paper"] .p3r-cue::before { content: "❖"; letter-spacing: 0.25em; }
 
-/* ── 纸墨：暖米纸 + 衬线标题 + 报纸双线 + 墨块按钮 ───────────────────────── */
+/* ── 护眼（paper）：暖米纸 + 揉皱纸质感 + 衬线标题 + 报纸双线 ────────────── */
 :root[data-theme="paper"] {
   color-scheme: light;
   /* 颜色 */

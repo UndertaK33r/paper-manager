@@ -7,7 +7,7 @@ var Root = {
     return {
       route: "list", token: localStorage.getItem("pm-token") || "", loginPass: "", loginError: "",
       theme: localStorage.getItem("pm-theme") || "", themeOpen: false,
-      themeOptions: [{ v: "", t: "黑白极简" }, { v: "midnight", t: "深夜玻璃" }, { v: "paper", t: "纸墨衬线" }],
+      themeOptions: [{ v: "", t: "日间" }, { v: "midnight", t: "黑夜" }, { v: "paper", t: "护眼" }],
       stats: {}, categories: [], tags: [], collections: [],
       papers: [], total: 0, page: 1, pages: 1, pageSize: 20, loading: true,
       view: "table", search: "", statusFilter: "", categoryFilter: "", tagFilter: "", sort: "created", order: "desc",
