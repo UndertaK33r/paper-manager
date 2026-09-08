@@ -87,11 +87,11 @@ func TestSniffTitleEmptyWhenNothingPlausible(t *testing.T) {
 func TestPlausibleInfoTitle(t *testing.T) {
 	cases := map[string]bool{
 		"Deep Residual Learning for Image Recognition": true,
-		"Appendix":                                     false,
-		"Microsoft Word - final_v3.doc":                false,
-		"Untitled":                                     false,
-		"":                                             false,
-		"!!!!!!!!":                                     false,
+		"Appendix":                      false,
+		"Microsoft Word - final_v3.doc": false,
+		"Untitled":                      false,
+		"":                              false,
+		"!!!!!!!!":                      false,
 	}
 	for in, want := range cases {
 		got := plausibleInfoTitle(in) != ""

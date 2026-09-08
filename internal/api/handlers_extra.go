@@ -91,12 +91,60 @@ func (s *Server) handlePatchPaper(w http.ResponseWriter, r *http.Request) {
 	if body.CategoryID != nil {
 		p.CategoryID = body.CategoryID
 	}
-	if p.FullText == "" {
-		p.FullText = s.store.PaperFullText(id)
+	// 只写请求里出现的字段：并发保存笔记/摘要时不会整行覆盖彼此
+	fields := map[string]any{}
+	if body.Title != nil {
+		fields["title"] = strings.TrimSpace(*body.Title)
 	}
-	if err := s.store.UpdatePaper(&p); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+	if body.Authors != nil {
+		fields["authors"] = strings.TrimSpace(*body.Authors)
+	}
+	if body.Year != nil {
+		fields["year"] = *body.Year
+	}
+	if body.Venue != nil {
+		fields["venue"] = strings.TrimSpace(*body.Venue)
+	}
+	if body.DOI != nil {
+		fields["doi"] = strings.TrimSpace(*body.DOI)
+	}
+	if body.Keywords != nil {
+		fields["keywords"] = strings.TrimSpace(*body.Keywords)
+	}
+	if body.Link != nil {
+		fields["link"] = strings.TrimSpace(*body.Link)
+	}
+	if body.Summary != nil {
+		fields["summary"] = strings.TrimSpace(*body.Summary)
+	}
+	if body.Notes != nil {
+		fields["notes"] = *body.Notes
+	}
+	if body.Status != nil {
+		st := strings.TrimSpace(*body.Status)
+		if st == "unread" || st == "reading" || st == "read" {
+			fields["status"] = st
+			fields["read"] = st == "read"
+		}
+	} else if body.Read != nil {
+		fields["read"] = *body.Read
+		if *body.Read {
+			fields["status"] = "read"
+		} else if p.Status == "read" {
+			fields["status"] = "unread"
+		}
+	}
+	if body.Starred != nil {
+		fields["starred"] = *body.Starred
+	}
+	if body.CategoryID != nil {
+		fields["category_id"] = *body.CategoryID
+	}
+	if len(fields) > 0 {
+		if err := s.store.UpdateFields(id, fields, nil, nil, nil); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 	if body.Tags != nil {
 		if err := s.store.SetPaperTags(id, *body.Tags); err != nil {
@@ -161,8 +209,7 @@ func (s *Server) handleReExtract(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "无法提取全文: "+err.Error())
 		return
 	}
-	p.FullText = text
-	if err := s.store.UpdatePaper(&p); err != nil {
+	if err := s.store.UpdateFields(id, map[string]any{"fulltext": text}, nil, nil, nil); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -208,8 +255,8 @@ func (s *Server) handleRedetect(w http.ResponseWriter, r *http.Request) {
 	}
 	in := paperToInput(&p)
 	_ = s.maybeEnrich(&in, p.PDFPath)
-	p = s.paperFromInput(in, &p)
-	if err := s.store.UpdatePaper(&p); err != nil {
+	mp := s.paperFromInput(in, &p)
+	if err := s.store.UpdateMetadata(&mp, true); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

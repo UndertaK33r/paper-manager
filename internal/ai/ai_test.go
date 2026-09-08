@@ -73,7 +73,7 @@ func TestRepairTruncatedJSON(t *testing.T) {
 		{"字符串值截断", `{"title": "A", "year": 2025, "keywords": "Image Fusion, Multi-modali`},
 		{"数组值截断", `{"title": "X", "authors": ["A", "B`},
 		{"键名截断", `{"title": "X", "key`},
-		{"嵌套对象完整后截断", `{"meta": {"a": 1}, "title": "T`,},
+		{"嵌套对象完整后截断", `{"meta": {"a": 1}, "title": "T`},
 	}
 	for _, c := range cases {
 		repaired := repairTruncatedJSON(c.in)

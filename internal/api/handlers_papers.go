@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	"paper-manager/internal/models"
 	pdfmeta "paper-manager/internal/pdf"
+	"paper-manager/internal/store"
 )
 
 func (s *Server) handleListPapers(w http.ResponseWriter, r *http.Request) {
@@ -111,7 +113,12 @@ func (s *Server) savePdf(r *http.Request) (string, int64, string, error) {
 		os.Remove(dst)
 		return "", 0, "", fmt.Errorf("empty PDF file")
 	}
-	if head, herr := os.ReadFile(dst); herr != nil || len(head) < 5 || string(head[:5]) != "%PDF-" {
+	head := make([]byte, 5)
+	_, herr := file.Seek(0, io.SeekStart)
+	if herr == nil {
+		_, herr = io.ReadFull(file, head)
+	}
+	if herr != nil || string(head) != "%PDF-" {
 		os.Remove(dst)
 		return "", 0, "", fmt.Errorf("not a valid PDF file")
 	}
@@ -197,15 +204,11 @@ func (s *Server) handleCreatePaper(w http.ResponseWriter, r *http.Request) {
 	p.PDFPath = pdfPath
 	p.PDFSize = pdfSize
 	p.FullText = fullText
-	id, err := s.store.CreatePaper(&p)
+	id, err := s.store.SavePaper(&p, in.Tags, in.Collections, true)
 	if err != nil {
 		if pdfPath != "" {
 			os.Remove(filepath.Join(s.uploadDir, pdfPath))
 		}
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if err := s.applyRelations(id, in); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -265,6 +268,8 @@ func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	newPDF := false
+	staged := "" // 新 PDF 暂存名：数据库提交成功前不删旧文件
+	originalPDF := current.PDFPath
 	if isMultipart {
 		name, size, origName, perr := s.savePdf(r)
 		if perr != nil {
@@ -272,6 +277,7 @@ func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if name != "" {
+			staged = name
 			newPDF = true
 			meta, merr := pdfmeta.ExtractWithFallback(filepath.Join(s.uploadDir, name), origName)
 			if merr != nil {
@@ -279,7 +285,6 @@ func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
 				writeError(w, http.StatusBadRequest, "无法解析 PDF 元数据: "+merr.Error())
 				return
 			}
-			old := current.PDFPath
 			current.PDFPath = name
 			current.PDFSize = size
 			if in.Title == "" {
@@ -292,9 +297,6 @@ func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
 				in.Keywords = meta.Keywords
 			}
 			current.FullText, _ = pdfmeta.ExtractText(filepath.Join(s.uploadDir, name), 200000)
-			if old != "" && old != name {
-				os.Remove(filepath.Join(s.uploadDir, old))
-			}
 		}
 	}
 	if current.FullText == "" {
@@ -303,18 +305,29 @@ func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
 	if newPDF {
 		_ = s.maybeEnrich(&in, current.PDFPath)
 		if err := s.maybeAIExtract(&in, current.PDFPath); err != nil {
+			os.Remove(filepath.Join(s.uploadDir, staged))
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 	}
 	p := s.paperFromInput(in, &current)
-	if err := s.store.UpdatePaper(&p); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+	// oldPDF 取自覆盖前的原始路径：current.PDFPath 已在上方指向暂存文件
+	oldPDF := ""
+	if staged != "" && originalPDF != "" && originalPDF != staged {
+		oldPDF = originalPDF
+	}
+	if _, err := s.store.SavePaper(&p, in.Tags, in.Collections, false); err != nil {
+		os.Remove(filepath.Join(s.uploadDir, staged))
+		if errors.Is(err, store.ErrConflict) {
+			writeError(w, http.StatusConflict, err.Error())
+		} else {
+			writeError(w, http.StatusInternalServerError, err.Error())
+		}
 		return
 	}
-	if err := s.applyRelations(id, in); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+	// 数据库提交成功后才替换旧文件
+	if oldPDF != "" {
+		os.Remove(filepath.Join(s.uploadDir, oldPDF))
 	}
 	paper, err := s.store.GetPaper(id)
 	if err != nil {

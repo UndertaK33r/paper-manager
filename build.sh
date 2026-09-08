@@ -5,6 +5,8 @@ set -e
 cd "$(dirname "$0")"
 
 mkdir -p dist
+# 清掉上一次的产物，避免把旧 zip 再套一层 zip
+rm -f dist/paper-manager-*
 cp 使用说明.txt dist/ 2>/dev/null || echo "（未找到 使用说明.txt，跳过）"
 
 for t in darwin/arm64 darwin/amd64 windows/amd64 linux/amd64; do

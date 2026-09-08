@@ -93,22 +93,25 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
 	mux.HandleFunc("PUT /api/settings", s.handleUpdateSettings)
 	mux.HandleFunc("GET /api/ai/models", s.handleAIModels)
+	mux.HandleFunc("POST /api/ai/models", s.handleAIModels)
 	mux.HandleFunc("POST /api/ai/test", s.handleAITest)
 
-	static := http.FileServer(http.Dir(s.webDir))
-	mux.Handle("/", static)
+	mux.Handle("GET /", s.staticHandler())
 
 	var h http.Handler = mux
-	h = noCache(h)
 	if s.authUser != "" || s.authPass != "" {
 		h = s.basicAuth(h)
 	}
-	return h
+	return noCache(h)
 }
 
 func noCache(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-store")
+		if r.URL.Path == "/api" || strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Cache-Control", "no-store")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

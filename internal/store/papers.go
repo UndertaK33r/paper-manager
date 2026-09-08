@@ -9,7 +9,7 @@ import (
 
 const paperCols = `p.id, p.title, p.authors, p.year, p.venue, p.doi, p.keywords, p.link,
  p.summary, p.notes, p.category_id, c.name, p.read, p.status, p.starred,
- CASE WHEN p.pdf_path = '' THEN 0 ELSE 1 END, p.pdf_size, p.pdf_path, p.created_at, p.updated_at`
+ CASE WHEN p.pdf_path = '' THEN 0 ELSE 1 END, p.pdf_size, p.pdf_path, p.created_at, p.updated_at, p.notes_updated_at`
 
 type rowScanner interface{ Scan(dest ...any) error }
 
@@ -20,7 +20,7 @@ func scanPaper(scanner rowScanner) (models.Paper, error) {
 	var categoryID sql.NullInt64
 	var categoryName sql.NullString
 	err := scanner.Scan(&p.ID, &p.Title, &p.Authors, &p.Year, &p.Venue, &p.DOI, &p.Keywords, &p.Link,
-		&p.Summary, &p.Notes, &categoryID, &categoryName, &read, &p.Status, &starred, &hasPDF, &p.PDFSize, &p.PDFPath, &created, &updated)
+		&p.Summary, &p.Notes, &categoryID, &categoryName, &read, &p.Status, &starred, &hasPDF, &p.PDFSize, &p.PDFPath, &created, &updated, &p.NotesUpdatedAt)
 	if err != nil {
 		return p, err
 	}
@@ -212,7 +212,7 @@ func (s *Store) FindDuplicate(title, authors, doi string) (*models.Paper, error)
 		var categoryName sql.NullString
 		err := s.db.QueryRow("SELECT "+paperCols+" FROM papers p LEFT JOIN categories c ON c.id = p.category_id WHERE lower(p.doi) = lower(?)", strings.TrimSpace(doi)).
 			Scan(&p.ID, &p.Title, &p.Authors, &p.Year, &p.Venue, &p.DOI, &p.Keywords, &p.Link,
-				&p.Summary, &p.Notes, &categoryID, &categoryName, &read, &p.Status, &starred, &hasPDF, &p.PDFSize, &p.PDFPath, &created, &updated)
+				&p.Summary, &p.Notes, &categoryID, &categoryName, &read, &p.Status, &starred, &hasPDF, &p.PDFSize, &p.PDFPath, &created, &updated, &p.NotesUpdatedAt)
 		if err == nil {
 			if categoryID.Valid {
 				id := categoryID.Int64
@@ -325,11 +325,11 @@ func (s *Store) UpdateTranslation(id int64, text string) error {
 
 // NoteRow 是一条非空笔记的导出行。
 type NoteRow struct {
-	ID       int64
-	Title    string
-	Authors  string
-	Notes    string
-	Updated  string
+	ID      int64
+	Title   string
+	Authors string
+	Notes   string
+	Updated string
 }
 
 // AllNotes 返回所有非空笔记（按修改时间倒序），用于笔记导出。

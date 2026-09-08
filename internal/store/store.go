@@ -99,7 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN status TEXT NOT NULL DEFAULT 'unread'")
 	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN translation TEXT NOT NULL DEFAULT ''")
 	_, _ = s.db.Exec("UPDATE papers SET status = 'read' WHERE read = 1 AND status = 'unread'")
-	return nil
+	return s.migrateNotes()
 }
 
 func nowStr() string { return time.Now().UTC().Format(time.RFC3339) }
@@ -208,31 +208,16 @@ func firstAuthor(a string) string {
 }
 
 func (s *Store) CreatePaper(p *models.Paper) (int64, error) {
-	if p.Status == "" {
-		p.Status = "unread"
-	}
-	now := nowStr()
-	res, err := s.db.Exec(`INSERT INTO papers
-		(title, authors, year, venue, doi, keywords, link, summary, notes, category_id, read, status, starred, pdf_path, pdf_size, fulltext, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		p.Title, p.Authors, p.Year, p.Venue, p.DOI, p.Keywords, p.Link, p.Summary, p.Notes,
-		p.CategoryID, boolInt(p.Read), p.Status, boolInt(p.Starred), p.PDFPath, p.PDFSize, p.FullText, now, now)
+	id, err := s.SavePaper(p, nil, nil, true)
 	if err != nil {
 		return 0, err
 	}
-	return res.LastInsertId()
+	p.ID = id
+	return id, nil
 }
 
 func (s *Store) UpdatePaper(p *models.Paper) error {
-	if p.Status == "" {
-		p.Status = "unread"
-	}
-	_, err := s.db.Exec(`UPDATE papers SET
-		title=?, authors=?, year=?, venue=?, doi=?, keywords=?, link=?, summary=?, notes=?,
-		category_id=?, read=?, status=?, starred=?, pdf_path=?, pdf_size=?, fulltext=?, updated_at=?
-		WHERE id=?`,
-		p.Title, p.Authors, p.Year, p.Venue, p.DOI, p.Keywords, p.Link, p.Summary, p.Notes,
-		p.CategoryID, boolInt(p.Read), p.Status, boolInt(p.Starred), p.PDFPath, p.PDFSize, p.FullText, nowStr(), p.ID)
+	_, err := s.SavePaper(p, nil, nil, false)
 	return err
 }
 

@@ -22,30 +22,31 @@ type Collection struct {
 }
 
 type Paper struct {
-	ID           int64        `json:"id"`
-	Title        string       `json:"title"`
-	Authors      string       `json:"authors"`
-	Year         int          `json:"year"`
-	Venue        string       `json:"venue"`
-	DOI          string       `json:"doi"`
-	Keywords     string       `json:"keywords"`
-	Link         string       `json:"link"`
-	Summary      string       `json:"summary"`
-	Notes        string       `json:"notes"`
-	CategoryID   *int64       `json:"categoryId"`
-	CategoryName string       `json:"categoryName"`
-	Read         bool         `json:"read"`
-	Status       string       `json:"status"`
-	Snippet      string       `json:"snippet,omitempty"`
-	Starred      bool         `json:"starred"`
-	HasPDF       bool         `json:"hasPdf"`
-	PDFSize      int64        `json:"pdfSize"`
-	PDFPath      string       `json:"pdfPath,omitempty"`
-	FullText     string       `json:"fulltext,omitempty"`
-	CreatedAt    time.Time    `json:"createdAt"`
-	UpdatedAt    time.Time    `json:"updatedAt"`
-	Tags         []Tag        `json:"tags"`
-	Collections  []Collection `json:"collections"`
+	ID             int64        `json:"id"`
+	Title          string       `json:"title"`
+	Authors        string       `json:"authors"`
+	Year           int          `json:"year"`
+	Venue          string       `json:"venue"`
+	DOI            string       `json:"doi"`
+	Keywords       string       `json:"keywords"`
+	Link           string       `json:"link"`
+	Summary        string       `json:"summary"`
+	Notes          string       `json:"notes"`
+	NotesUpdatedAt string       `json:"notesUpdatedAt"`
+	CategoryID     *int64       `json:"categoryId"`
+	CategoryName   string       `json:"categoryName"`
+	Read           bool         `json:"read"`
+	Status         string       `json:"status"`
+	Snippet        string       `json:"snippet,omitempty"`
+	Starred        bool         `json:"starred"`
+	HasPDF         bool         `json:"hasPdf"`
+	PDFSize        int64        `json:"pdfSize"`
+	PDFPath        string       `json:"pdfPath,omitempty"`
+	FullText       string       `json:"fulltext,omitempty"`
+	CreatedAt      time.Time    `json:"createdAt"`
+	UpdatedAt      time.Time    `json:"updatedAt"`
+	Tags           []Tag        `json:"tags"`
+	Collections    []Collection `json:"collections"`
 }
 
 type PaperInput struct {

@@ -355,11 +355,15 @@ var Root = {
     },
     saveNotes: async function (silent) {
       if(!this.detail||!this.detail.id) return;
+      var id=this.detail.id, sent=this.detail.notes||"";
       try {
-        var p=await this.api("/api/papers/"+this.detail.id,{method:"PATCH",json:{notes:this.detail.notes||""}});
-        if(p && typeof p.notes==="string") this.detail.notes=p.notes;
-        var t=new Date(); this.notesSavedAt=("0"+t.getHours()).slice(-2)+":"+("0"+t.getMinutes()).slice(-2);
-        if(!silent) this.notify("笔记已保存");
+        var p=await this.api("/api/papers/"+id,{method:"PATCH",json:{notes:sent}});
+        // 等待期间可能切到别的论文或继续输入：这两种情况都不能用旧响应覆盖
+        if(this.detail&&this.detail.id===id){
+          if(this.detail.notes===sent&&p&&typeof p.notes==="string") this.detail.notes=p.notes;
+          var t=new Date(); this.notesSavedAt=("0"+t.getHours()).slice(-2)+":"+("0"+t.getMinutes()).slice(-2);
+          if(!silent) this.notify("笔记已保存");
+        }
       } catch(e){ if(!silent) this.notify(e.message,true); }
     },
     autosaveNotes: function () {
@@ -410,6 +414,7 @@ var Root = {
         var res = await this.api("/api/ai/models" + (base ? "?base=" + encodeURIComponent(base) : ""));
         this.aiModels = res.models || [];
         if (res.baseUrl) this.settings.aiBaseUrl = res.baseUrl;
+        if (res.warning) this.notify(res.warning, true);
       } catch (e) { this.notify(e.message, true); }
       this.aiModelsLoading = false;
       var cur = this.settings.aiModel || "";
