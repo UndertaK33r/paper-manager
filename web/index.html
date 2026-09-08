@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="assets/p3r-tokens.css">
 <link rel="stylesheet" href="assets/p3r-ui.css">
 <link rel="stylesheet" href="assets/kimi-tokens.css">
+<link rel="stylesheet" href="assets/themes.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -72,20 +73,13 @@
         <select class="p3r-input" v-model="tagFilter" @change="applyFilters"><option value="">全部标签</option><option v-for="t in tags" :value="t.name" :key="t.id">{{ t.name }}</option></select>
         <div class="view-toggle"><button class="p3r-btn small" :class="{active: view==='table'}" @click="view='table'">表格</button><button class="p3r-btn small" :class="{active: view==='card'}" @click="view='card'">卡片</button></div>
         <button class="p3r-btn small" @click="exportBib">导出 BibTeX</button>
-        <button class="p3r-btn small" :class="{active: askOpen}" @click="askOpen=!askOpen">问论文库</button>
       </div>
-    </div>
-
-    <div v-if="askOpen" class="p3r-sheet p3r-submerge ask-panel">
-      <div class="inline-form"><input class="p3r-input" v-model="question" placeholder="用中文提问你的论文库..." @keyup.enter="ask"><button class="p3r-btn p3r-btn--primary" @click="ask" :disabled="asking">提问</button></div>
-      <div v-if="answer" class="ask-answer">{{ answer }}</div>
-      <details v-for="s in sources" :key="s.id" class="ask-source"><summary>[{{ s.id }}] {{ s.title }}</summary><div class="p3r-readout">{{ s.excerpt }}</div></details>
     </div>
 
     <section class="p3r-panel content p3r-wipe-in">
       <div v-if="loading" class="p3r-readout">LOADING...</div>
       <table v-else-if="view==='table' && papers.length" class="p3r-table">
-        <thead><tr><th>NO.</th><th>标题</th><th>作者</th><th>年份</th><th>分类</th><th>标签</th><th>状态</th><th>摘要</th><th>操作</th></tr></thead>
+        <thead><tr><th>NO.</th><th>标题</th><th>作者</th><th>年份</th><th>分类</th><th>标签</th><th>状态</th><th>操作</th></tr></thead>
         <tbody>
           <tr v-for="(p,i) in papers" :key="p.id">
             <td class="p3r-readout">NO.{{ String(p.id).padStart(4, '0') }}</td>
@@ -95,7 +89,6 @@
             <td>{{ p.categoryName }}</td>
             <td><span v-for="t in p.tags" class="p3r-badge" :key="t.id">{{ t.name }}</span></td>
             <td><span class="p3r-badge" :class="{'p3r-badge--red': p.status==='read'}">{{ statusLabel(p.status) }}</span> <span v-if="p.starred" class="p3r-badge">收藏</span></td>
-            <td class="ellipsis">{{ p.snippet || p.summary }}</td>
             <td><div class="actions"><button class="p3r-btn small" @click="openDetail(p.id)">详情</button><button class="p3r-btn small" @click="openEdit(p)">编辑</button><button class="p3r-btn small" @click="cycleStatus(p.id)">状态</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button></div></td>
           </tr>
         </tbody>
@@ -106,8 +99,7 @@
           <div class="p3r-h3 title-cell" @click="openDetail(p.id)">{{ p.title }}</div>
           <div class="p3r-readout">{{ p.authors }} · {{ p.year }}</div>
           <div class="chips"><span v-for="t in p.tags" class="p3r-badge" :key="t.id">{{ t.name }}</span></div>
-          <div class="muted">{{ p.snippet || p.summary }}</div>
-          <div class="actions"><button class="p3r-btn small" @click="openDetail(p.id)">详情</button><button class="p3r-btn small" @click="openEdit(p)">编辑</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button></div>
+          <div class="actions"><button class="p3r-btn small" @click="openDetail(p.id)">详情</button><button class="p3r-btn small" @click="openEdit(p)">编辑</button><button class="p3r-btn small" @click="cycleStatus(p.id)">状态</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(p.id)">删除</button></div>
         </div>
       </div>
       <div v-else class="empty"><span class="p3r-note"></span><span class="p3r-readout">NO PAPERS FOUND — 去上传第一篇论文</span></div>
@@ -150,19 +142,57 @@
         <div class="p3r-sheet">
           <span class="p3r-readout">TAGS / COLLECTIONS</span>
           <div class="chips"><span v-for="t in detail.tags" class="p3r-badge">{{ t.name }} <a class="chip-x" @click="removeDetailTag(t.id)">×</a></span></div>
-          <div class="inline-form"><select class="p3r-input" v-model="tagSelect"><option value="">选择标签</option><option v-for="t in availableTags" :value="t.id" :key="t.id">{{ t.name }}</option></select><button class="p3r-btn small" @click="addDetailTag">添加</button></div>
+          <div class="inline-form"><input class="p3r-input" v-model="tagSelect" list="detailTagList" placeholder="输入或选择标签，可新建" @keyup.enter="addDetailTag"><datalist id="detailTagList"><option v-for="t in availableTags" :key="t.id" :value="t.name"></option></datalist><button class="p3r-btn small" @click="addDetailTag">添加</button></div>
           <div class="chips"><span v-for="c in detail.collections" class="p3r-badge">{{ c.name }} <a class="chip-x" @click="removeDetailCollection(c.id)">×</a></span></div>
-          <div class="inline-form"><select class="p3r-input" v-model="collectionSelect"><option value="">选择合集</option><option v-for="c in availableCollections" :value="c.id" :key="c.id">{{ c.name }}</option></select><button class="p3r-btn small" @click="addDetailCollection">添加</button></div>
+          <div class="inline-form"><input class="p3r-input" v-model="collectionSelect" list="detailCollectionList" placeholder="输入或选择合集，可新建" @keyup.enter="addDetailCollection"><datalist id="detailCollectionList"><option v-for="c in availableCollections" :key="c.id" :value="c.name"></option></datalist><button class="p3r-btn small" @click="addDetailCollection">添加</button></div>
           <div class="p3r-divider"></div>
           <span class="p3r-readout">AI SUMMARY</span>
-          <div class="muted">{{ detail.summary || '暂无摘要，点击生成' }}</div>
-          <div class="actions"><button class="p3r-btn small" @click="aiExtract(detail.id)">AI 提取元数据</button><button class="p3r-btn small" @click="summarize(detail.id)">生成摘要</button></div>
+          <div v-if="!detail.summary" class="muted">暂无摘要，点击下方「AI 提取元数据」生成</div>
+          <div v-else class="summary-wrap">
+            <div ref="summaryBody" class="md-body summary-body" :class="{ collapsed: !summaryExpanded }" v-html="renderedSummary"></div>
+            <button v-if="summaryOverflow || summaryExpanded" class="p3r-btn small summary-toggle" @click="summaryExpanded = !summaryExpanded">{{ summaryExpanded ? '收起' : '展开全部' }}</button>
+          </div>
+          <div class="form-actions" style="margin-top:16px"><button class="p3r-btn small" @click="aiExtract(detail.id)">AI 提取元数据</button><button class="p3r-btn small" @click="summarize(detail.id)">生成摘要</button></div>
         </div>
-        <div class="p3r-panel pdf-panel">
+        <div class="p3r-panel pdf-panel" ref="pdfPanel">
           <span class="p3r-readout">PDF READER</span>
           <div class="actions"><a v-if="detail.hasPdf" class="p3r-btn small" :href="pdfUrl(detail.id)" target="_blank">打开</a><a v-if="detail.hasPdf" class="p3r-btn small" :href="pdfUrl(detail.id)+'?download=1'">下载</a><button class="p3r-btn small" @click="fullWidth=!fullWidth">全宽阅读</button><button class="p3r-btn small" @click="toggleFullscreen">全屏</button></div>
-          <iframe v-if="detail.hasPdf" :src="pdfUrl(detail.id)" :class="{wide: fullWidth}"></iframe>
-          <div v-else class="p3r-readout">该论文暂无 PDF</div>
+          <iframe v-if="detail.hasPdf && !pdfJsOk" :src="pdfUrl(detail.id)" :class="{wide: fullWidth}"></iframe>
+          <div v-if="detail.hasPdf && pdfJsOk" class="pdfjs-view" ref="pdfView"></div>
+          <div v-if="detail.hasPdf && pdfJsFailed" class="p3r-readout">PDF 渲染失败，已回退浏览器内置阅读器（划词翻译不可用）</div>
+          <div v-if="!detail.hasPdf" class="p3r-readout">该论文暂无 PDF</div>
+          <div v-if="selPopup.show" class="sel-popup" :style="{ left: selPopup.x + 'px', top: selPopup.y + 'px' }">
+            <button class="p3r-btn small p3r-btn--primary" @click.stop="translateSelection">{{ selPopup.loading ? '翻译中…' : '翻译 ♪' }}</button>
+          </div>
+          <div v-if="selResult" class="sel-result" :style="{ left: selResult.x + 'px', top: selResult.y + 'px' }">
+            <div class="sel-result__head"><span class="p3r-readout">译文</span><a class="chip-x" @click="selResult = null">×</a></div>
+            <div class="sel-result__body md-body" v-html="selResult.html"></div>
+          </div>
+          <div class="fs-notes" v-if="pdfFullscreen || fullWidth" :class="{ 'fs-notes--min': fsNotesMin }">
+            <div class="fs-notes__head">
+              <span class="p3r-readout">READING NOTES</span>
+              <span class="fs-notes__status p3r-readout" v-if="notesSavedAt">已保存 {{ notesSavedAt }}</span>
+              <div class="fs-notes__btns"><button class="p3r-btn small" @click="fsNotesMin=!fsNotesMin">{{ fsNotesMin ? '展开笔记' : '收起' }}</button><button class="p3r-btn small p3r-btn--primary" @click="saveNotes()">保存</button></div>
+            </div>
+            <textarea v-show="!fsNotesMin" class="p3r-input fs-notes__input" v-model="detail.notes" @input="autosaveNotes" rows="5" placeholder="边读边记，停止输入后自动保存..."></textarea>
+          </div>
+          <div class="fs-trans" v-if="pdfFullscreen || fullWidth" :class="{ 'fs-trans--min': fsTransMin }">
+            <div class="fs-trans__head" @click="fsTransMin = !fsTransMin">
+              <span class="p3r-readout">划词翻译</span>
+              <span class="p3r-readout">{{ fsTransMin ? '展开 ♪' : '收起' }}</span>
+            </div>
+            <div v-show="!fsTransMin" class="fs-trans__body">
+              <div v-if="!transHistory.length" class="muted" style="font-size:13px">在 PDF 里选中一段文字，点「翻译」；译文会收集在这里。</div>
+              <div v-for="(h, i) in transHistory" :key="i" class="fs-trans__item">
+                <div class="fs-trans__src">{{ h.src }}</div>
+                <div class="md-body" v-html="h.html"></div>
+              </div>
+            </div>
+            <div v-show="!fsTransMin" class="inline-form" style="margin:8px 0 0">
+              <input class="p3r-input" v-model="instantSrc" placeholder="或粘贴文本翻译..." @keyup.enter="instantTranslate">
+              <button class="p3r-btn small" @click="instantTranslate" :disabled="instantLoading || !instantSrc.trim()">翻译</button>
+            </div>
+          </div>
         </div>
         <div class="p3r-panel grid-full">
           <span class="p3r-readout">NOTES</span>
@@ -193,7 +223,7 @@
   <!-- ===================== 图谱 ===================== -->
   <section v-else-if="route==='graph'" class="graph-page">
     <div class="p3r-panel toolbar"><span class="p3r-h3">CITATION GRAPH</span><span class="p3r-readout">{{ graphWarning || 'OPENALEX 引用网络' }}</span><button class="p3r-btn small p3r-btn--primary" @click="loadGraph(true)">重新拉取</button></div>
-    <div class="p3r-panel graph-wrap"><canvas ref="graphCanvas" width="1200" height="720" @mousedown="onGraphDown" @mousemove="onGraphMove" @mouseup="onGraphUp" @mouseleave="onGraphUp"></canvas></div>
+    <div class="p3r-panel graph-wrap"><canvas ref="graphCanvas" width="1200" height="720" @mousedown="onGraphDown" @mousemove="onGraphMove" @mouseup="onGraphUp" @mouseleave="onGraphUp" @touchstart.prevent="onGraphTouchStart" @touchmove.prevent="onGraphTouchMove" @touchend.prevent="onGraphTouchEnd"></canvas></div>
   </section>
 
   <!-- 添加/编辑论文弹窗（与旧逻辑一致） -->
@@ -234,7 +264,10 @@
       <div class="dialog-head"><span class="p3r-h3">AI SETTINGS</span><button class="p3r-btn" @click="showSettings=false">CLOSE</button></div>
       <div class="p3r-form">
         <div class="p3r-panel summary-panel"><span class="p3r-readout">STATUS</span><div class="p3r-h3" :class="hasApiKey ? 'p3r-accent' : ''">{{ hasApiKey ? 'API KEY 已配置' : '未配置 API KEY — AI 功能将跳过' }}</div><div class="actions"><button class="p3r-btn small" @click="testAI" :disabled="testingAI">{{ testingAI ? '测试中...' : '测试连接' }}</button><span class="p3r-readout" v-if="aiTestResult">{{ aiTestResult }}</span></div></div>
-        <label>模型<input class="p3r-input" v-model="settings.aiModel" list="aiModelList" placeholder="deepseek-v4-flash / deepseek-chat / deepseek-reasoner / 自定义"><datalist id="aiModelList"><option value="deepseek-v4-flash"></option><option value="deepseek-chat"></option><option value="deepseek-reasoner"></option></datalist></label>
+        <label>接口地址<input class="p3r-input" v-model="settings.aiBaseUrl" placeholder="https://tokendance.space/gateway/v1 或 https://api.deepseek.com/v1"><span class="p3r-readout">OpenAI 兼容网关地址，修改后点「刷新模型列表」</span></label>
+        <label>模型<input class="p3r-input" v-model="settings.aiModel" list="aiModelList" placeholder="选择或输入模型名"></label>
+        <datalist id="aiModelList"><option v-for="m in aiModels" :key="m.id" :value="m.id">{{ m.name }}</option></datalist>
+        <div class="actions"><button class="p3r-btn small" @click="refreshAIModels" :disabled="aiModelsLoading">{{ aiModelsLoading ? '加载中...' : '刷新模型列表' }}</button><span class="p3r-readout" v-if="!aiModelsLoading">{{ aiModels.length ? '共 ' + aiModels.length + ' 个模型，也可手动输入' : '' }}</span></div>
         <label>API Key<input class="p3r-input" v-model="settings.aiApiKey" type="password" placeholder="sk-...（留空保持不变）"></label>
         <div class="form-actions"><button class="p3r-btn p3r-btn--danger" @click="clearApiKey">清除 API Key</button><button class="p3r-btn p3r-btn--primary" @click="saveSettings">保存设置</button></div>
       </div>
@@ -242,10 +275,38 @@
   </div>
 
   <div v-if="toast.show" class="toast" :class="{error: toast.error}">{{ toast.msg }}</div>
+
+  <!-- 悬浮球：问论文库 / 主题 -->
+  <div v-if="askOpen" class="ask-float">
+    <div class="ask-float__head"><span class="p3r-readout">问论文库 · RAG</span><a class="chip-x" @click="askOpen=false">×</a></div>
+    <div class="ask-float__body">
+      <div v-if="asking" class="p3r-readout">思考中...</div>
+      <div v-else-if="!answer" class="muted">用中文向整个论文库提问，回答附带来源片段。</div>
+      <div v-else class="ask-answer md-body" v-html="renderedAnswer"></div>
+      <details v-for="s in sources" :key="s.id" class="ask-source"><summary>[{{ s.id }}] {{ s.title }}</summary><div class="p3r-readout">{{ s.excerpt }}</div></details>
+    </div>
+    <div class="inline-form" style="margin:8px 0 0">
+      <input class="p3r-input" v-model="question" placeholder="用中文提问你的论文库..." @keyup.enter="ask">
+      <button class="p3r-btn small p3r-btn--primary" @click="ask" :disabled="asking">提问</button>
+    </div>
+  </div>
+
+  <div v-if="themeOpen" class="fab-pop">
+    <button v-for="t in themeOptions" :key="t.v" class="fab-pop__item" :class="{cur: theme===t.v}" @click="pickTheme(t.v)">
+      <span>{{ t.t }}</span><span v-if="theme===t.v" class="p3r-readout">✓</span>
+    </button>
+  </div>
+
+  <div class="fabs">
+    <div class="fab" :class="{active: askOpen}" @click="askOpen=!askOpen; themeOpen=false" title="问论文库">{{ askOpen ? '×' : '问' }}</div>
+    <div class="fab" :class="{active: themeOpen}" @click="themeOpen=!themeOpen; askOpen=false" title="主题">◐</div>
+  </div>
 </div>
 </script>
 
 <script src="assets/vue.global.prod.js"></script>
+<script src="assets/pdfjs/pdf.min.js"></script>
+<script src="assets/md-mini.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

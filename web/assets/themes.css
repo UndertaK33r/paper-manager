@@ -1,0 +1,175 @@
+/* ============================================================================
+   themes.css — 三个对比强烈的完整主题
+   不只换色：圆角/切角/描边/阴影/玻璃拟态/字体全部随主题切换。
+   机制：style.css 中的组件样式引用 --panel-* / --btn-* / --input-* 等形状
+   变量，这里按 data-theme 整套覆盖；颜色沿用 --k-* 令牌。
+   ========================================================================== */
+
+/* ── 深夜：深海军蓝 + 玻璃拟态面板 + 胶囊按钮 + 冰蓝辉光 ─────────────────── */
+:root[data-theme="midnight"] {
+  color-scheme: dark;
+  /* 颜色 */
+  --k-bg: #0b1220;
+  --k-bg-soft: #101a2c;
+  --k-bg-raise: #16233a;
+  --k-ink: #e8eefb;
+  --k-ink-soft: #b7c4dc;
+  --k-mute: #7f8cab;
+  --k-faint: #46536f;
+  --k-line: #1e2b45;
+  --k-line-strong: #3d4f75;
+  --k-note: #9ec5ff;
+  --k-focus-ring: 0 0 0 4px rgba(158, 197, 255, 0.14);
+  /* 形状与质感 */
+  --panel-radius: 16px;
+  --panel-clip: none;
+  --panel-bg: rgba(18, 29, 50, 0.72);
+  --panel-border: 1px solid rgba(120, 160, 230, 0.22);
+  --panel-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  --dialog-shadow: 0 30px 90px rgba(0, 0, 0, 0.65);
+  --btn-radius: 999px;
+  --btn-font-weight: 600;
+  --btn-letter-spacing: 0.05em;
+  --btn-primary-shadow: 0 0 18px rgba(120, 180, 255, 0.35);
+  --input-radius: 10px;
+  --badge-radius: 999px;
+  --seg-radius: 999px;
+}
+
+[data-theme="midnight"] body,
+[data-theme="midnight"] .k-base {
+  background: radial-gradient(ellipse 90% 60% at 50% -10%, #16233f 0%, #0b1220 55%) fixed, #0b1220;
+}
+[data-theme="midnight"] .p3r-panel,
+[data-theme="midnight"] .p3r-sheet { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+[data-theme="midnight"] .p3r-btn--primary { background: linear-gradient(135deg, #9ec5ff, #4f7fdb); border-color: transparent; color: #0b1220; }
+[data-theme="midnight"] .p3r-btn:hover { border-color: #9ec5ff; box-shadow: 0 0 14px rgba(158, 197, 255, 0.25); }
+[data-theme="midnight"] .p3r-badge { border-color: rgba(158, 197, 255, 0.4); color: #c6d8f5; }
+[data-theme="midnight"] .p3r-readout { color: #8fa3c8; }
+[data-theme="midnight"] .hero { border-bottom: 1px solid rgba(120, 160, 230, 0.3); }
+[data-theme="midnight"] .topbar { border-bottom: 1px solid rgba(120, 160, 230, 0.25); }
+[data-theme="midnight"] .pjs-page { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5); }
+[data-theme="midnight"] .fs-notes,
+[data-theme="midnight"] .fs-trans,
+[data-theme="midnight"] .sel-result {
+  background: rgba(18, 29, 50, 0.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
+
+/* ── 深夜装饰：五线谱换成科技网格，音符换成几何辉光 ── */
+[data-theme="midnight"] .staff {
+  background:
+    repeating-linear-gradient(90deg, rgba(120, 160, 230, 0.09) 0 1px, transparent 1px 130px),
+    repeating-linear-gradient(0deg, rgba(120, 160, 230, 0.055) 0 1px, transparent 1px 130px);
+  opacity: 1;
+}
+[data-theme="midnight"] .staff-note { color: transparent; }
+[data-theme="midnight"] .staff-note::before {
+  content: "◆"; color: #9ec5ff; font-size: inherit;
+  text-shadow: 0 0 12px rgba(158, 197, 255, 0.9), 0 0 3px rgba(158, 197, 255, 0.9);
+}
+[data-theme="midnight"] .staff-note:nth-child(3n)::before { content: "+"; font-weight: 300; }
+[data-theme="midnight"] .staff-note:nth-child(4n)::before { content: "□"; font-size: 0.7em; }
+[data-theme="midnight"] .note-ico { display: none; }
+[data-theme="midnight"] {
+  --brand-icon: "⬡"; --brand-icon-color: #9ec5ff; --brand-icon-size: 19px;
+}
+[data-theme="midnight"] .brand::before {
+  text-shadow: 0 0 12px rgba(158, 197, 255, 0.8);
+}
+[data-theme="midnight"] .note-inline { color: transparent; }
+[data-theme="midnight"] .note-inline::before { content: "◂"; color: var(--k-ink); }
+[data-theme="midnight"] .p3r-cue::before { content: "··"; letter-spacing: 0.3em; }
+[data-theme="midnight"] .p3r-divider::after { content: "· · ·"; }
+
+[data-theme="paper"] .staff-note { display: none; }
+[data-theme="paper"] .staff {
+  background: repeating-linear-gradient(90deg, rgba(158, 43, 34, 0.055) 0 1px, transparent 1px 96px);
+  opacity: 1;
+}
+[data-theme="paper"] .note-ico { display: none; }
+[data-theme="paper"] {
+  --brand-icon: "文"; --brand-icon-color: #f9f4e8; --brand-icon-size: 13px;
+}
+[data-theme="paper"] .brand::before {
+  background: #9e2b22;
+  font-family: "Songti SC", "STSong", "SimSun", serif;
+  line-height: 1; padding: 4px 5px 3px;
+  border-radius: 2px; box-shadow: 0 1px 2px rgba(90, 30, 20, 0.3);
+}
+[data-theme="paper"] .note-inline { color: transparent; }
+[data-theme="paper"] .note-inline::before { content: "❮"; color: var(--k-ink); }
+[data-theme="paper"] .p3r-cue::before { content: "❖"; letter-spacing: 0.25em; }
+
+/* ── 纸墨：暖米纸 + 衬线标题 + 报纸双线 + 墨块按钮 ───────────────────────── */
+:root[data-theme="paper"] {
+  color-scheme: light;
+  /* 颜色 */
+  --k-bg: #f6f1e7;
+  --k-bg-soft: #efe8da;
+  --k-bg-raise: #e6ddca;
+  --k-ink: #37301f;
+  --k-ink-soft: #5b5140;
+  --k-mute: #877a63;
+  --k-faint: #c0b298;
+  --k-line: #ddd2bb;
+  --k-line-strong: #6f6248;
+  --k-note: #6a5a3c;
+  /* 形状与质感：纸面微圆角、柔和纸影、无切角 */
+  --panel-radius: 6px;
+  --panel-clip: none;
+  --panel-bg: #fbf7ef;
+  --panel-border: 1px solid #ded3bc;
+  --panel-shadow: 0 1px 2px rgba(59, 48, 31, 0.06), 0 10px 28px rgba(59, 48, 31, 0.07);
+  --dialog-shadow: 0 18px 60px rgba(59, 48, 31, 0.22);
+  --btn-radius: 2px;
+  --btn-font-weight: 600;
+  --btn-letter-spacing: 0.04em;
+  --input-radius: 3px;
+  --head-font: Georgia, "Times New Roman", "Songti SC", "STSong", "SimSun", serif;
+}
+
+[data-theme="paper"] .p3r-h1,
+[data-theme="paper"] .p3r-h2,
+[data-theme="paper"] .p3r-h3,
+[data-theme="paper"] .brand-title { letter-spacing: 0.01em; font-weight: 600; }
+[data-theme="paper"] .hero { border-bottom: 4px double var(--k-line-strong, #6f6248); }
+[data-theme="paper"] .topbar { border-bottom: 1px solid var(--k-line-strong, #6f6248); }
+[data-theme="paper"] .p3r-readout { font-family: Georgia, "Times New Roman", "Songti SC", serif; letter-spacing: 0.06em; }
+[data-theme="paper"] .paper-card .p3r-readout { font-family: var(--k-font, sans-serif); }
+[data-theme="paper"] .p3r-table th { font-family: var(--k-font, sans-serif); }
+[data-theme="paper"] .staff { opacity: 0.05; }
+[data-theme="paper"] .p3r-divider::after { content: "❦"; letter-spacing: 0; }
+[data-theme="paper"] .paper-card .title-cell { font-family: Georgia, "Times New Roman", "Songti SC", serif; font-weight: 600; }
+[data-theme="paper"] .md-body h1, [data-theme="paper"] .md-body h2,
+[data-theme="paper"] .md-body h3, [data-theme="paper"] .md-body h4 { font-family: Georgia, "Times New Roman", "Songti SC", serif; }
+
+/* ── 揉皱纸质感：feTurbulence+feDiffuseLighting 程序化生成褶皱光影，
+   叠细纸纹颗粒；全部为 data-URI 背景，零图片资源 ── */
+[data-theme="paper"] body,
+[data-theme="paper"] .k-base {
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 0%, rgba(255, 252, 243, 0.55), transparent 62%),
+    radial-gradient(ellipse 140% 100% at 50% 100%, rgba(90, 74, 47, 0.10), transparent 55%),
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='520'%20height='520'%3E%3Cfilter%20id='c'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.011%200.015'%20numOctaves='4'%20seed='8'/%3E%3CfeDiffuseLighting%20lighting-color='%23fffdf6'%20surfaceScale='2.6'%20diffuseConstant='1.05'%3E%3CfeDistantLight%20azimuth='232'%20elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect%20width='520'%20height='520'%20filter='url(%23c)'%20opacity='0.62'/%3E%3C/svg%3E") center / 620px 620px,
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='240'%20height='240'%3E%3Cfilter%20id='g'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.9'%20numOctaves='2'%20seed='4'/%3E%3CfeColorMatrix%20type='saturate'%20values='0'/%3E%3C/filter%3E%3Crect%20width='240'%20height='240'%20filter='url(%23g)'%20opacity='0.07'/%3E%3C/svg%3E") center / 200px 200px,
+    var(--k-bg);
+  background-blend-mode: normal, normal, multiply, soft-light, normal;
+}
+
+/* 面板同款纸面（更轻的褶皱强度），浮层也贴纸 */
+[data-theme="paper"] .p3r-panel,
+[data-theme="paper"] .p3r-sheet,
+[data-theme="paper"] .p3r-dialog {
+  background-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='420'%20height='420'%3E%3Cfilter%20id='c'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.014%200.018'%20numOctaves='4'%20seed='15'/%3E%3CfeDiffuseLighting%20lighting-color='%23fffdf6'%20surfaceScale='2.0'%20diffuseConstant='1.05'%3E%3CfeDistantLight%20azimuth='228'%20elevation='62'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect%20width='420'%20height='420'%20filter='url(%23c)'%20opacity='0.32'/%3E%3C/svg%3E");
+  background-size: 460px 460px;
+  background-blend-mode: multiply;
+}
+[data-theme="paper"] .fs-notes,
+[data-theme="paper"] .fs-trans,
+[data-theme="paper"] .sel-result {
+  background-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='420'%20height='420'%3E%3Cfilter%20id='c'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.014%200.018'%20numOctaves='4'%20seed='15'/%3E%3CfeDiffuseLighting%20lighting-color='%23fffdf6'%20surfaceScale='2.0'%20diffuseConstant='1.05'%3E%3CfeDistantLight%20azimuth='228'%20elevation='62'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect%20width='420'%20height='420'%20filter='url(%23c)'%20opacity='0.32'/%3E%3C/svg%3E");
+  background-size: 460px 460px;
+  background-blend-mode: multiply;
+}
