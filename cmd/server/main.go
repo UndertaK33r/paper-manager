@@ -2,10 +2,14 @@ package main
 
 import (
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"time"
 
 	"paper-manager/internal/api"
 	"paper-manager/internal/store"
@@ -44,10 +48,38 @@ func main() {
 	})
 
 	addr := ":" + port
-	log.Printf("paper-manager listening on %s", addr)
-	if err := http.ListenAndServe(addr, srv.Handler()); err != nil {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatalf("端口 %s 被占用: %v（可用 PORT=其他端口 重新启动，或 NO_OPEN=1 关闭自动开浏览器）", port, err)
+	}
+
+	url := "http://localhost:" + port
+	log.Printf("论文管理已启动: %s", url)
+	log.Printf("数据目录: %s（备份直接拷贝这个文件夹）", dataDir)
+	log.Printf("退出：按 Ctrl+C，或直接关闭本窗口")
+	if os.Getenv("NO_OPEN") == "" {
+		go func() {
+			time.Sleep(400 * time.Millisecond)
+			openBrowser(url)
+		}()
+	}
+	if err := http.Serve(ln, srv.Handler()); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// openBrowser 用系统默认浏览器打开页面（NO_OPEN=1 禁用）。
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	_ = cmd.Start()
 }
 
 func env(key, def string) string {

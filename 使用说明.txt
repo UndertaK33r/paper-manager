@@ -1,0 +1,30 @@
+论文管理工具 · 使用说明
+============================
+
+一、怎么启动
+  1. 双击运行对应系统的程序：
+     Windows      paper-manager-windows-amd64.exe
+     Mac(M系列)    paper-manager-darwin-arm64
+     Mac(Intel)   paper-manager-darwin-amd64
+     Linux        paper-manager-linux-amd64
+  2. 启动后会自动打开浏览器（地址 http://localhost:8080）。
+     没自动打开的话，手动在浏览器输入这个地址即可。
+
+二、Mac 提示“无法验证开发者”怎么办
+  方法1：右键点击程序文件 → 点「打开」→ 再点「打开」。
+  方法2：打开「终端」，输入 xattr -cr 加一个空格，
+        把程序文件拖进终端窗口，回车，然后再双击运行。
+
+三、数据存在哪里
+  程序旁边自动生成 data 文件夹，论文记录、PDF、笔记都在里面。
+  备份 = 把 data 文件夹整个拷走；换电脑 = 拷过去继续用。
+
+四、怎么关闭 / 更新
+  关闭黑色命令行窗口即为退出（数据自动保存）。
+  更新版本：用新版程序文件替换旧的即可，数据不受影响。
+
+五、常见问题
+  1. 提示端口被占用：在命令行里用 PORT=9090（Windows 用
+     set PORT=9090）再运行，然后访问 http://localhost:9090
+  2. 想让局域网其他设备访问：默认即可，用本机 IP 访问
+     （查 IP：Windows 运行 ipconfig，Mac 运行 ipconfig getifaddr en0）
