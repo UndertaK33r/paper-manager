@@ -444,11 +444,18 @@ button.chip-x:focus-visible { outline: none; box-shadow: var(--k-focus-ring, 0 0
   border-radius: 16px; box-shadow: 0 14px 44px rgba(0, 0, 0, 0.20);
   padding: 12px 16px 14px;
 }
-.fs-notes__head { display: flex; align-items: center; gap: 10px; }
+.fs-notes__head { display: flex; align-items: center; gap: 10px; cursor: grab; user-select: none; touch-action: none; }
 .fs-notes__status { color: var(--k-mute, #8c8c8c); }
 .fs-notes__btns { margin-left: auto; display: flex; gap: 6px; }
 .fs-notes__input { width: 100%; margin-top: 10px; max-height: 34vh; }
 .fs-notes--min { width: auto !important; min-width: 300px; padding-bottom: 12px; }
+/* 固定后禁止拖动；拖动中给出明确的抓取光标 */
+.fs-notes--pinned .fs-notes__head { cursor: default; }
+.fs-notes--dragging { box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28); }
+body.fs-dragging { user-select: none; -webkit-user-select: none; }
+body.fs-dragging .fs-notes__head { cursor: grabbing; }
+/* 拖动经过 PDF 时不让 iframe 抢走指针事件 */
+body.fs-dragging .pdf-panel iframe { pointer-events: none; }
 /* 笔记上方最后修改日期行 */
 .notes-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .notes-date { color: var(--k-mute, #8c8c8c); text-transform: none; letter-spacing: 0.02em; }

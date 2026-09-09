@@ -14,6 +14,8 @@ var Root = {
       askOpen: false, question: "", answer: "", sources: [], asking: false,
       detail: {}, tagSelect: "", collectionSelect: "", fullWidth: false,
       pdfFullscreen: false, fsNotesMin: false, notesSavedAt: "",
+      // 全屏阅读笔记浮窗：拖动位置 + 固定状态（持久化到 localStorage）
+      fsNotesPos: null, fsNotesPinned: false, fsNotesDrag: false,
       summaryExpanded: false, summaryOverflow: false,
       fsTransMin: false, transHistory: [], instantSrc: "", instantLoading: false,
       showPaperModal: false, editingId: null, saving: false, form: makeEmptyForm(),
@@ -33,7 +35,12 @@ var Root = {
     availableCollections: function () { var self=this; return this.collections.filter(function(c){ return !(self.detail.collections||[]).some(function(x){return x.id===c.id;}); }); },
     renderedSummary: function () { return window.mdRender ? window.mdRender(this.detail.summary) : ""; },
     renderedAnswer: function () { return window.mdRender ? window.mdRender(this.answer) : ""; },
-    uiBlocked: function () { return !!(this.showManage || this.showSettings || this.showPaperModal); }
+    uiBlocked: function () { return !!(this.showManage || this.showSettings || this.showPaperModal); },
+    // 拖动过就改用 left/top 定位；未拖动时保持 CSS 的底部居中默认位置
+    fsNotesStyle: function () {
+      if (!this.fsNotesPos) return {};
+      return { left: this.fsNotesPos.x + "px", top: this.fsNotesPos.y + "px", bottom: "auto", transform: "none" };
+    }
   },
   watch: {
     // 摘要变化（打开新论文 / AI 重新生成）时重置展开态并重新测量是否溢出
@@ -41,7 +48,11 @@ var Root = {
       var self = this;
       this.summaryExpanded = false;
       this.$nextTick(function () { self.checkSummaryOverflow(); });
-    }
+    },
+    // 阅读浮窗出现/尺寸变化后，把已保存的位置拉回可视区
+    "pdfFullscreen": function () { this.$nextTick(this.clampNotesPos); },
+    "fullWidth": function () { this.$nextTick(this.clampNotesPos); },
+    "fsNotesMin": function () { this.$nextTick(this.clampNotesPos); }
   },
   methods: {
     setTheme: function () {
@@ -204,6 +215,69 @@ var Root = {
       this.instantLoading=false;
     },
     // ---------- 笔记（全屏阅读悬浮窗与详情面板共用同一份数据） ----------
+    // 浮窗拖动：按住标题栏移动；固定后禁止拖动。位置与固定状态存 localStorage。
+    startNotesDrag: function (e) {
+      if (this.fsNotesPinned || this.fsNotesDrag) return;
+      if (e.button !== undefined && e.button !== 0) return;            // 只响应左键/触摸
+      if (e.target.closest && e.target.closest("button, input, textarea, a, select")) return;
+      var el = this.$refs.fsNotes;
+      if (!el) return;
+      var self = this;
+      var rect = el.getBoundingClientRect();
+      var offX = e.clientX - rect.left, offY = e.clientY - rect.top;
+      this.fsNotesPos = { x: Math.round(rect.left), y: Math.round(rect.top) };
+      this.fsNotesDrag = true;
+      document.body.classList.add("fs-dragging");   // 拖动时禁用 iframe 命中与文本选择
+      var move = function (ev) {
+        var w = el.offsetWidth || 320, h = el.offsetHeight || 120;
+        self.fsNotesPos = {
+          x: Math.round(Math.min(Math.max(ev.clientX - offX, 8), Math.max(window.innerWidth - w - 8, 8))),
+          y: Math.round(Math.min(Math.max(ev.clientY - offY, 8), Math.max(window.innerHeight - h - 8, 8)))
+        };
+      };
+      var end = function () {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", end);
+        window.removeEventListener("pointercancel", end);
+        document.body.classList.remove("fs-dragging");
+        self.fsNotesDrag = false;
+        self.saveNotesPanelPrefs();
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", end);
+      window.addEventListener("pointercancel", end);
+      e.preventDefault();
+    },
+    toggleNotesPin: function () {
+      this.fsNotesPinned = !this.fsNotesPinned;
+      this.saveNotesPanelPrefs();
+      this.notify(this.fsNotesPinned ? "笔记已固定，取消固定后可继续拖动" : "笔记已取消固定");
+    },
+    resetNotesPos: function () {
+      this.fsNotesPos = null;      // 回到默认的底部居中位置
+      this.saveNotesPanelPrefs();
+    },
+    // 窗口变窄/变矮后把浮窗拉回可视区
+    clampNotesPos: function () {
+      if (!this.fsNotesPos) return;
+      var el = this.$refs.fsNotes;
+      var w = (el && el.offsetWidth) || 320, h = (el && el.offsetHeight) || 120;
+      this.fsNotesPos = {
+        x: Math.round(Math.min(Math.max(this.fsNotesPos.x, 8), Math.max(window.innerWidth - w - 8, 8))),
+        y: Math.round(Math.min(Math.max(this.fsNotesPos.y, 8), Math.max(window.innerHeight - h - 8, 8)))
+      };
+    },
+    saveNotesPanelPrefs: function () {
+      try { localStorage.setItem("pm-fsnotes", JSON.stringify({ pos: this.fsNotesPos, pinned: this.fsNotesPinned })); } catch (e) {}
+    },
+    loadNotesPanelPrefs: function () {
+      try {
+        var v = JSON.parse(localStorage.getItem("pm-fsnotes") || "null");
+        if (!v) return;
+        if (v.pos && typeof v.pos.x === "number" && typeof v.pos.y === "number") this.fsNotesPos = { x: v.pos.x, y: v.pos.y };
+        this.fsNotesPinned = !!v.pinned;
+      } catch (e) {}
+    },
     checkSummaryOverflow: function () {
       var el = this.$refs.summaryBody;
       if (!el) { this.summaryOverflow = false; return; }
@@ -392,7 +466,9 @@ var Root = {
   mounted: function () {
     var self=this;
     this.setTheme(); // 恢复上次选择的主题
+    this.loadNotesPanelPrefs(); // 恢复笔记浮窗位置与固定状态
     window.addEventListener("hashchange", function(){ self.parseHash(); });
+    window.addEventListener("resize", function(){ self.clampNotesPos(); });
     var fsSync=function(){
       self.syncFullscreen();
     };
