@@ -147,11 +147,13 @@
             <div class="fs-notes__head" @pointerdown="startNotesDrag" @dblclick="resetNotesLayout" :title="fsNotesPinned ? '已固定：位置与大小已锁定，双击复位' : '按住拖动；双击复位位置与大小'">
               <span class="p3r-readout">笔记</span>
               <span class="fs-notes__status p3r-readout" v-if="notesSavedAt">已保存 {{ notesSavedAt }}</span>
-              <div class="fs-notes__btns"><button class="p3r-btn small fs-notes__pin" :class="{active: fsNotesPinned}" :aria-pressed="fsNotesPinned ? 'true' : 'false'" aria-label="固定笔记框" :title="fsNotesPinned ? '取消固定（恢复拖动与调整大小）' : '固定笔记框（锁定位置与大小）'" @click="toggleNotesPin"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg></button><button class="p3r-btn small" :class="{active: notesPreview}" :title="notesPreview ? '切换回编辑' : '预览 Markdown 渲染效果'" @click="toggleNotesPreview">{{ notesPreview ? '编辑' : '预览' }}</button><button class="p3r-btn small" @click="fsNotesMin=!fsNotesMin">{{ fsNotesMin ? '展开笔记' : '收起' }}</button><button class="p3r-btn small p3r-btn--primary" @click="saveNotes()">保存</button></div>
+              <div class="fs-notes__btns"><button class="p3r-btn small fs-notes__pin" :class="{active: fsNotesPinned}" :aria-pressed="fsNotesPinned ? 'true' : 'false'" aria-label="固定笔记框" :title="fsNotesPinned ? '取消固定（恢复拖动与调整大小）' : '固定笔记框（锁定位置与大小）'" @click="toggleNotesPin"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg></button><button class="p3r-btn small" :class="{active: notesPreview}" :title="notesPreview ? '隐藏实时预览' : '开启实时预览（边写边渲染）'" @click="toggleNotesPreview">{{ notesPreview ? '隐藏预览' : '实时预览' }}</button><button class="p3r-btn small" @click="fsNotesMin=!fsNotesMin">{{ fsNotesMin ? '展开笔记' : '收起' }}</button><button class="p3r-btn small p3r-btn--primary" @click="saveNotes()">保存</button></div>
             </div>
             <div v-show="!fsNotesMin" class="fs-notes__date p3r-readout" v-if="detail.updatedAt">最后修改 {{ fmtDate(detail.updatedAt) }}</div>
-            <textarea v-show="!fsNotesMin && !notesPreview" class="p3r-input fs-notes__input" v-model="detail.notes" @input="autosaveNotes" rows="5" placeholder="边读边记，支持 Markdown，停止输入后自动保存..."></textarea>
-            <div v-show="!fsNotesMin && notesPreview" class="md-body fs-notes__preview" v-html="renderedNotes"></div>
+            <div v-show="!fsNotesMin" class="notes-split" :class="{ 'notes-split--on': notesPreview }">
+              <textarea class="p3r-input fs-notes__input" v-model="detail.notes" @input="autosaveNotes" rows="5" placeholder="边读边记，支持 Markdown，停止输入后自动保存..."></textarea>
+              <div v-if="notesPreview" class="md-body fs-notes__preview" v-html="renderedNotes"></div>
+            </div>
             <div v-if="!fsNotesMin && !fsNotesPinned" class="fs-notes__resize" title="拖动调整大小" @pointerdown="startNotesResize"></div>
           </div>
           <div class="fs-trans" v-if="pdfFullscreen || fullWidth" :class="{ 'fs-trans--min': fsTransMin }">
@@ -176,10 +178,12 @@
           <div class="notes-head">
             <span class="p3r-readout">笔记</span>
             <span v-if="detail.updatedAt" class="p3r-readout notes-date">最后修改 {{ fmtDate(detail.updatedAt) }}</span>
-            <button class="p3r-btn small notes-preview-btn" :class="{active: notesPreview}" :title="notesPreview ? '切换回编辑' : '预览 Markdown 渲染效果'" @click="toggleNotesPreview">{{ notesPreview ? '编辑' : '预览' }}</button>
+            <button class="p3r-btn small notes-preview-btn" :class="{active: notesPreview}" :title="notesPreview ? '隐藏实时预览' : '开启实时预览（边写边渲染）'" @click="toggleNotesPreview">{{ notesPreview ? '隐藏预览' : '实时预览' }}</button>
           </div>
-          <textarea v-if="!notesPreview" class="p3r-input" v-model="detail.notes" rows="8" placeholder="支持 Markdown：# 标题、**加粗**、- 列表、`代码`、> 引用"></textarea>
-          <div v-else class="md-body notes-preview" v-html="renderedNotes"></div>
+          <div class="notes-split" :class="{ 'notes-split--on': notesPreview }">
+            <textarea class="p3r-input notes-input" v-model="detail.notes" rows="8" placeholder="支持 Markdown：# 标题、**加粗**、- 列表、`代码`、> 引用"></textarea>
+            <div v-if="notesPreview" class="md-body notes-preview" v-html="renderedNotes"></div>
+          </div>
           <div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="saveDetail">保存笔记</button><button class="p3r-btn small" @click="exportNotes">导出笔记</button><button class="p3r-btn small" @click="reDetect(detail.id)">重新识别元数据</button>
           <button class="p3r-btn small" @click="reExtract(detail.id)">重新提取全文</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(detail.id)">删除论文</button></div>
         </div>

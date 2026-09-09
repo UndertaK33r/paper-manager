@@ -452,12 +452,24 @@ button.chip-x:focus-visible { outline: none; box-shadow: var(--k-focus-ring, 0 0
 .fs-notes__status { color: var(--k-mute, #8c8c8c); }
 .fs-notes__btns { margin-left: auto; display: flex; gap: 6px; }
 .fs-notes__input { width: 100%; margin-top: 10px; max-height: 34vh; }
-/* 笔记 Markdown 预览：与编辑态等高的可滚动区域 */
+/* 笔记实时预览：编辑区与渲染区并排，预览随输入即时更新 */
+.notes-split { display: block; margin-top: 10px; }
+.notes-split--on { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+.notes-split--on .notes-input, .notes-split--on .fs-notes__input { margin-top: 0; }
 .notes-preview, .fs-notes__preview {
-  margin-top: 10px; padding: 10px 14px; overflow-y: auto;
-  min-height: 150px; max-height: 34vh;
+  padding: 10px 14px; overflow-y: auto; height: 100%; min-height: 120px; max-height: 34vh;
   border: 1px solid var(--k-line, #ececec); border-radius: var(--input-radius, 8px);
   background: var(--k-bg-soft, #fafafa);
+}
+/* 空笔记时给预览区一个提示，避免看起来像坏了 */
+.notes-preview:empty::before, .fs-notes__preview:empty::before {
+  content: "预览区：开始输入后实时显示渲染结果";
+  color: var(--k-mute, #8c8c8c); font-size: 13px;
+}
+/* 窄屏（含手机）改为上下排列 */
+@media (max-width: 900px) {
+  .notes-split--on { grid-template-columns: 1fr; }
+  .notes-preview, .fs-notes__preview { max-height: 30vh; }
 }
 .notes-preview-btn { margin-left: auto; }
 .notes-head { align-items: center; }
