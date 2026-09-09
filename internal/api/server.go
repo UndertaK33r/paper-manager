@@ -90,6 +90,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/papers/export.bib", s.handleExportBib)
 	mux.HandleFunc("GET /api/papers/export/notes", s.handleExportNotes)
+	mux.HandleFunc("GET /api/backup", s.handleBackup)
 	mux.HandleFunc("POST /api/ask", s.handleAsk)
 	mux.HandleFunc("GET /api/graph", s.handleGraph)
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)
@@ -120,14 +121,39 @@ func noCache(next http.Handler) http.Handler {
 
 func (s *Server) basicAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, pass, ok := r.BasicAuth()
-		if !ok || user != s.authUser || pass != s.authPass {
+		// 静态壳（HTML/CSS/JS）不校验：未登录时也要能加载出应用内的登录页。
+		// 这些资源随开源仓库公开、不含数据；数据只经 /api/ 暴露。
+		if !strings.HasPrefix(r.URL.Path, "/api/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if !s.authorized(r) {
 			w.Header().Set("WWW-Authenticate", `Basic realm="paper-manager"`)
 			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// authorized 接受三种凭据：
+//   - HTTP Basic：浏览器原生弹窗（也覆盖直接访问 URL 的场景）
+//   - Bearer <密码>：前端登录页与 api() 调用（前端历史上只发 Bearer，
+//     而后端只认 Basic，导致开启密码后网页登录不可用）
+//   - ?token=<密码>：下载/iframe 等无法自定义请求头的场景
+func (s *Server) authorized(r *http.Request) bool {
+	if user, pass, ok := r.BasicAuth(); ok && user == s.authUser && pass == s.authPass {
+		return true
+	}
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		if token := strings.TrimSpace(strings.TrimPrefix(h, "Bearer ")); token != "" && token == s.authPass {
+			return true
+		}
+	}
+	if token := r.URL.Query().Get("token"); token != "" && token == s.authPass {
+		return true
+	}
+	return false
 }
 
 func (s *Server) idParam(r *http.Request, name string) (int64, bool) {

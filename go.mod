@@ -3,10 +3,14 @@ module paper-manager
 go 1.24.2
 
 require (
+	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
+	modernc.org/sqlite v1.20.3
+)
+
+require (
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
-	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect
 	golang.org/x/mod v0.3.0 // indirect
@@ -20,7 +24,6 @@ require (
 	modernc.org/mathutil v1.5.0 // indirect
 	modernc.org/memory v1.4.0 // indirect
 	modernc.org/opt v0.1.3 // indirect
-	modernc.org/sqlite v1.20.3 // indirect
 	modernc.org/strutil v1.1.3 // indirect
 	modernc.org/token v1.0.1 // indirect
 )

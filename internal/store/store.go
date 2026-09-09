@@ -32,6 +32,13 @@ func Open(path string) (*Store, error) {
 
 func (s *Store) Close() error { return s.db.Close() }
 
+// Snapshot 用 VACUUM INTO 导出一致的数据库快照：包含 WAL 中尚未落盘的事务，
+// 且不阻塞读。目标文件必须不存在（VACUUM INTO 的要求）。
+func (s *Store) Snapshot(path string) error {
+	_, err := s.db.Exec("VACUUM INTO ?", path)
+	return err
+}
+
 func (s *Store) init() error {
 	schema := `CREATE TABLE IF NOT EXISTS categories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

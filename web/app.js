@@ -100,7 +100,9 @@ var Root = {
       this.downloadText("笔记-" + (p.title || p.id) + ".md", lines.join("\n"));
       this.notify("笔记已导出");
     },
-    pdfUrl: function (id) { return "/api/papers/" + id + "/pdf"; },
+    // 下载/iframe 无法自定义请求头，开启密码时把 token 拼进查询串
+    authUrl: function (url) { if (!this.token) return url; return url + (url.indexOf("?") >= 0 ? "&" : "?") + "token=" + encodeURIComponent(this.token); },
+    pdfUrl: function (id, download) { return this.authUrl("/api/papers/" + id + "/pdf" + (download ? "?download=1" : "")); },
     api: async function (path, opts) {
       opts = opts || {}; opts.headers = opts.headers || {};
       if (this.token) opts.headers["Authorization"] = "Bearer " + this.token;
@@ -372,10 +374,11 @@ var Root = {
     summarize: async function (id) { if(!this.hasApiKey){ this.notify("未配置 API Key",true); return; } this.summarizing=true; try { var p=await this.api("/api/papers/"+id+"/summarize",{method:"POST"}); this.detail=p; this.notify("摘要已生成"); } catch(e){ this.notify(e.message,true); } this.summarizing=false; },
     reExtract: async function (id) { try { var p=await this.api("/api/papers/"+id+"/re-extract",{method:"POST"}); this.detail=p; this.notify("全文已重新提取"); } catch(e){ this.notify(e.message,true); } },
     reDetect: async function (id) { this.notify("正在重新识别元数据..."); try { var p=await this.api("/api/papers/"+id+"/re-detect",{method:"POST"}); this.detail=p; this.notify("元数据已重新识别"); this.loadPapers(); } catch(e){ this.notify(e.message,true); } },
-    exportBib: function () { var q=[]; function add(k,v){ if(v!=="") q.push(k+"="+encodeURIComponent(v)); } add("search",this.search); add("status",this.statusFilter); add("category",this.categoryFilter); add("tags",this.tagFilter); window.open("/api/papers/export.bib?"+q.join("&"), "_blank"); },
+    exportBib: function () { var q=[]; function add(k,v){ if(v!=="") q.push(k+"="+encodeURIComponent(v)); } add("search",this.search); add("status",this.statusFilter); add("category",this.categoryFilter); add("tags",this.tagFilter); window.open(this.authUrl("/api/papers/export.bib?"+q.join("&")), "_blank"); },
     ask: async function () { if(!this.question.trim()) return; this.asking=true; this.answer=""; this.sources=[]; try { var res=await this.api("/api/ask",{method:"POST",json:{query:this.question}}); this.answer=res.answer; this.sources=res.sources||[]; } catch(e){ this.notify(e.message,true); } this.asking=false; },
     openManage: function () { this.showManage=true; },
-    exportAllNotes: function () { window.open("/api/papers/export/notes", "_blank"); },
+    exportAllNotes: function () { window.open(this.authUrl("/api/papers/export/notes"), "_blank"); },
+    exportBackup: function () { this.notify("正在生成备份，稍候会自动下载…"); window.open(this.authUrl("/api/backup"), "_blank"); },
     addCategory: async function () { if(!this.newCategory.trim()) return; try { await this.api("/api/categories",{method:"POST",json:{name:this.newCategory}}); this.newCategory=""; this.loadAll(); } catch(e){ this.notify(e.message,true); } },
     deleteCategory: async function (id) { if(!confirm("删除该分类？")) return; try { await this.api("/api/categories/"+id,{method:"DELETE"}); this.loadAll(); this.loadPapers(); } catch(e){ this.notify(e.message,true); } },
     addTag: async function () { if(!this.newTag.trim()) return; try { await this.api("/api/tags",{method:"POST",json:{name:this.newTag}}); this.newTag=""; this.loadAll(); } catch(e){ this.notify(e.message,true); } },
@@ -413,8 +416,9 @@ var Root = {
     // ---------- 上传（XHR 进度，对齐老项目） ----------
     onDrop: function (ev) { var f=ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]; if(f) this.doUpload(f); },
     onFileChange: function (ev) { var f=ev.target && ev.target.files && ev.target.files[0]; if(f) this.doUpload(f); },
-    doUpload: function (file) {
+    doUpload: function (file, force) {
       var self=this; var fd=new FormData(); fd.append("pdf",file,file.name); fd.append("useAI",this.hasApiKey?"1":"0");
+      if(force) fd.append("force","1");   // 必须建在本次 FormData 上：之前 append 到旧对象，导致重复上传无限弹窗
       this.uploading=true; this.uploadProgress=0; this.uploadResult=null;
       var xhr=new XMLHttpRequest(); xhr.open("POST","/api/papers");
       if(this.token) xhr.setRequestHeader("Authorization","Bearer "+this.token);
@@ -423,7 +427,7 @@ var Root = {
         self.uploading=false;
         var res=null; try{ res=JSON.parse(xhr.responseText); }catch(e){}
         if(xhr.status===201){ self.uploadResult=res; self.notify("收录完成"); self.loadAll(); self.loadPapers(); }
-        else if(xhr.status===409 && res && res.duplicate){ if(confirm("检测到重复论文："+res.title+"。仍然添加吗？")){ fd.append("force","1"); self.doUpload(file); } else { self.notify("已取消",true); } }
+        else if(xhr.status===409 && res && res.duplicate){ if(confirm("检测到重复论文："+res.title+"。仍然添加吗？")){ self.doUpload(file, true); } else { self.notify("已取消",true); } }
         else { self.notify((res&&res.error)||("上传失败 "+xhr.status),true); }
       };
       xhr.onerror=function(){ self.uploading=false; self.notify("网络错误",true); };

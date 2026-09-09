@@ -8,3 +8,9 @@ paper-manager.exe
 paper-manager
 
 参考/
+
+# E2E 测试产物
+e2e/node_modules/
+e2e/.tmp-server
+e2e/test-results/
+e2e/playwright-report/
