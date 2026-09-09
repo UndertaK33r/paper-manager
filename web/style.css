@@ -21,6 +21,10 @@
   --badge-radius: 6px;
   --seg-radius: 8px;
   --head-font: var(--k-font, sans-serif);
+  /* 危险操作（删除类按钮）的悬停色，随主题覆盖 */
+  --k-danger: #c0392b;
+  --k-danger-bg: #fff1f0;
+  --k-danger-line: #e3a6a0;
 }
 .k-base {
   min-height: 100vh;
@@ -71,17 +75,37 @@ b { font-weight: 700; }
   border-radius: var(--btn-radius, 8px);
   font-weight: var(--btn-font-weight, 500);
   letter-spacing: var(--btn-letter-spacing, 0);
-  transition: background 0.15s ease-out, border-color 0.15s ease-out;
+  transition: background 0.15s ease-out, border-color 0.15s ease-out, color 0.15s ease-out;
 }
-.p3r-btn:hover { background: var(--k-bg-soft, #FAFAFA); border-color: var(--k-ink, #141414); }
-.p3r-btn:focus-visible { outline: none; box-shadow: 0 0 0 4px rgba(20,20,20,0.08); }
+/* 悬停：可见的浅灰填充 + 稍深描边 + 显式回写文字色。
+   显式 color 不能省：遗留 p3r 主题曾给 .p3r-btn:hover 注入浅蓝文字，
+   在近白底上几乎不可读。填充用 --k-bg-raise 而非 --k-bg-soft（后者与白底几乎无差别）。 */
+.p3r-btn:not(:disabled):hover {
+  background: var(--k-bg-raise, #f4f4f4);
+  border-color: var(--k-ink-soft, #4a4a4a);
+  color: var(--k-ink, #141414);
+}
+.p3r-btn:not(:disabled):active { background: var(--k-line, #ececec); }
+.p3r-btn:focus-visible { outline: none; box-shadow: var(--k-focus-ring, 0 0 0 4px rgba(20,20,20,0.08)); }
 .p3r-btn--primary { background: var(--k-ink, #141414); color: var(--k-bg, #fff); border-color: var(--k-ink); }
-.p3r-btn--primary:hover { background: #333; border-color: #333; color: #fff; }
+.p3r-btn--primary:not(:disabled):hover {
+  background: var(--k-ink-soft, #333);
+  border-color: var(--k-ink-soft, #333);
+  color: var(--k-bg, #fff);
+}
+.p3r-btn--primary:not(:disabled):active { background: var(--k-ink, #141414); }
 .p3r-btn--danger { border-color: var(--k-line-strong); color: var(--k-ink); }
-.p3r-btn--danger:hover { background: var(--k-bg-soft); }
+/* 删除类按钮悬停给一个克制的红：明确破坏性语义，但不用霓虹色 */
+.p3r-btn--danger:not(:disabled):hover {
+  background: var(--k-danger-bg, #fff1f0);
+  border-color: var(--k-danger-line, #e3a6a0);
+  color: var(--k-danger, #c0392b);
+}
 .p3r-btn.small { padding: 5px 11px; font-size: 12.5px; }
 .p3r-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.p3r-btn.active { background: var(--k-ink); color: var(--k-bg); border-color: var(--k-ink); }
+.p3r-btn.active,
+.p3r-btn.active:hover,
+.p3r-btn.active:active { background: var(--k-ink); color: var(--k-bg); border-color: var(--k-ink); }
 
 /* ---- 面板 / 卡片（极简卡：细线 + 12-16px 圆角，无投影无切角） ---- */
 .p3r-panel, .p3r-sheet {
@@ -93,7 +117,7 @@ b { font-weight: 700; }
   box-shadow: var(--panel-shadow, none);
   transition: border-color 0.18s ease-out, background 0.18s ease-out;
 }
-.p3r-panel:hover, .p3r-sheet:hover { border-color: var(--k-line-strong, #DCDCDC); }
+/* 面板/卡片是静态内容容器，不做悬停反馈：描边在鼠标掠过时变深会暗示可点击 */
 .p3r-panel--blue { border-color: var(--k-line); }
 .p3r-panel__title {
   display: flex; align-items: baseline; gap: 10px;
@@ -116,7 +140,7 @@ b { font-weight: 700; }
   outline: none;
   transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
 }
-.p3r-input:focus { border-color: var(--k-ink, #141414); background: var(--k-bg, #fff); box-shadow: 0 0 0 4px rgba(20,20,20,0.08); }
+.p3r-input:focus { border-color: var(--k-ink, #141414); background: var(--k-bg, #fff); box-shadow: var(--k-focus-ring, 0 0 0 4px rgba(20,20,20,0.08)); }
 .p3r-input::placeholder { color: var(--k-mute, #8C8C8C); }
 textarea.p3r-input { width: 100%; resize: vertical; line-height: 1.7; }
 label { font-size: 13px; color: var(--k-ink-soft, #4A4A4A); }
@@ -130,6 +154,13 @@ label .p3r-input, .p3r-form label .p3r-input { display: block; width: 100%; marg
 .toolbar-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .search { flex: 1 1 220px; min-width: 180px; }
 .seg { display: inline-flex; gap: 2px; background: var(--k-bg-raise, #f4f4f4); border: none; border-radius: var(--seg-radius, 8px); padding: 2px; }
+/* 分段按钮在灰色轨道里：悬停保持白底 + 加深描边 + 极轻投影，
+   否则灰填充会与轨道同色、按钮「消失」 */
+.seg .p3r-btn:not(:disabled):hover {
+  background: var(--k-bg, #fff);
+  border-color: var(--k-ink-soft, #4a4a4a);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
 .view-toggle { display: flex; gap: 6px; }
 
 /* ---- 表格（细线） ---- */
@@ -148,6 +179,12 @@ label .p3r-input, .p3r-form label .p3r-input { display: block; width: 100%; marg
 .paper-card { display: flex; flex-direction: column; gap: 10px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip-x { color: var(--k-ink); cursor: pointer; margin-left: 4px; }
+/* 「×」用真实 button 才能键盘操作；重置掉浏览器默认按钮外观 */
+button.chip-x {
+  appearance: none; background: none; border: 0; padding: 0;
+  font: inherit; line-height: 1;
+}
+button.chip-x:focus-visible { outline: none; box-shadow: var(--k-focus-ring, 0 0 0 3px rgba(20, 20, 20, 0.12)); border-radius: 4px; }
 
 /* ---- 徽标 / 读数 ---- */
 .p3r-badge {

@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PAPER BRAIN</title>
-<link rel="stylesheet" href="assets/p3r-tokens.css">
-<link rel="stylesheet" href="assets/p3r-ui.css">
+<!-- 样式只有三份：令牌 → 主题 → 组件。
+     旧版霓虹主题 p3r-tokens.css / p3r-ui.css 已停用：它的 .p3r-btn:hover
+     会给按钮注入浅蓝文字，在浅色主题下不可读。 -->
 <link rel="stylesheet" href="assets/kimi-tokens.css">
 <link rel="stylesheet" href="assets/themes.css">
 <link rel="stylesheet" href="style.css">
@@ -124,9 +125,9 @@
         </div>
         <div class="p3r-sheet">
           <span class="p3r-readout">标签与合集</span>
-          <div class="chips"><span v-for="t in detail.tags" class="p3r-badge">{{ t.name }} <a class="chip-x" @click="removeDetailTag(t.id)">×</a></span></div>
+          <div class="chips"><span v-for="t in detail.tags" class="p3r-badge">{{ t.name }} <button type="button" class="chip-x" :aria-label="'移除标签 ' + t.name" :title="'移除标签 ' + t.name" @click="removeDetailTag(t.id)">×</button></span></div>
           <div class="inline-form"><input class="p3r-input" v-model="tagSelect" list="detailTagList" placeholder="输入或选择标签，可新建" @keyup.enter="addDetailTag"><datalist id="detailTagList"><option v-for="t in availableTags" :key="t.id" :value="t.name"></option></datalist><button class="p3r-btn small" @click="addDetailTag">添加</button></div>
-          <div class="chips"><span v-for="c in detail.collections" class="p3r-badge">{{ c.name }} <a class="chip-x" @click="removeDetailCollection(c.id)">×</a></span></div>
+          <div class="chips"><span v-for="c in detail.collections" class="p3r-badge">{{ c.name }} <button type="button" class="chip-x" :aria-label="'移除合集 ' + c.name" :title="'移除合集 ' + c.name" @click="removeDetailCollection(c.id)">×</button></span></div>
           <div class="inline-form"><input class="p3r-input" v-model="collectionSelect" list="detailCollectionList" placeholder="输入或选择合集，可新建" @keyup.enter="addDetailCollection"><datalist id="detailCollectionList"><option v-for="c in availableCollections" :key="c.id" :value="c.name"></option></datalist><button class="p3r-btn small" @click="addDetailCollection">添加</button></div>
           <div class="p3r-divider"></div>
           <span class="p3r-readout">AI 摘要</span>
@@ -148,7 +149,7 @@
             <button class="p3r-btn small p3r-btn--primary" @click.stop="translateSelection">{{ selPopup.loading ? '翻译中…' : '翻译 ♪' }}</button>
           </div>
           <div v-if="selResult" class="sel-result" :style="{ left: selResult.x + 'px', top: selResult.y + 'px' }">
-            <div class="sel-result__head"><span class="p3r-readout">译文</span><a class="chip-x" @click="selResult = null">×</a></div>
+            <div class="sel-result__head"><span class="p3r-readout">译文</span><button type="button" class="chip-x" aria-label="关闭译文" title="关闭译文" @click="selResult = null">×</button></div>
             <div class="sel-result__body md-body" v-html="selResult.html"></div>
           </div>
           <div class="fs-notes" v-if="pdfFullscreen || fullWidth" :class="{ 'fs-notes--min': fsNotesMin }">
@@ -271,7 +272,7 @@
 
   <!-- 悬浮球：问论文库 / 主题 -->
   <div v-if="askOpen && !uiBlocked" class="ask-float">
-    <div class="ask-float__head"><span class="p3r-readout">问论文库 · RAG</span><a class="chip-x" @click="askOpen=false">×</a></div>
+    <div class="ask-float__head"><span class="p3r-readout">问论文库 · RAG</span><button type="button" class="chip-x" aria-label="关闭" title="关闭" @click="askOpen=false">×</button></div>
     <div class="ask-float__body">
       <div v-if="asking" class="p3r-readout">思考中...</div>
       <div v-else-if="!answer" class="muted">用中文向整个论文库提问，回答附带来源片段。</div>

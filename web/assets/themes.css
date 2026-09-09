@@ -20,6 +20,9 @@
   --k-line-strong: #3d4f75;
   --k-note: #9ec5ff;
   --k-focus-ring: 0 0 0 4px rgba(158, 197, 255, 0.14);
+  --k-danger: #ff9b9b;
+  --k-danger-bg: rgba(229, 72, 77, 0.16);
+  --k-danger-line: rgba(255, 120, 120, 0.55);
   /* 形状与质感 */
   --panel-radius: 16px;
   --panel-clip: none;
@@ -43,6 +46,10 @@
 [data-theme="midnight"] .p3r-panel,
 [data-theme="midnight"] .p3r-sheet { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 [data-theme="midnight"] .p3r-btn--primary { background: #9ec5ff; border-color: transparent; color: #0b1220; }
+/* 悬停保持冰蓝色系（否则会掉到 --k-ink-soft 的灰蓝，主按钮失去身份） */
+[data-theme="midnight"] .p3r-btn--primary:not(:disabled):hover {
+  background: #bdd9ff; border-color: transparent; color: #0b1220;
+}
 [data-theme="midnight"] .p3r-badge { border-color: rgba(158, 197, 255, 0.4); color: #c6d8f5; }
 [data-theme="midnight"] .p3r-readout { color: #8fa3c8; }
 [data-theme="midnight"] .hero { border-bottom: 1px solid rgba(120, 160, 230, 0.3); }
@@ -70,6 +77,9 @@
   --k-line: #ddd2bb;
   --k-line-strong: #6f6248;
   --k-note: #6a5a3c;
+  --k-danger: #a33a2a;
+  --k-danger-bg: #f3e0d7;
+  --k-danger-line: #c9a08f;
   /* 形状与质感：纸面微圆角、柔和纸影、无切角 */
   --panel-radius: 6px;
   --panel-clip: none;

@@ -544,6 +544,17 @@ var Root = {
     document.addEventListener("webkitfullscreenchange", fsSync);
     // 划词翻译：mouseup 后检查选区
     document.addEventListener("mouseup", function(){ self.onPdfMouseUp(); });
+    // Esc 关闭最上层浮层（由内到外，一次只关一层）
+    document.addEventListener("keydown", function(e){
+      if (e.key !== "Escape") return;
+      if (self.selResult) { self.selResult = null; self.selPopup.show = false; return; }
+      if (self.pdfFullscreen) { self.pdfFullscreen = false; return; }
+      if (self.showPaperModal) { self.showPaperModal = false; return; }
+      if (self.showSettings) { self.showSettings = false; return; }
+      if (self.showManage) { self.showManage = false; return; }
+      if (self.askOpen) { self.askOpen = false; return; }
+      if (self.themeOpen) { self.themeOpen = false; return; }
+    });
     var rsz=function(){ self.$nextTick(function(){ self.layoutPdfPages(true); }); };
     window.addEventListener("resize", rsz);
     this.parseHash();
