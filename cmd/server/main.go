@@ -15,6 +15,9 @@ import (
 	"paper-manager/internal/store"
 )
 
+// version 由构建脚本通过 -ldflags "-X main.version=vX.Y.Z" 注入。
+var version = "dev"
+
 func main() {
 	port := env("PORT", "8080")
 	cwd, err := os.Getwd()
@@ -58,6 +61,7 @@ func main() {
 		MaxUploadMB: maxMB,
 		AuthUser:    env("AUTH_USERNAME", ""),
 		AuthPass:    env("AUTH_PASSWORD", ""),
+		Version:     version,
 	})
 
 	addr := net.JoinHostPort(env("HOST", ""), port)

@@ -197,7 +197,7 @@ func (s *Server) handleReExtract(w http.ResponseWriter, r *http.Request) {
 
 // handleHealth 健康检查（登录页用它验证密码）。
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": "1.0"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": s.version})
 }
 
 // handleRedetect 用健壮提取器 + 在线补全重新识别元数据（可修正历史错误记录）。

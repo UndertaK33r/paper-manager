@@ -19,6 +19,8 @@ type Config struct {
 	MaxUploadMB int64
 	AuthUser    string
 	AuthPass    string
+	// Version 由构建时注入（-X main.version），未注入时为 dev
+	Version string
 }
 
 type Server struct {
@@ -28,12 +30,17 @@ type Server struct {
 	maxUploadMB int64
 	authUser    string
 	authPass    string
+	version     string
 }
 
 func New(cfg Config) *Server {
 	max := cfg.MaxUploadMB
 	if max <= 0 {
 		max = 100
+	}
+	version := cfg.Version
+	if version == "" {
+		version = "dev"
 	}
 	return &Server{
 		store:       cfg.Store,
@@ -42,6 +49,7 @@ func New(cfg Config) *Server {
 		maxUploadMB: max,
 		authUser:    cfg.AuthUser,
 		authPass:    cfg.AuthPass,
+		version:     version,
 	}
 }
 

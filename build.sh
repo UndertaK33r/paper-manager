@@ -9,12 +9,16 @@ mkdir -p dist
 rm -f dist/paper-manager-*
 cp 使用说明.txt dist/ 2>/dev/null || echo "（未找到 使用说明.txt，跳过）"
 
+# 版本号注入二进制（/api/health 会返回它）；无 tag 时退化为 commit 短哈希
+VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+echo "版本: $VERSION"
+
 for t in darwin/arm64 darwin/amd64 windows/amd64 linux/amd64; do
   os=${t%/*}; arch=${t#*/}
   out="dist/paper-manager-${os}-${arch}"
   [ "$os" = "windows" ] && out="${out}.exe"
   echo "构建 $out"
-  CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w" -o "$out" ./cmd/server
+  CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o "$out" ./cmd/server
 done
 
 cd dist
