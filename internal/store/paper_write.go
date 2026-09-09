@@ -15,11 +15,16 @@ func insertPaper(db paperExecer, p *models.Paper) (int64, error) {
 		p.Status = "unread"
 	}
 	now := nowStr()
+	// 有笔记就记下时间戳（旧版由触发器完成，见 notes.go 的说明）
+	notesAt := ""
+	if p.Notes != "" {
+		notesAt = nowMillis()
+	}
 	res, err := db.Exec(`INSERT INTO papers
-(title, authors, year, venue, doi, keywords, link, summary, notes, category_id, read, status, starred, pdf_path, pdf_size, fulltext, created_at, updated_at)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+(title, authors, year, venue, doi, keywords, link, summary, notes, category_id, read, status, starred, pdf_path, pdf_size, fulltext, created_at, updated_at, notes_updated_at)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		p.Title, p.Authors, p.Year, p.Venue, p.DOI, p.Keywords, p.Link, p.Summary, p.Notes,
-		p.CategoryID, boolInt(p.Read), p.Status, boolInt(p.Starred), p.PDFPath, p.PDFSize, p.FullText, now, now)
+		p.CategoryID, boolInt(p.Read), p.Status, boolInt(p.Starred), p.PDFPath, p.PDFSize, p.FullText, now, now, notesAt)
 	if err != nil {
 		return 0, err
 	}
@@ -30,11 +35,14 @@ func updatePaper(db paperExecer, p *models.Paper) error {
 	if p.Status == "" {
 		p.Status = "unread"
 	}
+	// notes_updated_at 只在笔记内容真的变化时更新（CASE 中的 notes 取更新前的值）
 	res, err := db.Exec(`UPDATE papers SET
  title=?, authors=?, year=?, venue=?, doi=?, keywords=?, link=?, summary=?, notes=?,
+ notes_updated_at = CASE WHEN notes IS NOT ? THEN ? ELSE notes_updated_at END,
  category_id=?, read=?, status=?, starred=?, pdf_path=?, pdf_size=?, fulltext=?, updated_at=?
  WHERE id=? AND (notes_updated_at=? OR notes=?)`,
 		p.Title, p.Authors, p.Year, p.Venue, p.DOI, p.Keywords, p.Link, p.Summary, p.Notes,
+		p.Notes, nowMillis(),
 		p.CategoryID, boolInt(p.Read), p.Status, boolInt(p.Starred), p.PDFPath, p.PDFSize, p.FullText, nowStr(), p.ID, p.NotesUpdatedAt, p.Notes)
 	if err != nil {
 		return err

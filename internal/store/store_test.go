@@ -361,3 +361,111 @@ func TestEmptyTrashKeepsLivePapers(t *testing.T) {
 		t.Fatalf("未删除的论文被误删: %v", err)
 	}
 }
+
+// 搜索覆盖 title/authors/venue/doi/keywords/summary/fulltext 七列，中英文子串都能命中
+func TestSearchMatchesAllColumns(t *testing.T) {
+	st := newTestStore(t)
+	en := models.Paper{Title: "Image Fusion with Knowledge Distillation", Authors: "Ran Zhang", Keywords: "image fusion"}
+	if _, err := st.CreatePaper(&en); err != nil {
+		t.Fatal(err)
+	}
+	zh := models.Paper{Title: "红外与可见光图像融合综述", Authors: "张三"}
+	if _, err := st.CreatePaper(&zh); err != nil {
+		t.Fatal(err)
+	}
+
+	find := func(q string) []models.Paper {
+		res, err := st.ListPapers(models.PaperQuery{Page: 1, PageSize: 10, Search: q})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Papers
+	}
+
+	// 英文子串（≥3 字符 → FTS）
+	if got := find("fusion"); len(got) != 1 || got[0].ID != en.ID {
+		t.Fatalf("搜索 fusion 应只命中英文那篇，实际 %+v", got)
+	}
+	// 中文子串
+	if got := find("图像融合"); len(got) != 1 || got[0].Title != zh.Title {
+		t.Fatalf("搜索「图像融合」结果不对: %+v", got)
+	}
+	// 短查询（2 字符）
+	if got := find("融合"); len(got) != 1 {
+		t.Fatalf("搜索「融合」应命中 1 篇，实际 %d", len(got))
+	}
+	// 全文列也参与检索
+	ft := models.Paper{Title: "Unrelated Title", FullText: "we propose a novel distillation framework"}
+	if _, err := st.CreatePaper(&ft); err != nil {
+		t.Fatal(err)
+	}
+	if got := find("novel distillation"); len(got) != 1 || got[0].ID != ft.ID {
+		t.Fatalf("全文搜索未命中: %+v", got)
+	}
+
+	// 更新标题后按新标题可搜、旧标题搜不到
+	updated, _ := st.GetPaper(en.ID)
+	updated.Title = "Renamed Paper About Transformers"
+	if _, err := st.SavePaper(&updated, nil, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := find("transformers"); len(got) != 1 || got[0].ID != en.ID {
+		t.Fatalf("更新后新标题搜不到: %+v", got)
+	}
+	if got := find("fusion with knowledge"); len(got) != 0 {
+		t.Fatalf("更新后旧标题仍能搜到: %+v", got)
+	}
+
+	// 特殊字符（LIKE 通配符）不会导致 SQL 错误
+	if _, err := st.ListPapers(models.PaperQuery{Page: 1, PageSize: 5, Search: `a"b(c) -x%`}); err != nil {
+		t.Fatalf("特殊字符查询报错: %v", err)
+	}
+
+	// 软删除后不再出现在搜索结果里
+	if _, err := st.DeletePaper(zh.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got := find("图像融合"); len(got) != 0 {
+		t.Fatalf("软删除的论文仍被搜到: %+v", got)
+	}
+}
+
+// 回归：带笔记的插入 + 搜索 + 改状态后数据库仍完整
+// （曾因笔记触发器嵌套写入 FTS 索引导致 CreatePaper 报 database disk image is malformed）
+func TestNotesWritePathsKeepIntegrity(t *testing.T) {
+	st := newTestStore(t)
+	p := models.Paper{Title: "Fusion Notes Paper", Authors: "A", Notes: "重要笔记"}
+	id, err := st.CreatePaper(&p)
+	if err != nil {
+		t.Fatalf("带笔记创建失败: %v", err)
+	}
+	if got := searchTitles(t, st, "fusion"); len(got) != 1 {
+		t.Fatalf("创建后搜索应命中 1 篇，实际 %v", got)
+	}
+	if err := st.UpdateNotes(id, "改过的笔记内容", nil); err != nil {
+		t.Fatalf("更新笔记失败: %v", err)
+	}
+	if got := searchTitles(t, st, "fusion"); len(got) != 1 {
+		t.Fatalf("更新笔记后搜索应命中 1 篇，实际 %v", got)
+	}
+	if err := st.SetPaperStatus(id, "reading"); err != nil {
+		t.Fatalf("改状态失败: %v", err)
+	}
+	var ic string
+	if err := st.db.QueryRow("PRAGMA integrity_check").Scan(&ic); err != nil || ic != "ok" {
+		t.Fatalf("完整性检查: %q %v", ic, err)
+	}
+}
+
+func searchTitles(t *testing.T, st *Store, q string) []string {
+	t.Helper()
+	res, err := st.ListPapers(models.PaperQuery{Page: 1, PageSize: 10, Search: q})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := []string{}
+	for _, p := range res.Papers {
+		out = append(out, p.Title)
+	}
+	return out
+}

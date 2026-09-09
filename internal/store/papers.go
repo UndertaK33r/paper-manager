@@ -78,15 +78,26 @@ func (s *Store) loadRelations(paperID int64) ([]models.Tag, []models.Collection,
 	return tags, cols, nil
 }
 
+// searchCond 生成一条子串搜索条件（title/authors/venue/doi/keywords/summary/fulltext）。
+// 曾尝试用 FTS5(trigram) 替代，实测在 2 万篇规模下常见词反而更慢且索引体积翻倍，故保留 LIKE，见 ROADMAP。
+func searchCond(raw string) (cond string, args []any, ok bool) {
+	q := strings.TrimSpace(raw)
+	if q == "" {
+		return "", nil, false
+	}
+	like := "%" + strings.ToLower(q) + "%"
+	return `(lower(p.title) LIKE ? OR lower(p.authors) LIKE ? OR lower(p.venue) LIKE ? OR lower(p.doi) LIKE ? OR lower(p.keywords) LIKE ? OR lower(p.summary) LIKE ? OR lower(p.fulltext) LIKE ?)`,
+		[]any{like, like, like, like, like, like, like}, true
+}
+
 func buildWhere(q models.PaperQuery) (string, []any) {
 	// 软删除的论文不出现在任何常规列表/统计里
 	conds := []string{"p.deleted_at = ''"}
 	args := []any{}
 	if q.Search != "" {
-		like := "%" + strings.ToLower(q.Search) + "%"
-		conds = append(conds, `(lower(p.title) LIKE ? OR lower(p.authors) LIKE ? OR lower(p.venue) LIKE ? OR lower(p.doi) LIKE ? OR lower(p.keywords) LIKE ? OR lower(p.fulltext) LIKE ?)`)
-		for i := 0; i < 6; i++ {
-			args = append(args, like)
+		if cond, sargs, ok := searchCond(q.Search); ok {
+			conds = append(conds, cond)
+			args = append(args, sargs...)
 		}
 	}
 	if q.CategoryID != nil {
@@ -404,10 +415,9 @@ func (s *Store) SearchRelaxed(query string, limit int) ([]models.Paper, error) {
 	conds := []string{}
 	args := []any{}
 	for _, t := range tokens {
-		like := "%" + t + "%"
-		conds = append(conds, "(lower(p.title) LIKE ? OR lower(p.authors) LIKE ? OR lower(p.keywords) LIKE ? OR lower(p.summary) LIKE ? OR lower(p.fulltext) LIKE ?)")
-		for i := 0; i < 5; i++ {
-			args = append(args, like)
+		if cond, sargs, ok := searchCond(t); ok {
+			conds = append(conds, cond)
+			args = append(args, sargs...)
 		}
 	}
 	where := " WHERE p.deleted_at = '' AND (" + strings.Join(conds, " OR ") + ")"

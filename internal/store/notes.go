@@ -10,8 +10,8 @@ import (
 
 var ErrConflict = errors.New("笔记已被其他窗口修改，请刷新后合并，未覆盖已有笔记")
 
-// migrateNotes preserves the best available timestamp for legacy notes once.
-// Triggers cover every write path, including older clients using PUT.
+// migrateNotes 为历史笔记补一次时间戳，并清理旧版遗留的触发器。
+// 时间戳现在由 Go 层在写入时维护（INSERT/UPDATE 都覆盖，包括 PUT 全量提交）。
 func (s *Store) migrateNotes() error {
 	rows, err := s.db.Query("PRAGMA table_info(papers)")
 	if err != nil {
@@ -46,14 +46,12 @@ func (s *Store) migrateNotes() error {
 			return err
 		}
 	}
-	_, err = tx.Exec(`CREATE TRIGGER IF NOT EXISTS papers_notes_insert AFTER INSERT ON papers
-WHEN NEW.notes != '' AND NEW.notes_updated_at = '' BEGIN
-UPDATE papers SET notes_updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;
-CREATE TRIGGER IF NOT EXISTS papers_notes_update AFTER UPDATE OF notes ON papers
-WHEN NEW.notes IS NOT OLD.notes BEGIN
-UPDATE papers SET notes_updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = NEW.id;
-END;`)
+	// 时间戳改由 Go 层维护（见 paper_write.go / UpdateFields）：
+	// 触发器会在 FTS 外部内容表上产生嵌套写入，而 SQLite 按"创建顺序的逆序"触发，
+	// 导致同一 rowid 被插入两次、索引损坏（database disk image is malformed）。
+	// 这里清理旧版本遗留的触发器。
+	_, err = tx.Exec(`DROP TRIGGER IF EXISTS papers_notes_insert;
+DROP TRIGGER IF EXISTS papers_notes_update;`)
 	if err != nil {
 		return err
 	}
@@ -84,6 +82,11 @@ func (s *Store) UpdateFields(id int64, fields map[string]any, tags, collections 
 		for _, k := range keys {
 			sets = append(sets, k+" = ?")
 			args = append(args, fields[k])
+		}
+		// 笔记内容变化时才更新 notes_updated_at（旧版靠触发器，见文件顶部说明）
+		if notes, ok := fields["notes"]; ok {
+			sets = append(sets, "notes_updated_at = CASE WHEN notes IS NOT ? THEN ? ELSE notes_updated_at END")
+			args = append(args, notes, nowMillis())
 		}
 		sets = append(sets, "updated_at = ?")
 		args = append(args, nowStr(), id)

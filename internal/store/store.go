@@ -105,10 +105,28 @@ CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 	_, _ = s.db.Exec("CREATE INDEX IF NOT EXISTS idx_papers_deleted ON papers(deleted_at)")
 	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN status TEXT NOT NULL DEFAULT 'unread'")
 	_, _ = s.db.Exec("UPDATE papers SET status = 'read' WHERE read = 1 AND status = 'unread'")
+	if err := s.dropSearchIndex(); err != nil {
+		return err
+	}
 	return s.migrateNotes()
 }
 
+// dropSearchIndex 清理早期实验性的 FTS5 索引。
+// 实测（2 万篇、169MB 库）：trigram 分词对常见词反而更慢（fusion 37ms vs LIKE 21ms），
+// 索引体积接近翻倍，仅在 3 字符以内的查询上占优，因此不采用，见 ROADMAP。
+func (s *Store) dropSearchIndex() error {
+	_, err := s.db.Exec(`DROP TRIGGER IF EXISTS papers_fts_ai;
+DROP TRIGGER IF EXISTS papers_fts_au;
+DROP TRIGGER IF EXISTS papers_fts_ad;
+DROP TABLE IF EXISTS papers_fts;`)
+	return err
+}
+
 func nowStr() string { return time.Now().UTC().Format(time.RFC3339) }
+
+// nowMillis 毫秒精度：笔记时间戳用它，保证同一秒内的连续编辑也能区分
+// （旧版由 SQLite 触发器 strftime('%Y-%m-%dT%H:%M:%fZ') 产生同样的精度）
+func nowMillis() string { return time.Now().UTC().Format("2006-01-02T15:04:05.000Z") }
 
 func parseTime(v string) time.Time {
 	t, err := time.Parse(time.RFC3339, v)
