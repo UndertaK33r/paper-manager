@@ -15,8 +15,6 @@ var Root = {
       detail: {}, tagSelect: "", collectionSelect: "", fullWidth: false,
       pdfFullscreen: false, fsNotesMin: false, notesSavedAt: "",
       summaryExpanded: false, summaryOverflow: false,
-      pdfJsOk: false, pdfJsFailed: false,
-      selPopup: { show: false, x: 0, y: 0, text: "", loading: false }, selResult: null,
       fsTransMin: false, transHistory: [], instantSrc: "", instantLoading: false,
       showPaperModal: false, editingId: null, saving: false, form: makeEmptyForm(),
       aiExtracting: false, summarizing: false, pdfExtracting: false,
@@ -43,11 +41,6 @@ var Root = {
       var self = this;
       this.summaryExpanded = false;
       this.$nextTick(function () { self.checkSummaryOverflow(); });
-    },
-    // 全宽切换后容器宽度变化，重排 PDF 页面
-    "fullWidth": function () {
-      var self = this;
-      this.$nextTick(function () { self.layoutPdfPages(true); });
     }
   },
   methods: {
@@ -138,7 +131,6 @@ var Root = {
     applyFilters: function () { this.page=1; this.loadPapers(); },
     setStatus: function (s) { this.statusFilter=s; this.page=1; this.loadPapers(); },
     goPage: function (p) { if(p<1||p>this.pages) return; this.page=p; this.loadPapers(); },
-    openAdd: function () { this.editingId=null; this.form=makeEmptyForm(); if(this.$refs.pdfInput) this.$refs.pdfInput.value=""; this.showPaperModal=true; },
     openEdit: function (p) {
       this.editingId=p.id;
       this.form={ title:p.title||"", authors:p.authors||"", year:p.year||"", venue:p.venue||"", doi:p.doi||"", keywords:p.keywords||"", link:p.link||"", summary:p.summary||"", notes:p.notes||"", categoryId:p.categoryId||"", tags:(p.tags||[]).map(function(t){return t.name;}).join(", "), collections:(p.collections||[]).map(function(c){return c.name;}).join(", "), read:!!p.read, starred:!!p.starred, useAI:true };
@@ -192,144 +184,9 @@ var Root = {
       try { await this.api("/api/papers/"+id,{method:"DELETE"}); this.notify("已删除"); this.go("list"); this.loadAll(); this.loadPapers(); } catch (e) { this.notify(e.message,true); }
     },
     openDetail: async function (id) {
-      this.destroyPdfViewer(); this.pdfJsFailed=false;
       this.detail={}; this.route="detail"; window.location.hash="#/papers/"+id;
-      this.transHistory=[]; this.selResult=null; this.selPopup.show=false; this.instantSrc="";
+      this.transHistory=[]; this.instantSrc="";
       try { this.detail=await this.api("/api/papers/"+id); this.tagSelect=""; this.collectionSelect=""; this.fsNotesMin=false; this.notesSavedAt=""; } catch (e) { this.notify(e.message,true); }
-      if (this.detail.hasPdf) {
-        var self=this; this.$nextTick(function(){ self.setupPdfViewer(); });
-      }
-    },
-    // ---------- 划词翻译（PDF.js 文本层渲染 + 选区浮出翻译按钮） ----------
-    setupPdfViewer: async function () {
-      this.destroyPdfViewer();
-      if (!this.detail.hasPdf || !window.pdfjsLib) return;
-      var self=this;
-      var container=this.$refs.pdfView;
-      if (!container) return;
-      pdfjsLib.GlobalWorkerOptions.workerSrc = "/assets/pdfjs/pdf.worker.min.js";
-      var task = pdfjsLib.getDocument({ url: this.pdfUrl(this.detail.id) });
-      this._pdf = { task: task, doc: null, pages: [], container: container, laid: false };
-      try {
-        var doc = await task.promise;
-        if (!this._pdf || this._pdf.task !== task) return; // 期间已切换论文
-        this._pdf.doc = doc;
-        container.innerHTML = "";
-        for (var n = 1; n <= doc.numPages; n++) {
-          var wrap = document.createElement("div");
-          wrap.className = "pjs-page";
-          wrap.dataset.page = n;
-          var canvas = document.createElement("canvas");
-          var text = document.createElement("div");
-          text.className = "pjs-text";
-          wrap.appendChild(canvas); wrap.appendChild(text);
-          container.appendChild(wrap);
-          this._pdf.pages.push({ n: n, wrap: wrap, canvas: canvas, text: text, rendered: false, h0: 0 });
-        }
-        container.addEventListener("scroll", function () { self.selPopup.show = false; self.selResult = null; });
-        this.pdfJsOk = true;
-        await this.layoutPdfPages(false);
-        var io = new IntersectionObserver(function (entries) {
-          entries.forEach(function (en) {
-            if (en.isIntersecting) self.renderPdfPage(+en.target.dataset.page);
-          });
-        }, { root: container, rootMargin: "500px 0px" });
-        this._pdf.observer = io;
-        this._pdf.pages.forEach(function (p) { io.observe(p.wrap); });
-      } catch (e) {
-        this.pdfJsFailed = true; // 回退浏览器内置阅读器
-        this.pdfJsOk = false;
-      }
-    },
-    destroyPdfViewer: function () {
-      var P = this._pdf;
-      if (P) {
-        if (P.observer) P.observer.disconnect();
-        if (P.task) { try { P.task.destroy(); } catch (e) {} }
-        if (P.container) P.container.innerHTML = "";
-      }
-      this._pdf = null;
-      this.pdfJsOk = false;
-    },
-    layoutPdfPages: async function (force) {
-      var P = this._pdf; if (!P || !P.doc || !P.container) return;
-      var self = this;
-      var width = P.container.clientWidth - 20;
-      if (width < 220) width = 220;
-      if (P.laid && !force && Math.abs((P.width || 0) - width) < 8) return; // 宽度没变不重排
-      P.width = width;
-      // 取每页基准尺寸，设占位高度（避免渲染后布局跳动）
-      for (var i = 0; i < P.pages.length; i++) {
-        var p = P.pages[i];
-        var page = await P.doc.getPage(p.n);
-        var base = page.getViewport({ scale: 1 });
-        p.h0 = base.height;
-        var w0 = base.width;
-        p.scale = width / w0;
-        p.wrap.style.width = width + "px";
-        p.wrap.style.height = Math.round(base.height * p.scale) + "px";
-        p.rendered = false;
-        p.canvas.width = 0; p.canvas.height = 0;
-        p.text.innerHTML = "";
-      }
-      // 立即渲染当前视口内的页
-      var st = P.container.scrollTop, vh = P.container.clientHeight;
-      P.pages.forEach(function (p) {
-        var top = p.wrap.offsetTop;
-        if (top + p.wrap.offsetHeight > st - 600 && top < st + vh + 600) self.renderPdfPage(p.n);
-      });
-    },
-    renderPdfPage: async function (n) {
-      var P = this._pdf; if (!P || !P.doc) return;
-      var p = P.pages[n - 1]; if (!p || p.rendered) return;
-      p.rendered = true;
-      try {
-        var page = await P.doc.getPage(n);
-        var width = P.container.clientWidth - 20;
-        var scale = p.scale || (width / page.getViewport({ scale: 1 }).width);
-        var dpr = Math.min(window.devicePixelRatio || 1, 2);
-        var vp = page.getViewport({ scale: scale * dpr });
-        p.canvas.width = Math.round(vp.width);
-        p.canvas.height = Math.round(vp.height);
-        await page.render({ canvasContext: p.canvas.getContext("2d"), viewport: vp }).promise;
-        var tc = await page.getTextContent();
-        p.text.innerHTML = "";
-        var tl = pdfjsLib.renderTextLayer({ textContentSource: tc, container: p.text, viewport: page.getViewport({ scale: scale }) });
-        await tl.promise;
-      } catch (e) { p.rendered = false; }
-    },
-    onPdfMouseUp: function () {
-      var self = this;
-      setTimeout(function () {
-        var sel = window.getSelection();
-        if (!sel || sel.isCollapsed || !self._pdf || !self.pdfJsOk) { self.selPopup.show = false; return; }
-        var text = sel.toString().trim();
-        if (text.length < 2) { self.selPopup.show = false; return; }
-        var node = sel.anchorNode;
-        var el = node && (node.nodeType === 3 ? node.parentElement : node);
-        if (!el || !el.closest || !el.closest(".pjs-text")) { self.selPopup.show = false; return; }
-        var rect = sel.getRangeAt(0).getBoundingClientRect();
-        if (!rect || (!rect.width && !rect.height)) { self.selPopup.show = false; return; }
-        var x = Math.min(Math.max(rect.left, 8), window.innerWidth - 90);
-        var y = rect.top - 46; if (y < 8) y = rect.bottom + 10;
-        self.selPopup = { show: true, x: x, y: y, text: text.slice(0, 4000), loading: false };
-        self.selResult = null;
-      }, 10);
-    },
-    translateSelection: async function () {
-      var text = this.selPopup.text;
-      if (!text || this.selPopup.loading) return;
-      this.selPopup.loading = true;
-      var px = this.selPopup.x, py = this.selPopup.y;
-      try {
-        var res = await this.api("/api/ai/translate-text", { method: "POST", json: { text: text } });
-        var out = (res && res.translation) || "";
-        this.addToHistory(text, out);
-        var x = Math.min(Math.max(px - 60, 8), Math.max(window.innerWidth - 452, 8));
-        var y = Math.min(py + 42, window.innerHeight - 160);
-        this.selResult = { x: x, y: y, html: window.mdRender ? window.mdRender(out) : out };
-      } catch (e) { this.notify(e.message, true); }
-      this.selPopup.show = false; this.selPopup.loading = false;
     },
     addToHistory: function (src, out) {
       this.transHistory.unshift({ src: src.length > 220 ? src.slice(0, 220) + "…" : src, html: window.mdRender ? window.mdRender(out) : out });
@@ -538,16 +395,12 @@ var Root = {
     window.addEventListener("hashchange", function(){ self.parseHash(); });
     var fsSync=function(){
       self.syncFullscreen();
-      self.$nextTick(function(){ self.layoutPdfPages(true); });
     };
     document.addEventListener("fullscreenchange", fsSync);
     document.addEventListener("webkitfullscreenchange", fsSync);
-    // 划词翻译：mouseup 后检查选区
-    document.addEventListener("mouseup", function(){ self.onPdfMouseUp(); });
     // Esc 关闭最上层浮层（由内到外，一次只关一层）
     document.addEventListener("keydown", function(e){
       if (e.key !== "Escape") return;
-      if (self.selResult) { self.selResult = null; self.selPopup.show = false; return; }
       if (self.pdfFullscreen) { self.pdfFullscreen = false; return; }
       if (self.showPaperModal) { self.showPaperModal = false; return; }
       if (self.showSettings) { self.showSettings = false; return; }
@@ -555,8 +408,6 @@ var Root = {
       if (self.askOpen) { self.askOpen = false; return; }
       if (self.themeOpen) { self.themeOpen = false; return; }
     });
-    var rsz=function(){ self.$nextTick(function(){ self.layoutPdfPages(true); }); };
-    window.addEventListener("resize", rsz);
     this.parseHash();
     // 列表路由的 parseHash 内部已经触发 loadAll；只有详情/上传/图谱等路由要在这里补一次，
     // 否则首屏会对 categories/tags/collections/stats/settings 各请求两遍

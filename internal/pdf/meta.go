@@ -2,7 +2,6 @@ package pdfmeta
 
 import (
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -14,10 +13,6 @@ type Meta struct {
 	Author   string
 	Keywords string
 	Subject  string
-}
-
-func Extract(path string) (Meta, error) {
-	return ExtractWithFallback(path, "")
 }
 
 func ExtractWithFallback(path, fallbackTitle string) (Meta, error) {
@@ -130,16 +125,4 @@ func ExtractText(path string, maxChars int) (string, error) {
 		text = text[:maxChars]
 	}
 	return text, nil
-}
-
-func IsValidPDF(path string) bool {
-	data, err := os.ReadFile(path)
-	if err != nil || len(data) < 5 {
-		return false
-	}
-	return string(data[:5]) == "%PDF-"
-}
-
-func (m Meta) HasMeta() bool {
-	return m.Title != "" || m.Author != "" || m.Keywords != ""
 }

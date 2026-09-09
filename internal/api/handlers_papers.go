@@ -3,7 +3,6 @@ package api
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -220,33 +219,6 @@ func (s *Server) handleCreatePaper(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, paper)
 }
 
-func (s *Server) applyRelations(id int64, in models.PaperInput) error {
-	var tagIDs []int64
-	if len(in.TagNames) > 0 {
-		tags, err := s.ensureTags(in.TagNames)
-		if err != nil {
-			return err
-		}
-		tagIDs = s.tagIDs(tags)
-	} else {
-		tagIDs = in.Tags
-	}
-	if err := s.store.SetPaperTags(id, tagIDs); err != nil {
-		return err
-	}
-	var colIDs []int64
-	if len(in.CollectionNames) > 0 {
-		cols, err := s.ensureCollections(in.CollectionNames)
-		if err != nil {
-			return err
-		}
-		colIDs = s.collectionIDs(cols)
-	} else {
-		colIDs = in.Collections
-	}
-	return s.store.SetPaperCollections(id, colIDs)
-}
-
 func (s *Server) handleUpdatePaper(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.idParam(r, "id")
 	if !ok {
@@ -381,10 +353,6 @@ func (s *Server) handleGetPDF(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleToggleRead(w http.ResponseWriter, r *http.Request) {
 	s.toggleFlag(w, r, true)
-}
-
-func (s *Server) handleToggleStar(w http.ResponseWriter, r *http.Request) {
-	s.toggleFlag(w, r, false)
 }
 
 func (s *Server) toggleFlag(w http.ResponseWriter, r *http.Request, read bool) {
@@ -529,12 +497,4 @@ func (s *Server) handleRemovePaperCollection(w http.ResponseWriter, r *http.Requ
 	}
 	paper, _ := s.store.GetPaper(id)
 	writeJSON(w, http.StatusOK, paper)
-}
-
-func (s *Server) decodeJSONOnly(w http.ResponseWriter, r *http.Request, v any) bool {
-	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return false
-	}
-	return true
 }

@@ -55,21 +55,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /api/papers/{id}", s.handlePatchPaper)
 	mux.HandleFunc("DELETE /api/papers/{id}", s.handleDeletePaper)
 	mux.HandleFunc("GET /api/papers/{id}/pdf", s.handleGetPDF)
-	mux.HandleFunc("GET /api/papers/{id}/file", s.handleGetPDF)
 	mux.HandleFunc("POST /api/papers/{id}/toggle-read", s.handleToggleRead)
-	mux.HandleFunc("POST /api/papers/{id}/status", s.handleSetStatus)
 	mux.HandleFunc("POST /api/papers/{id}/re-extract", s.handleReExtract)
 	mux.HandleFunc("POST /api/papers/{id}/re-detect", s.handleRedetect)
-	mux.HandleFunc("GET /api/papers/{id}/translation", s.handleGetTranslation)
-	mux.HandleFunc("POST /api/papers/{id}/translate", s.handleTranslatePaper)
 	mux.HandleFunc("POST /api/ai/translate-text", s.handleTranslateText)
-	mux.HandleFunc("POST /api/papers/{id}/toggle-star", s.handleToggleStar)
 	mux.HandleFunc("POST /api/papers/{id}/tags", s.handleAddPaperTag)
 	mux.HandleFunc("DELETE /api/papers/{id}/tags/{tagID}", s.handleRemovePaperTag)
 	mux.HandleFunc("POST /api/papers/{id}/collections", s.handleAddPaperCollection)
 	mux.HandleFunc("DELETE /api/papers/{id}/collections/{collectionID}", s.handleRemovePaperCollection)
 	mux.HandleFunc("POST /api/papers/{id}/summarize", s.handleSummarize)
-	mux.HandleFunc("POST /api/papers/{id}/summary", s.handleSummarize)
 	mux.HandleFunc("POST /api/papers/{id}/ai-extract", s.handleAIExtract)
 
 	mux.HandleFunc("GET /api/categories", s.handleListCategories)
@@ -240,46 +234,6 @@ func (s *Server) paperFromInput(in models.PaperInput, existing *models.Paper) mo
 	}
 	p.Starred = in.Starred
 	return p
-}
-
-func (s *Server) ensureTags(names []string) ([]models.Tag, error) {
-	out := []models.Tag{}
-	for _, n := range names {
-		t, err := s.store.EnsureTag(n)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, t)
-	}
-	return out, nil
-}
-
-func (s *Server) ensureCollections(names []string) ([]models.Collection, error) {
-	out := []models.Collection{}
-	for _, n := range names {
-		c, err := s.store.EnsureCollection(n, "")
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, c)
-	}
-	return out, nil
-}
-
-func (s *Server) tagIDs(tags []models.Tag) []int64 {
-	out := []int64{}
-	for _, t := range tags {
-		out = append(out, t.ID)
-	}
-	return out
-}
-
-func (s *Server) collectionIDs(cols []models.Collection) []int64 {
-	out := []int64{}
-	for _, c := range cols {
-		out = append(out, c.ID)
-	}
-	return out
 }
 
 func parseIntPtr(s string) *int64 {

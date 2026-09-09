@@ -32,8 +32,6 @@ func Open(path string) (*Store, error) {
 
 func (s *Store) Close() error { return s.db.Close() }
 
-func (s *Store) HealthCheck() error { return s.db.Ping() }
-
 func (s *Store) init() error {
 	schema := `CREATE TABLE IF NOT EXISTS categories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,7 +95,6 @@ CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 	}
 	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN fulltext TEXT NOT NULL DEFAULT ''")
 	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN status TEXT NOT NULL DEFAULT 'unread'")
-	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN translation TEXT NOT NULL DEFAULT ''")
 	_, _ = s.db.Exec("UPDATE papers SET status = 'read' WHERE read = 1 AND status = 'unread'")
 	return s.migrateNotes()
 }
@@ -216,11 +213,6 @@ func (s *Store) CreatePaper(p *models.Paper) (int64, error) {
 	return id, nil
 }
 
-func (s *Store) UpdatePaper(p *models.Paper) error {
-	_, err := s.SavePaper(p, nil, nil, false)
-	return err
-}
-
 func (s *Store) DeletePaper(id int64) (string, error) {
 	var pdfPath string
 	err := s.db.QueryRow("SELECT pdf_path FROM papers WHERE id = ?", id).Scan(&pdfPath)
@@ -232,20 +224,6 @@ func (s *Store) DeletePaper(id int64) (string, error) {
 	}
 	_, err = s.db.Exec("DELETE FROM papers WHERE id = ?", id)
 	return pdfPath, err
-}
-
-func (s *Store) SetPaperCategory(id int64, categoryID *int64) error {
-	_, err := s.db.Exec("UPDATE papers SET category_id = ?, updated_at = ? WHERE id = ?", categoryID, nowStr(), id)
-	return err
-}
-
-func (s *Store) SetPaperRead(id int64, read bool) error {
-	status := "unread"
-	if read {
-		status = "read"
-	}
-	_, err := s.db.Exec("UPDATE papers SET read = ?, status = ?, updated_at = ? WHERE id = ?", boolInt(read), status, nowStr(), id)
-	return err
 }
 
 func (s *Store) SetPaperStatus(id int64, status string) error {
@@ -303,11 +281,4 @@ func (s *Store) AddPaperCollection(paperID, collectionID int64) error {
 func (s *Store) RemovePaperCollection(paperID, collectionID int64) error {
 	_, err := s.db.Exec("DELETE FROM paper_collections WHERE paper_id = ? AND collection_id = ?", paperID, collectionID)
 	return err
-}
-
-func (s *Store) PaperPDFPath(id int64) (string, int64, error) {
-	var path string
-	var size int64
-	err := s.db.QueryRow("SELECT pdf_path, pdf_size FROM papers WHERE id = ?", id).Scan(&path, &size)
-	return path, size, err
 }

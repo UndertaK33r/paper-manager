@@ -473,30 +473,6 @@ button.chip-x:focus-visible { outline: none; box-shadow: var(--k-focus-ring, 0 0
 .fs-trans__item:last-child { border-bottom: none; }
 .fs-trans__src { font-size: 12px; color: var(--k-mute, #8c8c8c); margin-bottom: 4px; max-height: 3.2em; overflow: hidden; }
 
-/* ---- PDF.js 划词阅读器 ---- */
-.pdfjs-view {
-  position: relative; overflow-y: auto; max-height: 620px;
-  background: var(--k-bg-raise, #f4f4f4); border: 1px solid var(--k-line, #ececec);
-  border-radius: 12px; padding: 12px 10px; -webkit-overflow-scrolling: touch;
-}
-.pdf-panel:fullscreen .pdfjs-view { max-height: none; height: calc(100vh - 210px); }
-.pjs-page { position: relative; margin: 0 auto 14px; background: #fff; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14); }
-.pjs-page:last-child { margin-bottom: 2px; }
-.pjs-page canvas { display: block; width: 100% !important; height: auto !important; }
-.pjs-text { position: absolute; inset: 0; overflow: hidden; line-height: 1; text-size-adjust: none; }
-.pjs-text span { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0 0; }
-.pjs-text ::selection { background: rgba(20, 20, 20, 0.22); }
-
-/* 选区翻译按钮 + 译文气泡 */
-.sel-popup { position: fixed; z-index: 90; transform: translateX(-50%); }
-.sel-result {
-  position: fixed; z-index: 90; width: 440px; max-width: calc(100vw - 24px);
-  max-height: 320px; overflow-y: auto;
-  background: var(--k-bg, #fff); border: 1px solid var(--k-line-strong, #1a1a1a);
-  border-radius: 12px; box-shadow: 0 14px 44px rgba(0, 0, 0, 0.22); padding: 10px 14px;
-}
-.sel-result__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-
 /* 弹窗内容超出视口时可以从顶部滚动（margin:auto 安全居中） */
 .modal-overlay { align-items: flex-start; }
 .modal-overlay .p3r-dialog { max-height: calc(100vh - 32px); overflow-y: auto; }

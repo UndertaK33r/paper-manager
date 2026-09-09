@@ -273,14 +273,6 @@ func truncateN(s string, max int) string {
 	return s[:max]
 }
 
-func Defaults() Config {
-	return Config{
-		BaseURL: "https://api.deepseek.com/v1",
-		Model:   "deepseek-v4-flash",
-		Timeout: 120 * time.Second,
-	}
-}
-
 func (c *Client) Summarize(ctx context.Context, paperContext string) (string, error) {
 	if strings.TrimSpace(c.cfg.APIKey) == "" {
 		return "", fmt.Errorf("AI_API_KEY not configured")
@@ -446,42 +438,4 @@ func (c *Client) Translate(ctx context.Context, text string) (string, error) {
 		return "", fmt.Errorf("AI API returned no choices")
 	}
 	return strings.TrimSpace(envelope.Choices[0].Message.Content), nil
-}
-
-// SplitChunks 把长文按空行段落聚合为不超过 size 字符的块；单个超长段落硬切。
-// 用于分块调用 AI 翻译全文。
-func SplitChunks(text string, size int) []string {
-	if size <= 0 {
-		size = 6000
-	}
-	paras := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n\n")
-	chunks := []string{}
-	var cur strings.Builder
-	flush := func() {
-		if cur.Len() > 0 {
-			chunks = append(chunks, strings.TrimSpace(cur.String()))
-			cur.Reset()
-		}
-	}
-	for _, p := range paras {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		// 单段超长：按 size 硬切
-		for len(p) > size {
-			flush()
-			chunks = append(chunks, p[:size])
-			p = p[size:]
-		}
-		if cur.Len()+len(p)+2 > size {
-			flush()
-		}
-		if cur.Len() > 0 {
-			cur.WriteString("\n\n")
-		}
-		cur.WriteString(p)
-	}
-	flush()
-	return chunks
 }

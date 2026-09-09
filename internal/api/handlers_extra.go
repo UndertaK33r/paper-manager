@@ -166,28 +166,6 @@ func (s *Server) handlePatchPaper(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, paper)
 }
 
-// handleSetStatus 设置阅读状态（unread / reading / read）。
-func (s *Server) handleSetStatus(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.idParam(r, "id")
-	if !ok {
-		writeError(w, http.StatusBadRequest, "invalid paper id")
-		return
-	}
-	var body struct {
-		Status string `json:"status"`
-	}
-	if err := readJSON(r, &body); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if err := s.store.SetPaperStatus(id, body.Status); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	paper, _ := s.store.GetPaper(id)
-	writeJSON(w, http.StatusOK, paper)
-}
-
 // handleReExtract 重新提取 PDF 全文（修复提取器后刷新旧论文）。
 func (s *Server) handleReExtract(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.idParam(r, "id")

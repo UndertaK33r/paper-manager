@@ -17,8 +17,8 @@ import (
 // 模型列表端点安全约束：上游响应上限、请求体上限、超时。
 const (
 	aiModelsDefaultBase   = "https://tokendance.space/gateway/v1"
-	aiModelsUpstreamLimit = 1 << 20    // 1 MiB
-	aiModelsBodyLimit     = 16 << 10   // 16 KiB
+	aiModelsUpstreamLimit = 1 << 20  // 1 MiB
+	aiModelsBodyLimit     = 16 << 10 // 16 KiB
 	aiModelsTimeout       = 8 * time.Second
 )
 

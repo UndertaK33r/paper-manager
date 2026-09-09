@@ -23,19 +23,3 @@ func (s *Store) DeleteSetting(key string) error {
 	_, err := s.db.Exec("DELETE FROM settings WHERE key = ?", key)
 	return err
 }
-
-func (s *Store) AllSettings() map[string]string {
-	rows, err := s.db.Query("SELECT key, value FROM settings")
-	if err != nil {
-		return map[string]string{}
-	}
-	defer rows.Close()
-	out := map[string]string{}
-	for rows.Next() {
-		var k, v string
-		if rows.Scan(&k, &v) == nil {
-			out[k] = v
-		}
-	}
-	return out
-}
