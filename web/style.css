@@ -449,12 +449,29 @@ button.chip-x:focus-visible { outline: none; box-shadow: var(--k-focus-ring, 0 0
 .fs-notes__btns { margin-left: auto; display: flex; gap: 6px; }
 .fs-notes__input { width: 100%; margin-top: 10px; max-height: 34vh; }
 .fs-notes--min { width: auto !important; min-width: 300px; padding-bottom: 12px; }
+/* 自定义尺寸：面板纵向 flex，笔记输入框吃掉剩余高度 */
+.fs-notes--sized { display: flex; flex-direction: column; overflow: hidden; min-width: 320px; min-height: 140px; }
+.fs-notes--sized .fs-notes__head,
+.fs-notes--sized .fs-notes__date { flex: 0 0 auto; }
+.fs-notes--sized .fs-notes__input { flex: 1 1 auto; min-height: 60px; max-height: none; resize: none; }
+/* 右下角调整大小的把手 */
+.fs-notes__resize {
+  position: absolute; right: 0; bottom: 0; width: 18px; height: 18px;
+  cursor: nwse-resize; touch-action: none; border-bottom-right-radius: 15px;
+}
+.fs-notes__resize::after {
+  content: ""; position: absolute; right: 4px; bottom: 4px; width: 7px; height: 7px;
+  border-right: 2px solid var(--k-mute, #8c8c8c); border-bottom: 2px solid var(--k-mute, #8c8c8c);
+  opacity: 0.55; transition: opacity 0.15s ease-out;
+}
+.fs-notes__resize:hover::after { opacity: 1; }
 /* 固定后禁止拖动；拖动中给出明确的抓取光标 */
 .fs-notes--pinned .fs-notes__head { cursor: default; }
 .fs-notes--dragging { box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28); }
+.fs-notes__pin svg { display: block; }
 body.fs-dragging { user-select: none; -webkit-user-select: none; }
 body.fs-dragging .fs-notes__head { cursor: grabbing; }
-/* 拖动经过 PDF 时不让 iframe 抢走指针事件 */
+/* 拖动/调整大小经过 PDF 时不让 iframe 抢走指针事件 */
 body.fs-dragging .pdf-panel iframe { pointer-events: none; }
 /* 笔记上方最后修改日期行 */
 .notes-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }

@@ -14,8 +14,8 @@ var Root = {
       askOpen: false, question: "", answer: "", sources: [], asking: false,
       detail: {}, tagSelect: "", collectionSelect: "", fullWidth: false,
       pdfFullscreen: false, fsNotesMin: false, notesSavedAt: "",
-      // 全屏阅读笔记浮窗：拖动位置 + 固定状态（持久化到 localStorage）
-      fsNotesPos: null, fsNotesPinned: false, fsNotesDrag: false,
+      // 全屏阅读笔记浮窗：拖动位置 / 自定义尺寸 / 固定状态（持久化到 localStorage）
+      fsNotesPos: null, fsNotesSize: null, fsNotesPinned: false, fsNotesDrag: false,
       summaryExpanded: false, summaryOverflow: false,
       fsTransMin: false, transHistory: [], instantSrc: "", instantLoading: false,
       showPaperModal: false, editingId: null, saving: false, form: makeEmptyForm(),
@@ -36,10 +36,13 @@ var Root = {
     renderedSummary: function () { return window.mdRender ? window.mdRender(this.detail.summary) : ""; },
     renderedAnswer: function () { return window.mdRender ? window.mdRender(this.answer) : ""; },
     uiBlocked: function () { return !!(this.showManage || this.showSettings || this.showPaperModal); },
-    // 拖动过就改用 left/top 定位；未拖动时保持 CSS 的底部居中默认位置
+    // 拖动过就改用 left/top 定位；未拖动时保持 CSS 的底部居中默认位置。
+    // 自定义尺寸只在展开态生效（收起态由 .fs-notes--min 的 width:auto 接管）。
     fsNotesStyle: function () {
-      if (!this.fsNotesPos) return {};
-      return { left: this.fsNotesPos.x + "px", top: this.fsNotesPos.y + "px", bottom: "auto", transform: "none" };
+      var s = {};
+      if (this.fsNotesPos) { s.left = this.fsNotesPos.x + "px"; s.top = this.fsNotesPos.y + "px"; s.bottom = "auto"; s.transform = "none"; }
+      if (this.fsNotesSize && !this.fsNotesMin) { s.width = this.fsNotesSize.w + "px"; s.height = this.fsNotesSize.h + "px"; }
+      return s;
     }
   },
   watch: {
@@ -248,33 +251,80 @@ var Root = {
       window.addEventListener("pointercancel", end);
       e.preventDefault();
     },
+    // 右下角拖拽调整大小：宽度/高度分别限制在 [最小尺寸, 视口] 内
+    startNotesResize: function (e) {
+      if (this.fsNotesPinned || this.fsNotesDrag) return;
+      if (e.button !== undefined && e.button !== 0) return;
+      var el = this.$refs.fsNotes;
+      if (!el) return;
+      var self = this;
+      var rect = el.getBoundingClientRect();
+      var startX = e.clientX, startY = e.clientY, startW = rect.width, startH = rect.height;
+      // 调整大小时把浮窗锚定到当前左上角，避免从默认底部居中位置"跳"
+      this.fsNotesPos = { x: Math.round(rect.left), y: Math.round(rect.top) };
+      this.fsNotesDrag = true;
+      document.body.classList.add("fs-dragging");
+      var move = function (ev) {
+        var w = Math.round(Math.min(Math.max(startW + (ev.clientX - startX), 320), Math.max(window.innerWidth - 16, 320)));
+        var h = Math.round(Math.min(Math.max(startH + (ev.clientY - startY), 140), Math.max(window.innerHeight - 16, 140)));
+        self.fsNotesSize = { w: w, h: h };
+        var pos = self.fsNotesPos;
+        self.fsNotesPos = {
+          x: Math.round(Math.min(Math.max(pos.x, 8), Math.max(window.innerWidth - w - 8, 8))),
+          y: Math.round(Math.min(Math.max(pos.y, 8), Math.max(window.innerHeight - h - 8, 8)))
+        };
+      };
+      var end = function () {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", end);
+        window.removeEventListener("pointercancel", end);
+        document.body.classList.remove("fs-dragging");
+        self.fsNotesDrag = false;
+        self.saveNotesPanelPrefs();
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", end);
+      window.addEventListener("pointercancel", end);
+      e.preventDefault();
+      e.stopPropagation();
+    },
     toggleNotesPin: function () {
       this.fsNotesPinned = !this.fsNotesPinned;
       this.saveNotesPanelPrefs();
-      this.notify(this.fsNotesPinned ? "笔记已固定，取消固定后可继续拖动" : "笔记已取消固定");
+      this.notify(this.fsNotesPinned ? "笔记框已固定（位置与大小锁定）" : "笔记框已取消固定");
     },
-    resetNotesPos: function () {
-      this.fsNotesPos = null;      // 回到默认的底部居中位置
+    // 双击复位：位置与尺寸都回到默认
+    resetNotesLayout: function () {
+      this.fsNotesPos = null;
+      this.fsNotesSize = null;
       this.saveNotesPanelPrefs();
     },
-    // 窗口变窄/变矮后把浮窗拉回可视区
+    // 窗口变窄/变矮后把浮窗拉回可视区（位置与尺寸一起收紧）
     clampNotesPos: function () {
+      if (this.fsNotesSize) {
+        this.fsNotesSize = {
+          w: Math.round(Math.min(this.fsNotesSize.w, Math.max(window.innerWidth - 16, 320))),
+          h: Math.round(Math.min(this.fsNotesSize.h, Math.max(window.innerHeight - 16, 140)))
+        };
+      }
       if (!this.fsNotesPos) return;
       var el = this.$refs.fsNotes;
-      var w = (el && el.offsetWidth) || 320, h = (el && el.offsetHeight) || 120;
+      var w = (el && el.offsetWidth) || (this.fsNotesSize ? this.fsNotesSize.w : 320);
+      var h = (el && el.offsetHeight) || (this.fsNotesSize ? this.fsNotesSize.h : 120);
       this.fsNotesPos = {
         x: Math.round(Math.min(Math.max(this.fsNotesPos.x, 8), Math.max(window.innerWidth - w - 8, 8))),
         y: Math.round(Math.min(Math.max(this.fsNotesPos.y, 8), Math.max(window.innerHeight - h - 8, 8)))
       };
     },
     saveNotesPanelPrefs: function () {
-      try { localStorage.setItem("pm-fsnotes", JSON.stringify({ pos: this.fsNotesPos, pinned: this.fsNotesPinned })); } catch (e) {}
+      try { localStorage.setItem("pm-fsnotes", JSON.stringify({ pos: this.fsNotesPos, size: this.fsNotesSize, pinned: this.fsNotesPinned })); } catch (e) {}
     },
     loadNotesPanelPrefs: function () {
       try {
         var v = JSON.parse(localStorage.getItem("pm-fsnotes") || "null");
         if (!v) return;
         if (v.pos && typeof v.pos.x === "number" && typeof v.pos.y === "number") this.fsNotesPos = { x: v.pos.x, y: v.pos.y };
+        if (v.size && typeof v.size.w === "number" && typeof v.size.h === "number") this.fsNotesSize = { w: v.size.w, h: v.size.h };
         this.fsNotesPinned = !!v.pinned;
       } catch (e) {}
     },
