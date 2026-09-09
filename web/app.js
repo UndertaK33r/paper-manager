@@ -558,7 +558,10 @@ var Root = {
     var rsz=function(){ self.$nextTick(function(){ self.layoutPdfPages(true); }); };
     window.addEventListener("resize", rsz);
     this.parseHash();
-    this.loadAll().then(function(){ self.loadPapers(); });
+    // 列表路由的 parseHash 内部已经触发 loadAll；只有详情/上传/图谱等路由要在这里补一次，
+    // 否则首屏会对 categories/tags/collections/stats/settings 各请求两遍
+    if (this.route !== "list") this.loadAll();
+    this.loadPapers();
   }
 };
 
