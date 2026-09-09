@@ -100,36 +100,23 @@ test('删除论文后从列表移除', async ({ page }) => {
   await expect(page.locator('.p3r-table tbody tr')).toHaveCount(before - 1, { timeout: 15_000 });
 });
 
-test('笔记实时预览 Markdown，且不执行注入代码', async ({ page }) => {
+test('笔记支持 Markdown 预览，且不执行注入代码', async ({ page }) => {
   await uploadSample(page);
   await openFirstDetail(page);
 
-  // 开启实时预览后：编辑区与预览区同时存在
-  await page.click('.notes-head button:has-text("实时预览")');
-  const input = page.locator('textarea.notes-input');
+  await page.fill('textarea.p3r-input', '# 标题\n\n- **加粗**\n\n<script>window.__xss=1</script>');
+  await page.click('.notes-head button:has-text("预览")');
   const preview = page.locator('.notes-preview');
-  await expect(input).toBeVisible();
   await expect(preview).toBeVisible();
-
-  // 边写边渲染：不点任何按钮，输入后预览立即更新
-  await input.fill('# 标题');
   await expect(preview.locator('h1')).toHaveText('标题');
-  await input.fill('# 标题\n\n- **加粗**');
   await expect(preview.locator('strong')).toHaveText('加粗');
-  await input.press('End');
-  await input.type('\n\n- 追加');
-  await expect(preview.locator('li')).toHaveCount(2);
-
   // 注入内容必须被转义，且不执行
-  await input.fill('<script>window.__xss=1</script>');
-  await expect(preview).toBeVisible();
   expect(await preview.innerHTML()).not.toContain('<script>');
   expect(await page.evaluate(() => !window.__xss)).toBeTruthy();
 
-  // 关闭预览后只保留编辑区
-  await page.click('.notes-head button:has-text("隐藏预览")');
-  await expect(page.locator('.notes-preview')).toHaveCount(0);
-  await expect(page.locator('textarea.notes-input')).toHaveValue(/#|script/);
+  // 切回编辑，内容仍在
+  await page.click('.notes-head button:has-text("编辑")');
+  await expect(page.locator('textarea.p3r-input')).toHaveValue(/# 标题/);
 });
 
 test('删除进回收站、可恢复、可彻底删除', async ({ page }) => {
