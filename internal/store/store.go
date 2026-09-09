@@ -101,6 +101,8 @@ CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 		return err
 	}
 	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN fulltext TEXT NOT NULL DEFAULT ''")
+	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''")
+	_, _ = s.db.Exec("CREATE INDEX IF NOT EXISTS idx_papers_deleted ON papers(deleted_at)")
 	_, _ = s.db.Exec("ALTER TABLE papers ADD COLUMN status TEXT NOT NULL DEFAULT 'unread'")
 	_, _ = s.db.Exec("UPDATE papers SET status = 'read' WHERE read = 1 AND status = 'unread'")
 	return s.migrateNotes()
@@ -218,19 +220,6 @@ func (s *Store) CreatePaper(p *models.Paper) (int64, error) {
 	}
 	p.ID = id
 	return id, nil
-}
-
-func (s *Store) DeletePaper(id int64) (string, error) {
-	var pdfPath string
-	err := s.db.QueryRow("SELECT pdf_path FROM papers WHERE id = ?", id).Scan(&pdfPath)
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	if err != nil {
-		return "", err
-	}
-	_, err = s.db.Exec("DELETE FROM papers WHERE id = ?", id)
-	return pdfPath, err
 }
 
 func (s *Store) SetPaperStatus(id int64, status string) error {

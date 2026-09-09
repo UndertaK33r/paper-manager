@@ -262,6 +262,10 @@ button.chip-x:focus-visible { outline: none; box-shadow: var(--k-focus-ring, 0 0
 .inline-form .p3r-input { flex: 1; }
 .manage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 8px; }
 .manage-list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 回收站列表：标题可截断，操作按钮靠右 */
+.trash-list li { gap: 12px; }
+.trash-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trash-list .actions { margin-left: auto; flex: 0 0 auto; }
 .manage-list { list-style: none; padding: 0; margin: 14px 0 0; max-height: 260px; overflow-y: auto; }
 .manage-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--k-line, #ECECEC); }
 .meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }

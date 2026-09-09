@@ -39,6 +39,33 @@ func scanPaper(scanner rowScanner) (models.Paper, error) {
 	return p, nil
 }
 
+// scanPaperWithDeleted 与 scanPaper 相同，额外读取 p.deleted_at（回收站列表用）。
+func scanPaperWithDeleted(scanner rowScanner) (models.Paper, error) {
+	var p models.Paper
+	var read, starred, hasPDF int
+	var created, updated string
+	var categoryID sql.NullInt64
+	var categoryName sql.NullString
+	err := scanner.Scan(&p.ID, &p.Title, &p.Authors, &p.Year, &p.Venue, &p.DOI, &p.Keywords, &p.Link,
+		&p.Summary, &p.Notes, &categoryID, &categoryName, &read, &p.Status, &starred, &hasPDF, &p.PDFSize, &p.PDFPath, &created, &updated, &p.NotesUpdatedAt, &p.DeletedAt)
+	if err != nil {
+		return p, err
+	}
+	if categoryID.Valid {
+		id := categoryID.Int64
+		p.CategoryID = &id
+	}
+	p.Read = read != 0 || p.Status == "read"
+	p.Starred = starred != 0
+	p.HasPDF = hasPDF != 0
+	p.CategoryName = categoryName.String
+	p.CreatedAt = parseTime(created)
+	p.UpdatedAt = parseTime(updated)
+	p.Tags = []models.Tag{}
+	p.Collections = []models.Collection{}
+	return p, nil
+}
+
 func (s *Store) loadRelations(paperID int64) ([]models.Tag, []models.Collection, error) {
 	tags, err := s.PaperTags(paperID)
 	if err != nil {
@@ -52,7 +79,8 @@ func (s *Store) loadRelations(paperID int64) ([]models.Tag, []models.Collection,
 }
 
 func buildWhere(q models.PaperQuery) (string, []any) {
-	conds := []string{}
+	// 软删除的论文不出现在任何常规列表/统计里
+	conds := []string{"p.deleted_at = ''"}
 	args := []any{}
 	if q.Search != "" {
 		like := "%" + strings.ToLower(q.Search) + "%"
@@ -137,28 +165,124 @@ func (s *Store) ListPapers(q models.PaperQuery) (models.ListResult, error) {
 		return models.ListResult{}, err
 	}
 	defer rows.Close()
-	papers := make([]models.Paper, 0)
+	papers := make([]models.Paper, 0, size)
+	ids := make([]int64, 0, size)
 	for rows.Next() {
 		p, err := scanPaper(rows)
 		if err != nil {
 			return models.ListResult{}, err
 		}
-		tags, cols, err := s.loadRelations(p.ID)
-		if err != nil {
+		papers = append(papers, p)
+		ids = append(ids, p.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return models.ListResult{}, err
+	}
+	// 关联与搜索片段批量取：此前每行各查 2~3 次（20 条 = 40+ 次往返）
+	tagsByID, colsByID, err := s.loadRelationsBatch(ids)
+	if err != nil {
+		return models.ListResult{}, err
+	}
+	var texts map[int64]string
+	if q.Search != "" {
+		if texts, err = s.paperFullTexts(ids); err != nil {
 			return models.ListResult{}, err
 		}
-		p.Tags = tags
-		p.Collections = cols
-		if q.Search != "" {
-			p.Snippet = buildSnippet(s.PaperFullText(p.ID), q.Search, 160)
-		}
-		papers = append(papers, p)
 	}
-	return models.ListResult{Total: total, Page: page, PageSize: size, Papers: papers}, rows.Err()
+	for i := range papers {
+		if t, ok := tagsByID[papers[i].ID]; ok {
+			papers[i].Tags = t
+		}
+		if c, ok := colsByID[papers[i].ID]; ok {
+			papers[i].Collections = c
+		}
+		if q.Search != "" {
+			papers[i].Snippet = buildSnippet(texts[papers[i].ID], q.Search, 160)
+		}
+	}
+	return models.ListResult{Total: total, Page: page, PageSize: size, Papers: papers}, nil
+}
+
+// loadRelationsBatch 一次取回多篇论文的标签与合集，避免列表页 N+1 查询。
+func (s *Store) loadRelationsBatch(ids []int64) (map[int64][]models.Tag, map[int64][]models.Collection, error) {
+	tags := make(map[int64][]models.Tag, len(ids))
+	cols := make(map[int64][]models.Collection, len(ids))
+	if len(ids) == 0 {
+		return tags, cols, nil
+	}
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	ph := placeholders(len(ids))
+
+	trows, err := s.db.Query(`SELECT pt.paper_id, t.id, t.name, (SELECT COUNT(*) FROM paper_tags pt2 JOIN papers p2 ON p2.id = pt2.paper_id WHERE pt2.tag_id = t.id AND p2.deleted_at = '')
+		FROM tags t JOIN paper_tags pt ON pt.tag_id = t.id WHERE pt.paper_id IN (`+ph+`) ORDER BY t.name`, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	for trows.Next() {
+		var pid int64
+		var t models.Tag
+		if err := trows.Scan(&pid, &t.ID, &t.Name, &t.PaperCount); err != nil {
+			trows.Close()
+			return nil, nil, err
+		}
+		tags[pid] = append(tags[pid], t)
+	}
+	err = trows.Err()
+	trows.Close()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	crows, err := s.db.Query(`SELECT pc.paper_id, c.id, c.name, c.description, (SELECT COUNT(*) FROM paper_collections pc2 JOIN papers p2 ON p2.id = pc2.paper_id WHERE pc2.collection_id = c.id AND p2.deleted_at = '')
+		FROM collections c JOIN paper_collections pc ON pc.collection_id = c.id WHERE pc.paper_id IN (`+ph+`) ORDER BY c.name`, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	for crows.Next() {
+		var pid int64
+		var c models.Collection
+		if err := crows.Scan(&pid, &c.ID, &c.Name, &c.Description, &c.PaperCount); err != nil {
+			crows.Close()
+			return nil, nil, err
+		}
+		cols[pid] = append(cols[pid], c)
+	}
+	err = crows.Err()
+	crows.Close()
+	return tags, cols, err
+}
+
+// paperFullTexts 批量取全文，供搜索片段使用（避免逐行查询）。
+func (s *Store) paperFullTexts(ids []int64) (map[int64]string, error) {
+	out := make(map[int64]string, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	rows, err := s.db.Query("SELECT id, fulltext FROM papers WHERE id IN ("+placeholders(len(ids))+")", args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var text string
+		if err := rows.Scan(&id, &text); err != nil {
+			return nil, err
+		}
+		out[id] = text
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) GetPaper(id int64) (models.Paper, error) {
-	row := s.db.QueryRow("SELECT "+paperCols+" FROM papers p LEFT JOIN categories c ON c.id = p.category_id WHERE p.id = ?", id)
+	row := s.db.QueryRow("SELECT "+paperCols+" FROM papers p LEFT JOIN categories c ON c.id = p.category_id WHERE p.id = ? AND p.deleted_at = ''", id)
 	p, err := scanPaper(row)
 	if err != nil {
 		return p, err
@@ -168,7 +292,7 @@ func (s *Store) GetPaper(id int64) (models.Paper, error) {
 }
 
 func (s *Store) PaperTags(paperID int64) ([]models.Tag, error) {
-	rows, err := s.db.Query(`SELECT t.id, t.name, (SELECT COUNT(*) FROM paper_tags WHERE tag_id = t.id)
+	rows, err := s.db.Query(`SELECT t.id, t.name, (SELECT COUNT(*) FROM paper_tags pt2 JOIN papers p2 ON p2.id = pt2.paper_id WHERE pt2.tag_id = t.id AND p2.deleted_at = '')
 		FROM tags t JOIN paper_tags pt ON pt.tag_id = t.id WHERE pt.paper_id = ? ORDER BY t.name`, paperID)
 	if err != nil {
 		return nil, err
@@ -186,7 +310,7 @@ func (s *Store) PaperTags(paperID int64) ([]models.Tag, error) {
 }
 
 func (s *Store) PaperCollections(paperID int64) ([]models.Collection, error) {
-	rows, err := s.db.Query(`SELECT c.id, c.name, c.description, (SELECT COUNT(*) FROM paper_collections WHERE collection_id = c.id)
+	rows, err := s.db.Query(`SELECT c.id, c.name, c.description, (SELECT COUNT(*) FROM paper_collections pc2 JOIN papers p2 ON p2.id = pc2.paper_id WHERE pc2.collection_id = c.id AND p2.deleted_at = '')
 		FROM collections c JOIN paper_collections pc ON pc.collection_id = c.id WHERE pc.paper_id = ? ORDER BY c.name`, paperID)
 	if err != nil {
 		return nil, err
@@ -210,7 +334,7 @@ func (s *Store) FindDuplicate(title, authors, doi string) (*models.Paper, error)
 		var created, updated string
 		var categoryID sql.NullInt64
 		var categoryName sql.NullString
-		err := s.db.QueryRow("SELECT "+paperCols+" FROM papers p LEFT JOIN categories c ON c.id = p.category_id WHERE lower(p.doi) = lower(?)", strings.TrimSpace(doi)).
+		err := s.db.QueryRow("SELECT "+paperCols+" FROM papers p LEFT JOIN categories c ON c.id = p.category_id WHERE lower(p.doi) = lower(?) AND p.deleted_at = ''", strings.TrimSpace(doi)).
 			Scan(&p.ID, &p.Title, &p.Authors, &p.Year, &p.Venue, &p.DOI, &p.Keywords, &p.Link,
 				&p.Summary, &p.Notes, &categoryID, &categoryName, &read, &p.Status, &starred, &hasPDF, &p.PDFSize, &p.PDFPath, &created, &updated, &p.NotesUpdatedAt)
 		if err == nil {
@@ -237,7 +361,7 @@ func (s *Store) FindDuplicate(title, authors, doi string) (*models.Paper, error)
 	if normTitle == "" || firstAuth == "" {
 		return nil, nil
 	}
-	rows, err := s.db.Query("SELECT p.id, p.title, p.authors FROM papers p")
+	rows, err := s.db.Query("SELECT p.id, p.title, p.authors FROM papers p WHERE p.deleted_at = ''")
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +410,7 @@ func (s *Store) SearchRelaxed(query string, limit int) ([]models.Paper, error) {
 			args = append(args, like)
 		}
 	}
-	where := " WHERE " + strings.Join(conds, " OR ")
+	where := " WHERE p.deleted_at = '' AND (" + strings.Join(conds, " OR ") + ")"
 	sqlStr := "SELECT " + paperCols + " FROM papers p LEFT JOIN categories c ON c.id = p.category_id" + where + " ORDER BY p.year DESC, p.id DESC LIMIT ?"
 	args = append(args, limit)
 	rows, err := s.db.Query(sqlStr, args...)
@@ -319,7 +443,7 @@ type NoteRow struct {
 // AllNotes 返回所有非空笔记（按修改时间倒序），用于笔记导出。
 func (s *Store) AllNotes() ([]NoteRow, error) {
 	rows, err := s.db.Query(`SELECT id, title, authors, notes, updated_at
-		FROM papers WHERE TRIM(notes) != '' ORDER BY updated_at DESC`)
+		FROM papers WHERE TRIM(notes) != '' AND deleted_at = '' ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -333,4 +457,89 @@ func (s *Store) AllNotes() ([]NoteRow, error) {
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// ---------- 软删除与回收站 ----------
+// 删除默认只做软删除（保留 PDF 与关联），避免误删不可逆；彻底删除必须显式调用 Purge。
+
+// DeletePaper 移入回收站（软删除）。返回空字符串以兼容旧调用方。
+func (s *Store) DeletePaper(id int64) (string, error) {
+	res, err := s.db.Exec("UPDATE papers SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at = ''", nowStr(), nowStr(), id)
+	if err != nil {
+		return "", err
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return "", ErrConflict
+	}
+	return "", nil
+}
+
+// RestorePaper 从回收站恢复。
+func (s *Store) RestorePaper(id int64) error {
+	res, err := s.db.Exec("UPDATE papers SET deleted_at = '', updated_at = ? WHERE id = ? AND deleted_at != ''", nowStr(), id)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return ErrConflict
+	}
+	return nil
+}
+
+// PurgePaper 彻底删除：返回需要删除的 PDF 文件名（由调用方删文件）。
+func (s *Store) PurgePaper(id int64) (string, error) {
+	var pdfPath string
+	if err := s.db.QueryRow("SELECT pdf_path FROM papers WHERE id = ? AND deleted_at != ''", id).Scan(&pdfPath); err != nil {
+		if err == sql.ErrNoRows {
+			return "", ErrConflict
+		}
+		return "", err
+	}
+	if _, err := s.db.Exec("DELETE FROM papers WHERE id = ?", id); err != nil {
+		return "", err
+	}
+	return pdfPath, nil
+}
+
+// ListTrash 列出回收站中的论文（按删除时间倒序）。
+func (s *Store) ListTrash() ([]models.Paper, error) {
+	rows, err := s.db.Query("SELECT " + paperCols + ", p.deleted_at FROM papers p LEFT JOIN categories c ON c.id = p.category_id WHERE p.deleted_at != '' ORDER BY p.deleted_at DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.Paper{}
+	for rows.Next() {
+		p, err := scanPaperWithDeleted(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// EmptyTrash 清空回收站，返回全部待删除的 PDF 文件名。
+func (s *Store) EmptyTrash() ([]string, error) {
+	rows, err := s.db.Query("SELECT pdf_path FROM papers WHERE deleted_at != '' AND pdf_path != ''")
+	if err != nil {
+		return nil, err
+	}
+	paths := []string{}
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if _, err := s.db.Exec("DELETE FROM papers WHERE deleted_at != ''"); err != nil {
+		return nil, err
+	}
+	return paths, nil
 }

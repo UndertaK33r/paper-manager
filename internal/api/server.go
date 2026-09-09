@@ -91,6 +91,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/papers/export.bib", s.handleExportBib)
 	mux.HandleFunc("GET /api/papers/export/notes", s.handleExportNotes)
 	mux.HandleFunc("GET /api/backup", s.handleBackup)
+	// 回收站：删除是软删除，彻底删除需要显式 purge
+	mux.HandleFunc("GET /api/trash", s.handleListTrash)
+	mux.HandleFunc("DELETE /api/trash", s.handleEmptyTrash)
+	mux.HandleFunc("POST /api/papers/{id}/restore", s.handleRestorePaper)
+	mux.HandleFunc("DELETE /api/papers/{id}/purge", s.handlePurgePaper)
 	mux.HandleFunc("POST /api/ask", s.handleAsk)
 	mux.HandleFunc("GET /api/graph", s.handleGraph)
 	mux.HandleFunc("GET /api/settings", s.handleGetSettings)

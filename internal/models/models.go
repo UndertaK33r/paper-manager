@@ -33,6 +33,7 @@ type Paper struct {
 	Summary        string       `json:"summary"`
 	Notes          string       `json:"notes"`
 	NotesUpdatedAt string       `json:"notesUpdatedAt"`
+	DeletedAt      string       `json:"deletedAt,omitempty"`
 	CategoryID     *int64       `json:"categoryId"`
 	CategoryName   string       `json:"categoryName"`
 	Read           bool         `json:"read"`

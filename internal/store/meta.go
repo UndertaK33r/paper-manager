@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Store) ListCategories() ([]models.Category, error) {
-	rows, err := s.db.Query(`SELECT c.id, c.name, (SELECT COUNT(*) FROM papers WHERE category_id = c.id)
+	rows, err := s.db.Query(`SELECT c.id, c.name, (SELECT COUNT(*) FROM papers WHERE category_id = c.id AND deleted_at = '')
 		FROM categories c ORDER BY c.name COLLATE NOCASE`)
 	if err != nil {
 		return nil, err
@@ -31,7 +31,7 @@ func (s *Store) EnsureCategory(name string) (models.Category, error) {
 		return models.Category{}, err
 	}
 	var c models.Category
-	err = s.db.QueryRow("SELECT id, name, (SELECT COUNT(*) FROM papers WHERE category_id = id) FROM categories WHERE name = ?", name).Scan(&c.ID, &c.Name, &c.PaperCount)
+	err = s.db.QueryRow("SELECT id, name, (SELECT COUNT(*) FROM papers WHERE category_id = id AND deleted_at = '') FROM categories WHERE name = ?", name).Scan(&c.ID, &c.Name, &c.PaperCount)
 	return c, err
 }
 
@@ -112,9 +112,9 @@ func (s *Store) DeleteCollection(id int64) error {
 func (s *Store) Stats() map[string]any {
 	out := map[string]any{}
 	var total, readN, starred, categories, tags, collections int64
-	s.db.QueryRow("SELECT COUNT(*) FROM papers").Scan(&total)
-	s.db.QueryRow("SELECT COUNT(*) FROM papers WHERE read = 1").Scan(&readN)
-	s.db.QueryRow("SELECT COUNT(*) FROM papers WHERE starred = 1").Scan(&starred)
+	s.db.QueryRow("SELECT COUNT(*) FROM papers WHERE deleted_at = ''").Scan(&total)
+	s.db.QueryRow("SELECT COUNT(*) FROM papers WHERE read = 1 AND deleted_at = ''").Scan(&readN)
+	s.db.QueryRow("SELECT COUNT(*) FROM papers WHERE starred = 1 AND deleted_at = ''").Scan(&starred)
 	s.db.QueryRow("SELECT COUNT(*) FROM categories").Scan(&categories)
 	s.db.QueryRow("SELECT COUNT(*) FROM tags").Scan(&tags)
 	s.db.QueryRow("SELECT COUNT(*) FROM collections").Scan(&collections)

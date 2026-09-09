@@ -21,6 +21,7 @@ var Root = {
       showPaperModal: false, editingId: null, saving: false, form: makeEmptyForm(),
       aiExtracting: false, summarizing: false, pdfExtracting: false,
       showManage: false, newCategory: "", newTag: "", newCollection: "",
+      showTrash: false, trash: [], trashLoading: false, trashCount: 0,
       showSettings: false, settings: { aiBaseUrl: "https://tokendance.space/gateway/v1", aiModel: "deepseek-v3.2", aiApiKey: "" }, hasApiKey: false, testingAI: false, aiTestResult: "",
       aiModels: [], aiModelsLoading: false, customModel: false,
       uploading: false, uploadProgress: 0, uploadResult: null,
@@ -35,7 +36,7 @@ var Root = {
     availableCollections: function () { var self=this; return this.collections.filter(function(c){ return !(self.detail.collections||[]).some(function(x){return x.id===c.id;}); }); },
     renderedSummary: function () { return window.mdRender ? window.mdRender(this.detail.summary) : ""; },
     renderedAnswer: function () { return window.mdRender ? window.mdRender(this.answer) : ""; },
-    uiBlocked: function () { return !!(this.showManage || this.showSettings || this.showPaperModal); },
+    uiBlocked: function () { return !!(this.showManage || this.showSettings || this.showPaperModal || this.showTrash); },
     // 拖动过就改用 left/top 定位；未拖动时保持 CSS 的底部居中默认位置。
     // 自定义尺寸只在展开态生效（收起态由 .fs-notes--min 的 width:auto 接管）。
     fsNotesStyle: function () {
@@ -124,6 +125,7 @@ var Root = {
       if (this.route === "list") this.loadAll();
     },
     loadAll: async function () {
+      this.loadTrashCount();
       try {
         var results = await Promise.all([this.api("/api/categories"), this.api("/api/tags"), this.api("/api/collections"), this.api("/api/stats"), this.api("/api/settings")]);
         this.categories=results[0]; this.tags=results[1]; this.collections=results[2]; this.stats=results[3];
@@ -196,8 +198,30 @@ var Root = {
       try { await this.api("/api/papers/"+id+"/toggle-read",{method:"POST"}); await this.loadPapers(); } catch (e) { this.notify(e.message,true); }
     },
     deletePaper: async function (id) {
-      if(!confirm("确定删除这篇论文吗？此操作不可恢复。")) return;
-      try { await this.api("/api/papers/"+id,{method:"DELETE"}); this.notify("已删除"); this.go("list"); this.loadAll(); this.loadPapers(); } catch (e) { this.notify(e.message,true); }
+      if(!confirm("移入回收站？可在「管理 → 回收站」里恢复。")) return;
+      try { await this.api("/api/papers/"+id,{method:"DELETE"}); this.notify("已移入回收站"); this.go("list"); this.loadAll(); this.loadPapers(); this.loadTrashCount(); } catch (e) { this.notify(e.message,true); }
+    },
+    // ---------- 回收站 ----------
+    openTrash: function () { this.showTrash=true; this.loadTrash(); },
+    loadTrash: async function () {
+      this.trashLoading=true;
+      try { var res=await this.api("/api/trash"); this.trash=res.papers||[]; this.trashCount=this.trash.length; }
+      catch(e){ this.notify(e.message,true); }
+      this.trashLoading=false;
+    },
+    loadTrashCount: async function () {
+      try { var res=await this.api("/api/trash"); this.trashCount=(res.papers||[]).length; } catch(e){}
+    },
+    restorePaper: async function (id) {
+      try { await this.api("/api/papers/"+id+"/restore",{method:"POST"}); this.notify("已恢复"); await this.loadTrash(); this.loadAll(); this.loadPapers(); } catch(e){ this.notify(e.message,true); }
+    },
+    purgePaper: async function (p) {
+      if(!confirm("彻底删除《"+p.title+"》？PDF 文件会一起删掉，无法恢复。")) return;
+      try { await this.api("/api/papers/"+p.id+"/purge",{method:"DELETE"}); this.notify("已彻底删除"); await this.loadTrash(); this.loadAll(); } catch(e){ this.notify(e.message,true); }
+    },
+    emptyTrash: async function () {
+      if(!confirm("清空回收站？其中所有论文与 PDF 将被永久删除，无法恢复。")) return;
+      try { var res=await this.api("/api/trash",{method:"DELETE"}); this.notify("已清空回收站（"+((res&&res.removed)||0)+" 个文件）"); await this.loadTrash(); this.loadAll(); } catch(e){ this.notify(e.message,true); }
     },
     openDetail: async function (id) {
       this.detail={}; this.route="detail"; window.location.hash="#/papers/"+id;
@@ -534,6 +558,7 @@ var Root = {
       if (self.pdfFullscreen) { self.pdfFullscreen = false; return; }
       if (self.showPaperModal) { self.showPaperModal = false; return; }
       if (self.showSettings) { self.showSettings = false; return; }
+      if (self.showTrash) { self.showTrash = false; return; }
       if (self.showManage) { self.showManage = false; return; }
       if (self.askOpen) { self.askOpen = false; return; }
       if (self.themeOpen) { self.themeOpen = false; return; }

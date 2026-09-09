@@ -30,6 +30,7 @@
 - **阅读**：浏览器内原生阅读 PDF，全宽 / 全屏；笔记浮窗可拖动、可调长宽、图钉固定（位置与尺寸本地持久化）
 - **笔记**：停止输入自动保存，乐观锁避免多窗口互相覆盖；可导出为 Markdown
 - **组织**：分类 / 标签 / 合集 / 阅读状态 / 收藏；搜索（含全文）、筛选、排序、分页
+- **回收站**：删除先进回收站（PDF 与关联保留），可恢复或彻底删除；不再一删就没了
 - **AI**：总结、元数据提取、粘贴文本翻译、问论文库（RAG）；模型列表从网关 `/models` 实时拉取
 - **导出与备份**：BibTeX、全部笔记 Markdown、**一键备份 zip（数据库一致性快照 + 全部 PDF）**
 - **引用图谱**：基于参考文献关系构图（带缓存）
@@ -71,6 +72,7 @@ go run ./cmd/server        # 需要 Go 1.24+，访问 http://localhost:8080
 
 - **一键备份**：管理弹窗 → 「导出备份」，下载的 zip 内含导出时刻的**一致性数据库快照**（`VACUUM INTO`，包含 WAL 中未落盘的事务）、全部 PDF 与恢复说明
 - **恢复**：退出程序 → 把 zip 里的 `data/` 解压覆盖到程序旁 → 重启
+- **误删兜底**：删除是软删除，进「管理 → 回收站」可恢复；彻底删除与清空回收站才会删掉 PDF 文件
 - 数据库为 WAL 模式，写入有事务保证；笔记使用乐观锁（`notes_updated_at`），并发修改返回 409 而不是静默覆盖
 
 ## 密码保护
@@ -144,7 +146,8 @@ go test ./... && go vet ./...      # 单元测试（存储 / 鉴权 / 备份 / �
 cd e2e && npm ci && npx playwright test    # 端到端冒烟（自带隔离实例，不碰真实数据）
 ```
 
-E2E 覆盖：首页加载、上传 PDF、详情渲染、笔记自动/手动保存、笔记浮窗拖动与固定、删除、备份接口。
+E2E 覆盖（7 例）：首页加载、上传 PDF、详情渲染、笔记自动/手动保存、笔记浮窗拖动与固定、删除、
+回收站恢复与彻底删除、备份接口。
 CI（`.github/workflows/ci.yml`）在每次 push 与 PR 上跑这两组测试。
 
 ## API 概览
@@ -153,7 +156,11 @@ CI（`.github/workflows/ci.yml`）在每次 push 与 PR 上跑这两组测试。
 GET    /api/papers                        列表（搜索/筛选/排序/分页）
 POST   /api/papers                        添加论文（multipart，可带 PDF；重复时返回 409）
 POST   /api/papers/extract-pdf            PDF 元数据预览提取
-GET/PUT/PATCH/DELETE /api/papers/{id}     详情 / 更新 / 部分更新 / 删除
+GET/PUT/PATCH/DELETE /api/papers/{id}     详情 / 更新 / 部分更新 / 删除（进回收站）
+GET    /api/trash                         回收站列表
+DELETE /api/trash                         清空回收站（连同 PDF 一起删除）
+POST   /api/papers/{id}/restore           从回收站恢复
+DELETE /api/papers/{id}/purge             彻底删除（连同 PDF）
 GET    /api/papers/{id}/pdf               获取 PDF（?download=1 下载）
 POST   /api/papers/{id}/toggle-read       切换阅读状态
 POST   /api/papers/{id}/re-extract        重新提取全文

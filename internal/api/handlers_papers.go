@@ -315,15 +315,16 @@ func (s *Server) handleDeletePaper(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid paper id")
 		return
 	}
-	pdfPath, err := s.store.DeletePaper(id)
-	if err != nil {
+	// 软删除：进回收站，PDF 与关联保留，可在回收站恢复或彻底删除
+	if _, err := s.store.DeletePaper(id); err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			writeError(w, http.StatusNotFound, "paper not found")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if pdfPath != "" {
-		os.Remove(filepath.Join(s.uploadDir, pdfPath))
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true, "trashed": true})
 }
 
 func (s *Server) handleGetPDF(w http.ResponseWriter, r *http.Request) {

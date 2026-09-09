@@ -100,6 +100,35 @@ test('删除论文后从列表移除', async ({ page }) => {
   await expect(page.locator('.p3r-table tbody tr')).toHaveCount(before - 1, { timeout: 15_000 });
 });
 
+test('删除进回收站、可恢复、可彻底删除', async ({ page }) => {
+  await uploadSample(page);
+  await page.goto('/');
+  const before = await page.locator('.p3r-table tbody tr').count();
+  await page.locator('.p3r-table tbody tr').first().locator('button:has-text("删除")').click();
+  await expect(page.locator('.p3r-table tbody tr')).toHaveCount(before - 1, { timeout: 15_000 });
+
+  // 管理 → 回收站（注意：其他用例的删除也会留在这里，因此用相对计数断言）
+  await page.click('text=管理');
+  await page.click('.dialog-head button:has-text("回收站")');
+  await expect(page.locator('.trash-list li').first()).toContainText('删除于');
+  const trashed = await page.locator('.trash-list li').count();
+
+  // 恢复一条后回到列表
+  await page.locator('.trash-list li button:has-text("恢复")').first().click();
+  await expect(page.locator('.trash-list li')).toHaveCount(trashed - 1, { timeout: 15_000 });
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.p3r-table tbody tr')).toHaveCount(before, { timeout: 15_000 });
+
+  // 再次删除并彻底删除，回收站少一条
+  await page.locator('.p3r-table tbody tr').first().locator('button:has-text("删除")').click();
+  await expect(page.locator('.p3r-table tbody tr')).toHaveCount(before - 1, { timeout: 15_000 });
+  await page.click('text=管理');
+  await page.click('.dialog-head button:has-text("回收站")');
+  await page.locator('.trash-list li button:has-text("彻底删除")').first().click();
+  await expect(page.locator('.trash-list li')).toHaveCount(trashed - 1, { timeout: 15_000 });
+});
+
 test('备份接口返回可解析的 zip，且包含数据库快照', async ({ page }) => {
   await uploadSample(page);
   const res = await page.request.get('/api/backup');

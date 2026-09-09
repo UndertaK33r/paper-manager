@@ -228,12 +228,27 @@
   <!-- 管理弹窗 -->
   <div v-if="showManage" class="modal-overlay" @click.self="showManage=false">
     <div class="p3r-dialog wide">
-      <div class="dialog-head"><span class="p3r-h3">管理</span><div class="actions"><button class="p3r-btn small" @click="exportBackup" title="导出数据库快照与全部 PDF，解压覆盖 data/ 即可恢复">导出备份</button><button class="p3r-btn small" @click="exportAllNotes">导出全部笔记</button><button class="p3r-btn" @click="showManage=false">关闭</button></div></div>
+      <div class="dialog-head"><span class="p3r-h3">管理</span><div class="actions"><button class="p3r-btn small" @click="openTrash" title="查看已删除的论文，可恢复或彻底删除">回收站<span v-if="trashCount"> ({{ trashCount }})</span></button><button class="p3r-btn small" @click="exportBackup" title="导出数据库快照与全部 PDF，解压覆盖 data/ 即可恢复">导出备份</button><button class="p3r-btn small" @click="exportAllNotes">导出全部笔记</button><button class="p3r-btn" @click="showManage=false">关闭</button></div></div>
       <div class="manage-grid">
         <div class="p3r-panel"><span class="p3r-h3">分类</span><div class="inline-form"><input class="p3r-input" v-model="newCategory" placeholder="新分类"><button class="p3r-btn small p3r-btn--primary" @click="addCategory">添加</button></div><ul class="manage-list"><li v-for="c in categories" :key="c.id"><span>{{ c.name }} ({{ c.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteCategory(c.id)">删除</button></li></ul></div>
         <div class="p3r-panel"><span class="p3r-h3">标签</span><div class="inline-form"><input class="p3r-input" v-model="newTag" placeholder="新标签"><button class="p3r-btn small p3r-btn--primary" @click="addTag">添加</button></div><ul class="manage-list"><li v-for="t in tags" :key="t.id"><span>{{ t.name }} ({{ t.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteTag(t.id)">删除</button></li></ul></div>
         <div class="p3r-panel"><span class="p3r-h3">合集</span><div class="inline-form"><input class="p3r-input" v-model="newCollection" placeholder="新合集"><button class="p3r-btn small p3r-btn--primary" @click="addCollection">添加</button></div><ul class="manage-list"><li v-for="o in collections" :key="o.id"><span>{{ o.name }} ({{ o.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteCollection(o.id)">删除</button></li></ul></div>
       </div>
+    </div>
+  </div>
+
+  <!-- 回收站弹窗 -->
+  <div v-if="showTrash" class="modal-overlay" @click.self="showTrash=false">
+    <div class="p3r-dialog wide">
+      <div class="dialog-head"><span class="p3r-h3">回收站</span><div class="actions"><span class="p3r-readout" v-if="trash.length">共 {{ trash.length }} 篇</span><button class="p3r-btn small p3r-btn--danger" v-if="trash.length" @click="emptyTrash">清空回收站</button><button class="p3r-btn" @click="showTrash=false">关闭</button></div></div>
+      <div v-if="trashLoading" class="p3r-readout">加载中…</div>
+      <div v-else-if="!trash.length" class="p3r-readout">回收站是空的。删除的论文会先放在这里，可随时恢复。</div>
+      <ul class="manage-list trash-list" v-else>
+        <li v-for="p in trash" :key="p.id">
+          <span class="trash-title">{{ p.title }}<span class="p3r-readout"> · 删除于 {{ fmtDate(p.deletedAt) }}</span></span>
+          <span class="actions"><button class="p3r-btn small" @click="restorePaper(p.id)">恢复</button><button class="p3r-btn small p3r-btn--danger" @click="purgePaper(p)">彻底删除</button></span>
+        </li>
+      </ul>
     </div>
   </div>
 
