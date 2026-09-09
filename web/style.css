@@ -452,6 +452,15 @@ button.chip-x:focus-visible { outline: none; box-shadow: var(--k-focus-ring, 0 0
 .fs-notes__status { color: var(--k-mute, #8c8c8c); }
 .fs-notes__btns { margin-left: auto; display: flex; gap: 6px; }
 .fs-notes__input { width: 100%; margin-top: 10px; max-height: 34vh; }
+/* 笔记 Markdown 预览：与编辑态等高的可滚动区域 */
+.notes-preview, .fs-notes__preview {
+  margin-top: 10px; padding: 10px 14px; overflow-y: auto;
+  min-height: 150px; max-height: 34vh;
+  border: 1px solid var(--k-line, #ececec); border-radius: var(--input-radius, 8px);
+  background: var(--k-bg-soft, #fafafa);
+}
+.notes-preview-btn { margin-left: auto; }
+.notes-head { align-items: center; }
 .fs-notes--min { width: auto !important; min-width: 300px; padding-bottom: 12px; }
 /* 自定义尺寸：面板纵向 flex，笔记输入框吃掉剩余高度 */
 .fs-notes--sized { display: flex; flex-direction: column; overflow: hidden; min-width: 320px; min-height: 140px; }

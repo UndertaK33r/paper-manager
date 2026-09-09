@@ -16,6 +16,8 @@ var Root = {
       pdfFullscreen: false, fsNotesMin: false, notesSavedAt: "",
       // 全屏阅读笔记浮窗：拖动位置 / 自定义尺寸 / 固定状态（持久化到 localStorage）
       fsNotesPos: null, fsNotesSize: null, fsNotesPinned: false, fsNotesDrag: false,
+      // 笔记 Markdown 预览（编辑态/预览态，偏好持久化）
+      notesPreview: false,
       summaryExpanded: false, summaryOverflow: false,
       fsTransMin: false, transHistory: [], instantSrc: "", instantLoading: false,
       showPaperModal: false, editingId: null, saving: false, form: makeEmptyForm(),
@@ -37,6 +39,11 @@ var Root = {
     renderedSummary: function () { return window.mdRender ? window.mdRender(this.detail.summary) : ""; },
     renderedAnswer: function () { return window.mdRender ? window.mdRender(this.answer) : ""; },
     uiBlocked: function () { return !!(this.showManage || this.showSettings || this.showPaperModal || this.showTrash); },
+    // 笔记的 Markdown 渲染（md-mini.js 已做 HTML 转义与 URL 白名单）
+    renderedNotes: function () {
+      var src = (this.detail && this.detail.notes) || "";
+      return window.mdRender ? window.mdRender(src) : "";
+    },
     // 拖动过就改用 left/top 定位；未拖动时保持 CSS 的底部居中默认位置。
     // 自定义尺寸只在展开态生效（收起态由 .fs-notes--min 的 width:auto 接管）。
     fsNotesStyle: function () {
@@ -314,6 +321,10 @@ var Root = {
       e.preventDefault();
       e.stopPropagation();
     },
+    toggleNotesPreview: function () {
+      this.notesPreview = !this.notesPreview;
+      try { localStorage.setItem("pm-notes-preview", this.notesPreview ? "1" : "0"); } catch (e) {}
+    },
     toggleNotesPin: function () {
       this.fsNotesPinned = !this.fsNotesPinned;
       this.saveNotesPanelPrefs();
@@ -545,6 +556,7 @@ var Root = {
     var self=this;
     this.setTheme(); // 恢复上次选择的主题
     this.loadNotesPanelPrefs(); // 恢复笔记浮窗位置与固定状态
+    try { this.notesPreview = localStorage.getItem("pm-notes-preview") === "1"; } catch (e) {}
     window.addEventListener("hashchange", function(){ self.parseHash(); });
     window.addEventListener("resize", function(){ self.clampNotesPos(); });
     var fsSync=function(){

@@ -100,6 +100,25 @@ test('删除论文后从列表移除', async ({ page }) => {
   await expect(page.locator('.p3r-table tbody tr')).toHaveCount(before - 1, { timeout: 15_000 });
 });
 
+test('笔记支持 Markdown 预览，且不执行注入代码', async ({ page }) => {
+  await uploadSample(page);
+  await openFirstDetail(page);
+
+  await page.fill('textarea.p3r-input', '# 标题\n\n- **加粗**\n\n<script>window.__xss=1</script>');
+  await page.click('.notes-head button:has-text("预览")');
+  const preview = page.locator('.notes-preview');
+  await expect(preview).toBeVisible();
+  await expect(preview.locator('h1')).toHaveText('标题');
+  await expect(preview.locator('strong')).toHaveText('加粗');
+  // 注入内容必须被转义，且不执行
+  expect(await preview.innerHTML()).not.toContain('<script>');
+  expect(await page.evaluate(() => !window.__xss)).toBeTruthy();
+
+  // 切回编辑，内容仍在
+  await page.click('.notes-head button:has-text("编辑")');
+  await expect(page.locator('textarea.p3r-input')).toHaveValue(/# 标题/);
+});
+
 test('删除进回收站、可恢复、可彻底删除', async ({ page }) => {
   await uploadSample(page);
   await page.goto('/');
