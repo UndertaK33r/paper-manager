@@ -506,6 +506,10 @@ func TestAnnotationsCRUDAndCascade(t *testing.T) {
 	if n, _ := st.CountAnnotations(p.ID); n != 2 {
 		t.Fatalf("计数错误: %d", n)
 	}
+	// 新建后应带回创建时间（由数据库默认值生成，需要回读）
+	if a2.CreatedAt.IsZero() {
+		t.Fatal("CreateAnnotation 未回读 created_at")
+	}
 
 	// 未知颜色收敛为 yellow
 	bad := models.Annotation{PaperID: p.ID, Page: 2, Rects: rect(2, .1, .1, .1, .01), Quote: "x", Color: "rainbow"}

@@ -3,6 +3,7 @@
 [![CI](https://github.com/UndertaK33r/paper-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/UndertaK33r/paper-manager/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/UndertaK33r/paper-manager)](https://github.com/UndertaK33r/paper-manager/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Changelog](https://img.shields.io/badge/更新日志-CHANGELOG.md-informational)](CHANGELOG.md)
 ![Go](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)
 
 **本地优先的个人论文库**：上传 PDF 自动提取元数据与全文，支持分类/标签/合集、全文搜索、笔记、AI 总结与问答。

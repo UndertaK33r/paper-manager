@@ -75,6 +75,11 @@ func (s *Store) CreateAnnotation(a *models.Annotation) (int64, error) {
 		return 0, err
 	}
 	a.ID = id
+	// 回读创建时间：created_at 由数据库默认值生成，不回读的话返回给前端的是零值
+	var created string
+	if err := s.db.QueryRow("SELECT created_at FROM annotations WHERE id = ?", id).Scan(&created); err == nil {
+		a.CreatedAt = parseTime(created)
+	}
 	return id, nil
 }
 
