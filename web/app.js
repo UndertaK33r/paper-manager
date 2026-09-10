@@ -52,7 +52,8 @@ var Root = {
         out.push('<section class="read-page">');
         out.push('<div class="read-page__mark"><span>· ' + page.number + ' ·</span></div>');
         (page.paragraphs || []).forEach(function (para) {
-          out.push(para.heading ? '<h3 class="read-h">' : '<p class="read-p">');
+          var cls = para.heading ? 'read-h' : (para.furniture ? 'read-p read-furniture' : 'read-p');
+          out.push(para.heading ? '<h3 class="read-h">' : '<p class="' + cls + '">');
           (para.segments || []).forEach(function (seg, i) {
             if (i > 0 && seg.join !== "none") out.push(" ");
             out.push('<span class="read-seg" data-o="' + seg.start + '">' + renderSegmentHtml(seg, annos) + "</span>");

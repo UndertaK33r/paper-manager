@@ -182,3 +182,56 @@ func utf16units(s string) []uint16 {
 	}
 	return out
 }
+
+// 首字母下沉（drop cap）：PDF 常把首字母单独抽出来
+// 实测形态："I. I" + "NTRODUCTION" → "I. INTRODUCTION"；"I" + "MAGE fusion" → "IMAGE fusion"
+func TestSplitReadingDropCap(t *testing.T) {
+	text := strings.Join([]string{
+		"1",
+		"Some paper title here",
+		"I. I",
+		"NTRODUCTION",
+		"I",
+		"MAGE fusion plays an important role in visual enhancement within digital image",
+		"processing. For example, visible-",
+		"light images are captured in low-light conditions.",
+		"R",
+		"EFERENCES",
+		"[1] J. Zhang, K. Cao, K. Yan",
+	}, "\n")
+
+	pages := SplitReading(text)
+	if len(pages) != 1 {
+		t.Fatalf("want 1 page, got %d", len(pages))
+	}
+	var texts []string
+	var headings []string
+	for _, para := range pages[0].Paragraphs {
+		txt := paraText(para)
+		texts = append(texts, txt)
+		if para.Heading {
+			headings = append(headings, txt)
+		}
+	}
+	joined := strings.Join(texts, "\n")
+
+	if !strings.Contains(joined, "I. INTRODUCTION") {
+		t.Fatalf("标题首字母未拼回: %q", joined)
+	}
+	if !strings.Contains(joined, "IMAGE fusion plays an important role") {
+		t.Fatalf("正文首字母未拼回: %q", joined)
+	}
+	if !strings.Contains(joined, "visible-light images are captured") {
+		t.Fatalf("断词与断行未正确合并: %q", joined)
+	}
+	if strings.Contains(joined, "\nNTRODUCTION") || strings.Contains(joined, "\nMAGE") {
+		t.Fatalf("仍存在被拆开的词: %q", joined)
+	}
+	// 拼回后的 "I. INTRODUCTION" / "REFERENCES" 应被识别为标题
+	if !strings.Contains(strings.Join(headings, "|"), "I. INTRODUCTION") {
+		t.Fatalf("首字母下沉的标题未标记为标题: %v", headings)
+	}
+	if !strings.Contains(strings.Join(headings, "|"), "REFERENCES") {
+		t.Fatalf("REFERENCES 未识别为标题: %v", headings)
+	}
+}

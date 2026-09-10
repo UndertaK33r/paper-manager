@@ -519,6 +519,8 @@ body.fs-dragging .pdf-panel iframe { pointer-events: none; }
 .read-page:first-child .read-page__mark { margin-top: 6px; }
 .read-p { margin: 0 0 14px; text-align: justify; }
 .read-h { font-size: 16.5px; font-weight: 650; margin: 22px 0 10px; }
+/* 页眉/页脚/版权行：弱化，不干扰阅读 */
+.read-furniture { color: var(--k-faint, #b9b9b9); font-size: 12px; text-align: center; margin: 6px 0; }
 .read-seg { scroll-margin-top: 80px; }
 
 /* 高亮标注 */
