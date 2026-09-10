@@ -271,6 +271,29 @@ button.chip-x:focus-visible { outline: none; box-shadow: var(--k-focus-ring, 0 0
 .trash-list li { gap: 12px; }
 .trash-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trash-list .actions { margin-left: auto; flex: 0 0 auto; }
+/* ============ 合集页面 ============ */
+.collections-page { display: flex; flex-direction: column; gap: 16px; }
+.collection-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+.collection-card { display: flex; flex-direction: column; gap: 8px; }
+.collection-card__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.collection-card__name { font-size: 15.5px; font-weight: 650; cursor: pointer; }
+.collection-card__name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.collection-card__desc { min-height: 1.4em; }
+.collection-card__preview { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.collection-card__preview li { font-size: 13px; color: var(--k-ink, #141414); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.collection-card__preview li:hover { text-decoration: underline; }
+.collection-card__empty { font-style: normal; }
+.collection-card__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 6px; }
+.empty-state { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; }
+.collection-add { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.collection-add .p3r-input { flex: 1 1 260px; }
+.collection-candidates { list-style: none; margin: 10px 0 0; padding: 0; }
+.collection-candidates li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--k-line, #ececec); }
+.collection-cand__title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+
 /* ============ 分类 / 标签 / 合集管理 ============ */
 .tax-panel { display: flex; flex-direction: column; gap: 10px; }
 .tax-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }

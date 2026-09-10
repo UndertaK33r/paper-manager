@@ -275,6 +275,46 @@ test('分类/标签/合集：添加、改名、查看筛选、删除', async ({ 
   await expect(page.locator('.tax-item:has-text("E2E标签改名")')).toHaveCount(0);
 });
 
+test('合集页：新建、卡片预览、打开、加入/移出论文', async ({ page }) => {
+  await uploadSample(page);
+  await page.goto('/');
+  await page.waitForTimeout(400);
+
+  // 新建合集并自动进入
+  await page.click('button:has-text("合集")');
+  await expect(page.locator('.collections-page')).toBeVisible();
+  await page.fill('.toolbar input[placeholder="新合集名称"]', 'E2E合集');
+  await page.click('button:has-text("新建合集")');
+  await expect(page.locator('.toolbar .p3r-h3')).toHaveText('E2E合集');
+  await expect(page.locator('table.p3r-table')).toHaveCount(0); // 空合集不显示表格
+
+  // 搜索加入一篇（前面的用例可能上传过同名论文，因此只要求「有候选」）
+  await page.fill('.collection-add input', TITLE.slice(0, 12));
+  await expect.poll(async () => await page.locator('.collection-candidates li').count()).toBeGreaterThan(0);
+  await page.locator('.collection-candidates li').first().locator('button:has-text("加入")').click();
+  await expect(page.locator('table.p3r-table tbody tr')).toHaveCount(1);
+  await expect(page.locator('table.p3r-table tbody tr')).toContainText(TITLE);
+
+  // 返回列表：卡片显示数量与预览
+  await page.click('button:has-text("← 全部合集")');
+  await expect(page.locator('.collection-card:has-text("E2E合集")')).toContainText('1');
+  await expect(page.locator('.collection-card:has-text("E2E合集") .collection-card__preview li')).toHaveCount(1);
+
+  // 打开并移出
+  await page.locator('.collection-card:has-text("E2E合集") button:has-text("打开")').click();
+  await page.locator('table.p3r-table tbody tr button:has-text("移出合集")').click();
+  await expect(page.locator('table.p3r-table')).toHaveCount(0);
+});
+
+test('论文可以不加入任何合集', async ({ page }) => {
+  await uploadSample(page);
+  await page.goto('/');
+  await page.locator('.p3r-table tbody tr').first().locator('button:has-text("详情")').click();
+  await expect(page.locator('.tax-row:has-text("合集")')).toContainText('还没有加入合集');
+  // 面板明确写着三者都可以留空
+  await expect(page.locator('.p3r-readout:has-text("分类 · 标签 · 合集")')).toContainText('都可以留空');
+});
+
 test('导航栏不含已下线的引用图谱', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('button:has-text("知识图谱")')).toHaveCount(0);

@@ -113,15 +113,17 @@ type PaperQuery struct {
 	TagNames        []string
 	CollectionNames []string
 	CollectionIDs   []int64
-	YearFrom        *int
-	YearTo          *int
-	Read            *bool
-	Status          string
-	Starred         *bool
-	Sort            string
-	Order           string
-	Page            int
-	PageSize        int
+	// ExcludeCollectionIDs：排除已在这几个合集里的论文（合集页「添加论文」用）
+	ExcludeCollectionIDs []int64
+	YearFrom             *int
+	YearTo               *int
+	Read                 *bool
+	Status               string
+	Starred              *bool
+	Sort                 string
+	Order                string
+	Page                 int
+	PageSize             int
 }
 
 type DuplicateCheck struct {

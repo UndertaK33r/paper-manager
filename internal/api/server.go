@@ -245,6 +245,7 @@ func (s *Server) buildQuery(r *http.Request) models.PaperQuery {
 		Starred:       parseBoolParam(q.Get("starred")),
 		Status:        q.Get("status"),
 	}
+	query.ExcludeCollectionIDs = parseIDList(q.Get("excludeCollections"))
 	if len(query.TagIDs) == 0 {
 		query.TagNames = csvSplit(tagParam)
 	}

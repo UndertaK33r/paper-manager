@@ -118,6 +118,13 @@ func buildWhere(q models.PaperQuery) (string, []any) {
 			args = append(args, id)
 		}
 	}
+	if len(q.ExcludeCollectionIDs) > 0 {
+		ph := placeholders(len(q.ExcludeCollectionIDs))
+		conds = append(conds, "NOT EXISTS (SELECT 1 FROM paper_collections pc WHERE pc.paper_id = p.id AND pc.collection_id IN ("+ph+"))")
+		for _, id := range q.ExcludeCollectionIDs {
+			args = append(args, id)
+		}
+	}
 	if len(q.TagNames) > 0 {
 		ph := placeholders(len(q.TagNames))
 		conds = append(conds, "EXISTS (SELECT 1 FROM paper_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.paper_id = p.id AND t.name IN ("+ph+"))")

@@ -20,6 +20,7 @@
     <div class="brand">PAPER BRAIN</div>
     <nav class="nav">
       <button class="p3r-btn small" :class="{active: route==='list'}" @click="go('list')">论文库</button>
+      <button class="p3r-btn small" :class="{active: route==='collections'}" @click="go('collections')">合集</button>
       <button class="p3r-btn small" :class="{active: route==='upload'}" @click="go('upload')">上传论文</button>
       <button class="p3r-btn small" @click="openSettings">AI 设置</button>
       <button class="p3r-btn small" @click="openManage">管理</button>
@@ -123,7 +124,7 @@
           <div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="saveDetail">保存修改</button></div>
         </div>
         <div class="p3r-sheet">
-          <span class="p3r-readout">分类 · 标签 · 合集</span>
+          <span class="p3r-readout">分类 · 标签 · 合集（都可以留空）</span>
 
           <div class="tax-row">
             <span class="tax-row__label">分类</span>
@@ -283,6 +284,84 @@
   </section>
 
   <!-- ===================== 上传 ===================== -->
+  <!-- ===================== 合集 ===================== -->
+  <section v-else-if="route==='collections'" class="collections-page">
+    <div class="p3r-panel toolbar">
+      <span class="p3r-h3">{{ currentCollection ? currentCollection.name : '合集' }}</span>
+      <span class="p3r-readout" v-if="currentCollection">{{ collectionPapers.length }} 篇 · {{ currentCollection.description || '没有简介' }}</span>
+      <span class="p3r-readout" v-else>把一组论文打包在一起，例如「要精读的」「综述调研」；论文不一定要属于任何合集</span>
+      <div class="actions">
+        <button v-if="currentCollection" class="p3r-btn small" @click="closeCollection">← 全部合集</button>
+        <template v-else>
+          <input class="p3r-input" v-model="newCollection" placeholder="新合集名称" @keyup.enter="addCollectionFromPage">
+          <button class="p3r-btn small p3r-btn--primary" @click="addCollectionFromPage">新建合集</button>
+        </template>
+      </div>
+    </div>
+
+    <!-- 合集列表 -->
+    <div v-if="!currentCollection" class="collection-grid">
+      <div v-if="!collections.length" class="p3r-panel empty-state">
+        <div class="p3r-h3">还没有合集</div>
+        <div class="p3r-readout">上面输入名称即可新建。合集是可选的，不影响论文的正常管理。</div>
+      </div>
+      <div v-for="c in collections" :key="c.id" class="p3r-panel collection-card">
+        <div class="collection-card__head">
+          <span class="collection-card__name" @click="openCollection(c)">{{ c.name }}</span>
+          <span class="p3r-badge">{{ c.paperCount }}</span>
+        </div>
+        <div class="p3r-readout collection-card__desc">{{ c.description || '（没有简介）' }}</div>
+        <ul class="collection-card__preview" v-if="(collectionPapersMap[c.id] || []).length">
+          <li v-for="p in (collectionPapersMap[c.id] || []).slice(0, 3)" :key="p.id" @click="openDetail(p.id)">{{ p.title }}</li>
+          <li v-if="(collectionPapersMap[c.id] || []).length > 3" class="p3r-readout">…还有 {{ (collectionPapersMap[c.id] || []).length - 3 }} 篇</li>
+        </ul>
+        <div class="p3r-readout collection-card__empty" v-else>这个合集里还没有论文</div>
+        <div class="collection-card__actions">
+          <button class="p3r-btn small p3r-btn--primary" @click="openCollection(c)">打开</button>
+          <button class="p3r-btn small" @click="renameCollectionPrompt(c)">改名</button>
+          <button class="p3r-btn small" @click="editCollectionDesc(c)">简介</button>
+          <button class="p3r-btn small p3r-btn--danger" @click="deleteCollection(c.id, c.name, c.paperCount)">删除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 单个合集：论文列表 + 添加论文 -->
+    <template v-else>
+      <div class="p3r-panel">
+        <div class="collection-add">
+          <input class="p3r-input" v-model="collectionPaperSearch" placeholder="搜索要加入的论文（标题 / 作者）">
+          <span class="p3r-readout">可加入 {{ addableCandidates.length }} 篇</span>
+        </div>
+        <ul class="collection-candidates" v-if="collectionPaperSearch && addableCandidates.length">
+          <li v-for="p in addableCandidates.slice(0, 8)" :key="p.id">
+            <span class="collection-cand__title">{{ p.title }}</span>
+            <span class="p3r-readout">{{ p.year || '—' }}</span>
+            <button class="p3r-btn small p3r-btn--primary" @click="addPaperToCurrentCollection(p)">加入</button>
+          </li>
+        </ul>
+        <div class="p3r-readout" v-else-if="collectionPaperSearch">没有匹配的可加入论文</div>
+      </div>
+
+      <div class="p3r-panel">
+        <div v-if="!collectionPapers.length" class="p3r-readout">这个合集还没有论文。用上面的搜索框把论文加进来。</div>
+        <table class="p3r-table" v-else>
+          <thead><tr><th>标题</th><th>作者</th><th>年份</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="p in collectionPapers" :key="p.id">
+              <td class="cell-title" @click="openDetail(p.id)">{{ p.title }}</td>
+              <td>{{ p.authors || '—' }}</td>
+              <td>{{ p.year || '—' }}</td>
+              <td class="cell-actions">
+                <button class="p3r-btn small" @click="openDetail(p.id)">详情</button>
+                <button class="p3r-btn small p3r-btn--danger" @click="removePaperFromCurrentCollection(p)">移出合集</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
+  </section>
+
   <section v-else-if="route==='upload'" class="upload-page">
     <div class="drop-zone" @dragover.prevent @drop.prevent="onDrop" @click="$refs.fileInput && $refs.fileInput.click()">
       <div class="p3r-h2">拖拽 PDF 到这里</div>

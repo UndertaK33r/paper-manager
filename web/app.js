@@ -13,6 +13,9 @@ var Root = {
       view: "table", search: "", statusFilter: "", categoryFilter: "", tagFilter: "", collectionFilter: "", sort: "created", order: "desc",
       // 分类/标签/合集管理：内联改名
       taxEdit: { id: 0, kind: "", name: "" },
+      // 合集页面
+      currentCollectionId: 0, collectionPapers: [], collectionPapersMap: {},
+      collectionPaperSearch: "", allPapersForCollection: [],
       // 详情页的设置分类
       categorySelect: "", newCategoryName: "",
       askOpen: false, question: "", answer: "", sources: [], asking: false,
@@ -51,6 +54,26 @@ var Root = {
     renderedSummary: function () { return window.mdRender ? window.mdRender(this.detail.summary) : ""; },
     renderedAnswer: function () { return window.mdRender ? window.mdRender(this.answer) : ""; },
     uiBlocked: function () { return !!(this.showManage || this.showSettings || this.showPaperModal || this.showTrash); },
+    // 合集页：当前打开的合集对象
+    currentCollection: function () {
+      var id = this.currentCollectionId;
+      if (!id) return null;
+      var found = null;
+      (this.collections || []).forEach(function (c) { if (c.id === id) found = c; });
+      return found;
+    },
+    // 合集页：可加入当前合集的候选（不在合集内 + 匹配搜索词）
+    addableCandidates: function () {
+      var kw = (this.collectionPaperSearch || "").trim().toLowerCase();
+      if (!kw) return [];
+      var inCol = {};
+      this.collectionPapers.forEach(function (p) { inCol[p.id] = true; });
+      return (this.allPapersForCollection || []).filter(function (p) {
+        if (inCol[p.id]) return false;
+        var hay = (p.title + " " + (p.authors || "")).toLowerCase();
+        return hay.indexOf(kw) >= 0;
+      });
+    },
     // 分类/标签/合集的可选项：排除本篇已有的，用于「常用」一键添加
     availableCategories: function () {
       var self = this;
@@ -156,6 +179,7 @@ var Root = {
       if (h.indexOf("#/papers/") === 0) { this.route="detail"; this.openDetail(parseInt(h.slice(9),10)); }
       else if (h.indexOf("#/upload") === 0) { this.route="upload"; }
       else if (h.indexOf("#/graph") === 0) { this.go("list"); } // 引用图谱暂不在前端展示（后端 /api/graph 保留）
+      else if (h.indexOf("#/collections") === 0) { this.route = "collections"; this.loadCollectionsPage(h); }
       else if (h.indexOf("#/login") === 0) { this.route="login"; }
       else { this.route="list"; }
       if (this.route === "list") this.loadAll();
@@ -972,6 +996,103 @@ var Root = {
         this.tags = res[1] || [];
         this.collections = res[2] || [];
       } catch (e) { /* 保留原值 */ }
+    },
+    // ---------- 合集页面 ----------
+    // 加载合集列表 + 每篇论文的合集归属（用于卡片预览），并处理 #/collections/{id}
+    loadCollectionsPage: async function (hash) {
+      try {
+        var res = await Promise.all([
+          this.api("/api/collections"),
+          this.api("/api/papers?page=1&pageSize=100&sort=created&order=desc")
+        ]);
+        this.collections = res[0] || [];
+        var papers = (res[1] && res[1].papers) || [];
+        this.allPapersForCollection = papers;
+        var map = {};
+        papers.forEach(function (p) {
+          (p.collections || []).forEach(function (c) {
+            (map[c.id] = map[c.id] || []).push(p);
+          });
+        });
+        this.collectionPapersMap = map;
+      } catch (e) { this.notify(e.message, true); }
+
+      var m = (hash || "").match(/^#\/collections\/(\d+)/);
+      if (m) {
+        var id = parseInt(m[1], 10);
+        // 合集被删掉时回到列表
+        var exists = (this.collections || []).some(function (c) { return c.id === id; });
+        if (exists) {
+          this.currentCollectionId = id;
+          this.collectionPapers = this.collectionPapersMap[id] || [];
+          this.refreshCollectionPapers(id);
+          return;
+        }
+      }
+      this.currentCollectionId = 0;
+      this.collectionPapers = [];
+      this.collectionPaperSearch = "";
+    },
+    // 单独拉一次该合集的论文（列表接口有 100 条上限，这里保证完整）
+    refreshCollectionPapers: async function (id) {
+      try {
+        var res = await this.api("/api/papers?page=1&pageSize=100&collections=" + id);
+        this.collectionPapers = (res && res.papers) || [];
+      } catch (e) { this.notify(e.message, true); }
+    },
+    openCollection: function (c) {
+      window.location.hash = "#/collections/" + c.id;
+    },
+    closeCollection: function () {
+      window.location.hash = "#/collections";
+    },
+    addCollectionFromPage: async function () {
+      var name = (this.newCollection || "").trim();
+      if (!name) return;
+      try {
+        var c = await this.api("/api/collections", { method: "POST", json: { name: name } });
+        this.newCollection = "";
+        await this.loadCollectionsPage(window.location.hash);
+        if (c && c.id) this.openCollection(c);
+      } catch (e) { this.notify(e.message, true); }
+    },
+    // 改名（用输入框，避免原生 prompt 在部分环境被拦截）
+    renameCollectionPrompt: async function (c) {
+      var name = (window.prompt("合集名称", c.name) || "").trim();
+      if (!name || name === c.name) return;
+      try {
+        await this.api("/api/collections/" + c.id, { method: "PATCH", json: { name: name, description: c.description || "" } });
+        await this.loadCollectionsPage(window.location.hash);
+        this.notify("已改名");
+      } catch (e) { this.notify(e.message, true); }
+    },
+    editCollectionDesc: async function (c) {
+      var desc = window.prompt("合集简介（可留空）", c.description || "");
+      if (desc === null) return;
+      try {
+        await this.api("/api/collections/" + c.id, { method: "PATCH", json: { name: c.name, description: desc } });
+        await this.loadCollectionsPage(window.location.hash);
+        this.notify("简介已更新");
+      } catch (e) { this.notify(e.message, true); }
+    },
+    addPaperToCurrentCollection: async function (p) {
+      if (!this.currentCollectionId) return;
+      try {
+        await this.api("/api/papers/" + p.id + "/collections", { method: "POST", json: { CollectionID: this.currentCollectionId } });
+        this.collectionPaperSearch = "";
+        await this.loadCollectionsPage(window.location.hash);
+        await this.refreshCollectionPapers(this.currentCollectionId);
+        this.notify("已加入合集");
+      } catch (e) { this.notify(e.message, true); }
+    },
+    removePaperFromCurrentCollection: async function (p) {
+      if (!this.currentCollectionId) return;
+      try {
+        await this.api("/api/papers/" + p.id + "/collections/" + this.currentCollectionId, { method: "DELETE" });
+        await this.loadCollectionsPage(window.location.hash);
+        await this.refreshCollectionPapers(this.currentCollectionId);
+        this.notify("已移出合集");
+      } catch (e) { this.notify(e.message, true); }
     },
     // ---------- 改名（内联编辑） ----------
     renameStart: function (kind, item) { this.taxEdit = { id: item.id, kind: kind, name: item.name }; },
