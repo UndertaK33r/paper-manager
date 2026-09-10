@@ -238,6 +238,52 @@ test('划词翻译：选中文字→译文浮层→收集到译文面板→存�
   await expect(page.locator('.pdf-note textarea')).toHaveValue(/多模态图像融合/);
 });
 
+test('分类/标签/合集：添加、改名、查看筛选、删除', async ({ page }) => {
+  await uploadSample(page);
+  await page.goto('/');
+  await page.locator('.p3r-table tbody tr').first().locator('button:has-text("详情")').click();
+  await expect(page.locator('.tax-row')).toHaveCount(3);
+
+  // 详情页：新建分类 + 加标签
+  await page.locator('.tax-row:has-text("分类") input[placeholder="或新建分类"]').fill('E2E分类');
+  await page.locator('.tax-row:has-text("分类") button:has-text("设置")').click();
+  await expect(page.locator('.tax-row:has-text("分类")')).toContainText('E2E分类');
+  await page.locator('.tax-row:has-text("标签") input[list="detailTagList"]').fill('E2E标签');
+  await page.locator('.tax-row:has-text("标签") button:has-text("添加")').click();
+  await expect(page.locator('.tax-row:has-text("标签") .p3r-badge')).toHaveCount(1);
+
+  // 管理弹窗：改名 + 计数
+  await page.click('button:has-text("管理")');
+  await expect(page.locator('.tax-panel')).toHaveCount(3);
+  await expect(page.locator('.tax-item:has-text("E2E标签") .tax-count')).toHaveText('1');
+  await page.locator('.tax-item:has-text("E2E标签") .tax-name').click();
+  await page.locator('input.tax-rename').fill('E2E标签改名');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.tax-item:has-text("E2E标签改名")')).toHaveCount(1);
+
+  // 「查看」→ 列表按该项筛选
+  await page.locator('.tax-item:has-text("E2E标签改名") button:has-text("查看")').click();
+  await expect(page.locator('.p3r-table tbody tr')).toHaveCount(1);
+
+  // 截图里点开管理删除，确认删除说明
+  await page.click('button:has-text("管理")');
+  // 全局已有自动接受对话框的处理器，这里只捕获提示文案
+  let confirmMsg = '';
+  page.once('dialog', (d) => { confirmMsg = d.message(); });
+  await page.locator('.tax-item:has-text("E2E标签改名") button:has-text("删除")').click();
+  await expect.poll(() => confirmMsg).toContain('不会被删除');
+  await expect(page.locator('.tax-item:has-text("E2E标签改名")')).toHaveCount(0);
+});
+
+test('导航栏不含已下线的引用图谱', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('button:has-text("知识图谱")')).toHaveCount(0);
+  // 直接访问图谱路由会回到论文库
+  await page.goto('/#/graph');
+  await page.waitForTimeout(400);
+  await expect(page.locator('.p3r-table')).toBeVisible();
+});
+
 test('删除论文后从列表移除', async ({ page }) => {
   await uploadSample(page);
   await page.goto('/');

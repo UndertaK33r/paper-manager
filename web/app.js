@@ -10,7 +10,11 @@ var Root = {
       themeOptions: [{ v: "", t: "日间" }, { v: "midnight", t: "黑夜" }, { v: "paper", t: "护眼" }],
       stats: {}, categories: [], tags: [], collections: [],
       papers: [], total: 0, page: 1, pages: 1, pageSize: 20, loading: true,
-      view: "table", search: "", statusFilter: "", categoryFilter: "", tagFilter: "", sort: "created", order: "desc",
+      view: "table", search: "", statusFilter: "", categoryFilter: "", tagFilter: "", collectionFilter: "", sort: "created", order: "desc",
+      // 分类/标签/合集管理：内联改名
+      taxEdit: { id: 0, kind: "", name: "" },
+      // 详情页的设置分类
+      categorySelect: "", newCategoryName: "",
       askOpen: false, question: "", answer: "", sources: [], asking: false,
       detail: {}, tagSelect: "", collectionSelect: "", fullWidth: false,
       pdfFullscreen: false, fsNotesMin: false, notesSavedAt: "",
@@ -36,7 +40,6 @@ var Root = {
       showSettings: false, settings: { aiBaseUrl: "https://tokendance.space/gateway/v1", aiModel: "deepseek-v3.2", aiApiKey: "" }, hasApiKey: false, testingAI: false, aiTestResult: "",
       aiModels: [], aiModelsLoading: false, customModel: false,
       uploading: false, uploadProgress: 0, uploadResult: null,
-      graphNodes: [], graphEdges: [], graphWarning: "", graphTimer: null, dragNode: null,
       toast: { show: false, msg: "", error: false }
     };
   },
@@ -48,6 +51,23 @@ var Root = {
     renderedSummary: function () { return window.mdRender ? window.mdRender(this.detail.summary) : ""; },
     renderedAnswer: function () { return window.mdRender ? window.mdRender(this.answer) : ""; },
     uiBlocked: function () { return !!(this.showManage || this.showSettings || this.showPaperModal || this.showTrash); },
+    // 分类/标签/合集的可选项：排除本篇已有的，用于「常用」一键添加
+    availableCategories: function () {
+      var self = this;
+      return (this.categories || []).filter(function (c) {
+        return !self.detail || c.name !== self.detail.category;
+      });
+    },
+    unusedTags: function () {
+      var used = {};
+      ((this.detail && this.detail.tags) || []).forEach(function (t) { used[t.id] = true; });
+      return (this.tags || []).filter(function (t) { return !used[t.id]; }).slice(0, 12);
+    },
+    unusedCollections: function () {
+      var used = {};
+      ((this.detail && this.detail.collections) || []).forEach(function (c) { used[c.id] = true; });
+      return (this.collections || []).filter(function (c) { return !used[c.id]; }).slice(0, 8);
+    },
     // 笔记的 Markdown 渲染（md-mini.js 已做 HTML 转义与 URL 白名单）
     renderedNotes: function () {
       var src = (this.detail && this.detail.notes) || "";
@@ -135,7 +155,7 @@ var Root = {
       var h = window.location.hash || "#/";
       if (h.indexOf("#/papers/") === 0) { this.route="detail"; this.openDetail(parseInt(h.slice(9),10)); }
       else if (h.indexOf("#/upload") === 0) { this.route="upload"; }
-      else if (h.indexOf("#/graph") === 0) { this.route="graph"; this.loadGraph(false); }
+      else if (h.indexOf("#/graph") === 0) { this.go("list"); } // 引用图谱暂不在前端展示（后端 /api/graph 保留）
       else if (h.indexOf("#/login") === 0) { this.route="login"; }
       else { this.route="list"; }
       if (this.route === "list") this.loadAll();
@@ -152,7 +172,7 @@ var Root = {
       var q=[];
       function add(k,v){ if(v!==null && v!==undefined && v!=="") q.push(k+"="+encodeURIComponent(v)); }
       add("page",this.page); add("pageSize",this.pageSize); add("search",this.search); add("status",this.statusFilter);
-      add("category",this.categoryFilter); add("tags",this.tagFilter); add("sort",this.sort); add("order",this.order);
+      add("category",this.categoryFilter); add("tags",this.tagFilter); add("collections",this.collectionFilter); add("sort",this.sort); add("order",this.order);
       return "/api/papers?"+q.join("&");
     },
     loadPapers: async function () {
@@ -864,31 +884,143 @@ var Root = {
       try { this.detail=await this.api("/api/papers/"+p.id,{method:"PUT",json:body}); this.notify("已保存"); this.loadAll(); this.loadPapers(); } catch (e) { this.notify(e.message,true); }
     },
     // 按名字添加：不存在时后端自动创建（EnsureTag / EnsureCollection）
-    addDetailTag: async function () {
-      var name=(this.tagSelect||"").trim(); if(!name||!this.detail.id) return;
-      try { this.detail=await this.api("/api/papers/"+this.detail.id+"/tags",{method:"POST",json:{name:name}}); this.tagSelect=""; this.loadAll(); } catch(e){ this.notify(e.message,true); }
+    // 设置分类（可选新建名称）
+    setDetailCategory: async function (useNew) {
+      var name = useNew === true ? (this.newCategoryName || "").trim() : (this.categorySelect || "").trim();
+      if (!name || !this.detail.id) {
+        if (useNew === true) this.notify("请输入分类名称", true);
+        return;
+      }
+      try {
+        this.detail = await this.api("/api/papers/" + this.detail.id, { method: "PATCH", json: { categoryName: name } });
+        this.newCategoryName = ""; this.categorySelect = "";
+        await this.loadTaxonomy();
+        this.notify("分类已设为「" + name + "」");
+      } catch (e) { this.notify(e.message, true); }
     },
-    removeDetailTag: async function (id) { if(!this.detail.id) return; try { this.detail=await this.api("/api/papers/"+this.detail.id+"/tags/"+id,{method:"DELETE"}); this.loadAll(); } catch(e){ this.notify(e.message,true); } },
-    addDetailCollection: async function () {
-      var name=(this.collectionSelect||"").trim(); if(!name||!this.detail.id) return;
-      try { this.detail=await this.api("/api/papers/"+this.detail.id+"/collections",{method:"POST",json:{name:name}}); this.collectionSelect=""; this.loadAll(); } catch(e){ this.notify(e.message,true); }
+    clearDetailCategory: async function () {
+      if (!this.detail.id) return;
+      try {
+        this.detail = await this.api("/api/papers/" + this.detail.id, { method: "PATCH", json: { categoryName: "" } });
+        await this.loadTaxonomy();
+        this.notify("已清除分类");
+      } catch (e) { this.notify(e.message, true); }
     },
-    removeDetailCollection: async function (id) { if(!this.detail.id) return; try { this.detail=await this.api("/api/papers/"+this.detail.id+"/collections/"+id,{method:"DELETE"}); this.loadAll(); } catch(e){ this.notify(e.message,true); } },
+    addDetailTag: async function (preset) {
+      // preset：点「常用」标签时直接传入名字
+      var name = (typeof preset === "string" ? preset : (this.tagSelect || "")).trim();
+      if (!name || !this.detail.id) return;
+      try {
+        this.detail = await this.api("/api/papers/" + this.detail.id + "/tags", { method: "POST", json: { name: name } });
+        this.tagSelect = "";
+        await this.loadTaxonomy();
+      } catch (e) { this.notify(e.message, true); }
+    },
+    removeDetailTag: async function (id) {
+      if (!this.detail.id) return;
+      try { this.detail = await this.api("/api/papers/" + this.detail.id + "/tags/" + id, { method: "DELETE" }); await this.loadTaxonomy(); }
+      catch (e) { this.notify(e.message, true); }
+    },
+    addDetailCollection: async function (preset) {
+      var name = (typeof preset === "string" ? preset : (this.collectionSelect || "")).trim();
+      if (!name || !this.detail.id) return;
+      try {
+        this.detail = await this.api("/api/papers/" + this.detail.id + "/collections", { method: "POST", json: { name: name } });
+        this.collectionSelect = "";
+        await this.loadTaxonomy();
+      } catch (e) { this.notify(e.message, true); }
+    },
+    removeDetailCollection: async function (id) {
+      if (!this.detail.id) return;
+      try { this.detail = await this.api("/api/papers/" + this.detail.id + "/collections/" + id, { method: "DELETE" }); await this.loadTaxonomy(); }
+      catch (e) { this.notify(e.message, true); }
+    },
     aiExtract: async function (id) { if(!this.hasApiKey){ this.notify("未配置 API Key，已跳过",true); return; } this.aiExtracting=true; try { var res=await this.api("/api/papers/"+id+"/ai-extract",{method:"POST"}); if(res&&res.skipped){ this.notify("未配置 API Key，已跳过"); } else { this.detail=res; this.notify("AI 提取完成"); } } catch(e){ this.notify(e.message,true); } this.aiExtracting=false; },
     summarize: async function (id) { if(!this.hasApiKey){ this.notify("未配置 API Key",true); return; } this.summarizing=true; try { var p=await this.api("/api/papers/"+id+"/summarize",{method:"POST"}); this.detail=p; this.notify("摘要已生成"); } catch(e){ this.notify(e.message,true); } this.summarizing=false; },
     reExtract: async function (id) { try { var p=await this.api("/api/papers/"+id+"/re-extract",{method:"POST"}); this.detail=p; this.notify("全文已重新提取"); } catch(e){ this.notify(e.message,true); } },
     reDetect: async function (id) { this.notify("正在重新识别元数据..."); try { var p=await this.api("/api/papers/"+id+"/re-detect",{method:"POST"}); this.detail=p; this.notify("元数据已重新识别"); this.loadPapers(); } catch(e){ this.notify(e.message,true); } },
-    exportBib: function () { var q=[]; function add(k,v){ if(v!=="") q.push(k+"="+encodeURIComponent(v)); } add("search",this.search); add("status",this.statusFilter); add("category",this.categoryFilter); add("tags",this.tagFilter); window.open(this.authUrl("/api/papers/export.bib?"+q.join("&")), "_blank"); },
+    exportBib: function () { var q=[]; function add(k,v){ if(v!=="") q.push(k+"="+encodeURIComponent(v)); } add("search",this.search); add("status",this.statusFilter); add("category",this.categoryFilter); add("tags",this.tagFilter); add("collections",this.collectionFilter); window.open(this.authUrl("/api/papers/export.bib?"+q.join("&")), "_blank"); },
     ask: async function () { if(!this.question.trim()) return; this.asking=true; this.answer=""; this.sources=[]; try { var res=await this.api("/api/ask",{method:"POST",json:{query:this.question}}); this.answer=res.answer; this.sources=res.sources||[]; } catch(e){ this.notify(e.message,true); } this.asking=false; },
     openManage: function () { this.showManage=true; },
     exportAllNotes: function () { window.open(this.authUrl("/api/papers/export/notes"), "_blank"); },
     exportBackup: function () { this.notify("正在生成备份，稍候会自动下载…"); window.open(this.authUrl("/api/backup"), "_blank"); },
-    addCategory: async function () { if(!this.newCategory.trim()) return; try { await this.api("/api/categories",{method:"POST",json:{name:this.newCategory}}); this.newCategory=""; this.loadAll(); } catch(e){ this.notify(e.message,true); } },
-    deleteCategory: async function (id) { if(!confirm("删除该分类？")) return; try { await this.api("/api/categories/"+id,{method:"DELETE"}); this.loadAll(); this.loadPapers(); } catch(e){ this.notify(e.message,true); } },
-    addTag: async function () { if(!this.newTag.trim()) return; try { await this.api("/api/tags",{method:"POST",json:{name:this.newTag}}); this.newTag=""; this.loadAll(); } catch(e){ this.notify(e.message,true); } },
-    deleteTag: async function (id) { if(!confirm("删除该标签？")) return; try { await this.api("/api/tags/"+id,{method:"DELETE"}); this.loadAll(); this.loadPapers(); } catch(e){ this.notify(e.message,true); } },
-    addCollection: async function () { if(!this.newCollection.trim()) return; try { await this.api("/api/collections",{method:"POST",json:{name:this.newCollection}}); this.newCollection=""; this.loadAll(); } catch(e){ this.notify(e.message,true); } },
-    deleteCollection: async function (id) { if(!confirm("删除该合集？")) return; try { await this.api("/api/collections/"+id,{method:"DELETE"}); this.loadAll(); this.loadPapers(); } catch(e){ this.notify(e.message,true); } },
+    addCategory: async function () {
+      var name = (this.newCategory || "").trim();
+      if (!name) return;
+      try { await this.api("/api/categories", { method: "POST", json: { name: name } }); this.newCategory = ""; await this.loadTaxonomy(); this.notify("分类已添加"); }
+      catch (e) { this.notify(e.message, true); }
+    },
+    addTag: async function () {
+      var name = (this.newTag || "").trim();
+      if (!name) return;
+      try { await this.api("/api/tags", { method: "POST", json: { name: name } }); this.newTag = ""; await this.loadTaxonomy(); this.notify("标签已添加"); }
+      catch (e) { this.notify(e.message, true); }
+    },
+    addCollection: async function () {
+      var name = (this.newCollection || "").trim();
+      if (!name) return;
+      try { await this.api("/api/collections", { method: "POST", json: { name: name } }); this.newCollection = ""; await this.loadTaxonomy(); this.notify("合集已添加"); }
+      catch (e) { this.notify(e.message, true); }
+    },
+    // 分类/标签/合集列表：三个接口一起拉，避免分散在各处的重复请求
+    loadTaxonomy: async function () {
+      try {
+        var res = await Promise.all([
+          this.api("/api/categories"), this.api("/api/tags"), this.api("/api/collections")
+        ]);
+        this.categories = res[0] || [];
+        this.tags = res[1] || [];
+        this.collections = res[2] || [];
+      } catch (e) { /* 保留原值 */ }
+    },
+    // ---------- 改名（内联编辑） ----------
+    renameStart: function (kind, item) { this.taxEdit = { id: item.id, kind: kind, name: item.name }; },
+    cancelRename: function () { this.taxEdit = { id: 0, kind: "", name: "" }; },
+    saveRename: async function (kind, id) {
+      var name = (this.taxEdit.name || "").trim();
+      if (!name) { this.notify("名称不能为空", true); return; }
+      var url = kind === "category" ? "/api/categories/" : kind === "tag" ? "/api/tags/" : "/api/collections/";
+      try {
+        await this.api(url + id, { method: "PATCH", json: { name: name } });
+        this.cancelRename();
+        await this.loadTaxonomy();
+        if (this.detail && this.detail.id) this.detail = await this.api("/api/papers/" + this.detail.id);
+        this.notify("已改名");
+      } catch (e) { this.notify(e.message, true); }
+    },
+    // ---------- 查看：把论文列表筛选到这一项 ----------
+    viewTaxonomy: function (kind, item) {
+      this.categoryFilter = ""; this.tagFilter = ""; this.collectionFilter = "";
+      if (kind === "category") this.categoryFilter = String(item.id);
+      else if (kind === "tag") this.tagFilter = String(item.id);
+      else this.collectionFilter = String(item.id);
+      this.showManage = false;
+      this.route = "list";
+      if (window.location.hash !== "#/papers") window.location.hash = "#/papers";
+      this.applyFilters();
+      this.notify("已按「" + item.name + "」筛选");
+    },
+    deleteCategory: async function (id, name, count) {
+      var msg = "删除分类「" + (name || "") + "」？" +
+        (count ? "\n其中 " + count + " 篇论文会变成「未分类」，论文本身不会被删除。" : "\n该分类下没有论文。");
+      if (!window.confirm(msg)) return;
+      try { await this.api("/api/categories/" + id, { method: "DELETE" }); await this.loadTaxonomy(); if (this.route === "list") this.loadPapers(); this.notify("分类已删除"); }
+      catch (e) { this.notify(e.message, true); }
+    },
+    deleteTag: async function (id, name, count) {
+      var msg = "删除标签「" + (name || "") + "」？" +
+        (count ? "\n会从 " + count + " 篇论文上移除这个标签，论文本身不会被删除。" : "\n该标签还没有被使用。");
+      if (!window.confirm(msg)) return;
+      try { await this.api("/api/tags/" + id, { method: "DELETE" }); await this.loadTaxonomy(); if (this.route === "list") this.loadPapers(); this.notify("标签已删除"); }
+      catch (e) { this.notify(e.message, true); }
+    },
+    deleteCollection: async function (id, name, count) {
+      var msg = "删除合集「" + (name || "") + "」？" +
+        (count ? "\n会从 " + count + " 篇论文上移除这个合集，论文本身不会被删除。" : "\n该合集里还没有论文。");
+      if (!window.confirm(msg)) return;
+      try { await this.api("/api/collections/" + id, { method: "DELETE" }); await this.loadTaxonomy(); if (this.route === "list") this.loadPapers(); this.notify("合集已删除"); }
+      catch (e) { this.notify(e.message, true); }
+    },
     testAI: async function () {
       this.testingAI = true; this.aiTestResult = "";
       try { var res = await this.api("/api/ai/test", { method: "POST" }); this.aiTestResult = "连接成功 · " + res.model; this.notify("AI 连接正常"); } catch (e) { this.aiTestResult = e.message; this.notify(e.message, true); }
@@ -938,60 +1070,6 @@ var Root = {
       xhr.send(fd);
     },
     resetUpload: function () { this.uploadResult=null; this.uploadProgress=0; if(this.$refs.fileInput) this.$refs.fileInput.value=""; },
-    // ---------- 图谱 ----------
-    loadGraph: async function (force) {
-      try { var res=await this.api("/api/graph"+(force?"?refresh=1":"")); this.graphWarning=res.warning||""; this.graphEdges=res.edges||[]; this.initSim(res.nodes||[]); } catch(e){ this.notify(e.message,true); }
-    },
-    initSim: function (nodes) {
-      var cx=600, cy=360; var i, n=nodes.length;
-      for(i=0;i<n;i++){ var ang=(i/Math.max(1,n))*Math.PI*2; nodes[i].x=cx+Math.cos(ang)*260; nodes[i].y=cy+Math.sin(ang)*260; nodes[i].vx=0; nodes[i].vy=0; }
-      this.graphNodes=nodes; if(this.graphTimer) cancelAnimationFrame(this.graphTimer); var self=this;
-      var step=function(){ self.simStep(); self.drawGraph(); if(!self.route||self.route==="graph") self.graphTimer=requestAnimationFrame(step); };
-      step();
-    },
-    simStep: function () {
-      var nodes=this.graphNodes; var i,j,dx,dy,d;
-      for(i=0;i<nodes.length;i++){ for(j=i+1;j<nodes.length;j++){ dx=nodes[i].x-nodes[j].x; dy=nodes[i].y-nodes[j].y; d=Math.max(1,Math.sqrt(dx*dx+dy*dy)); var f=5000/(d*d); var fx=dx/d*f; var fy=dy/d*f; nodes[i].vx+=fx; nodes[i].vy+=fy; nodes[j].vx-=fx; nodes[j].vy-=fy; } }
-      var byId={}; nodes.forEach(function(n){ byId[n.id]=n; });
-      this.graphEdges.forEach(function(e){ var a=byId[e.source]; var b=byId[e.target]; if(!a||!b) return; dx=b.x-a.x; dy=b.y-a.y; d=Math.max(1,Math.sqrt(dx*dx+dy*dy)); var diff=(d-130)*0.025; var fx=dx/d*diff; var fy=dy/d*diff; a.vx+=fx; a.vy+=fy; b.vx-=fx; b.vy-=fy; });
-      nodes.forEach(function(n){ n.vx+=(600-n.x)*0.002; n.vy+=(360-n.y)*0.002; n.vx*=0.86; n.vy*=0.86; var sp=Math.sqrt(n.vx*n.vx+n.vy*n.vy); if(sp>10){ n.vx=n.vx/sp*10; n.vy=n.vy/sp*10; } n.x+=n.vx; n.y+=n.vy; });
-    },
-    drawGraph: function () {
-      var cv=this.$refs.graphCanvas; if(!cv) return; var ctx=cv.getContext("2d");
-      ctx.clearRect(0,0,cv.width,cv.height);
-      var byId={}; this.graphNodes.forEach(function(n){ byId[n.id]=n; });
-      ctx.strokeStyle="rgba(17,17,17,0.4)"; ctx.lineWidth=1;
-      this.graphEdges.forEach(function(e){ var a=byId[e.source]; var b=byId[e.target]; if(!a||!b) return; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); });
-      var self=this;
-      this.graphNodes.forEach(function(n){
-        ctx.beginPath(); ctx.arc(n.x,n.y, n.in_library?9:6, 0, Math.PI*2);
-        ctx.fillStyle = n.in_library ? "#111111" : "#888888"; ctx.fill();
-        ctx.strokeStyle="rgba(125,232,255,0.8)"; ctx.lineWidth=1; ctx.stroke();
-        ctx.font="12px JetBrains Mono, monospace"; ctx.fillStyle="#111111";
-        ctx.fillText((n.title||n.id).slice(0,24), n.x+12, n.y-6);
-      });
-    },
-    onGraphDown: function (ev) {
-      var pos=this.graphPos(ev); var mx=pos.x, my=pos.y;
-      this.dragNode=null; for(var i=0;i<this.graphNodes.length;i++){ var n=this.graphNodes[i]; var dx=n.x-mx; var dy=n.y-my; if(dx*dx+dy*dy<400){ this.dragNode=n; break; } }
-    },
-    onGraphMove: function (ev) {
-      if(!this.dragNode) return; var pos=this.graphPos(ev); this.dragNode.x=pos.x; this.dragNode.y=pos.y;
-    },
-    // 画布 CSS 尺寸与内部分辨率（1200x720）不一致时按比例换算，
-    // 否则窄屏上点击/拖拽位置全部偏移
-    graphPos: function (ev) {
-      var cv=this.$refs.graphCanvas; var rect=cv.getBoundingClientRect();
-      var p = (ev.touches && ev.touches[0]) ? ev.touches[0] : ev;
-      return { x: (p.clientX-rect.left) * (cv.width/rect.width), y: (p.clientY-rect.top) * (cv.height/rect.height) };
-    },
-    onGraphTouchStart: function (ev) { ev.preventDefault(); this.onGraphDown(ev); },
-    onGraphTouchMove: function (ev) { ev.preventDefault(); this.onGraphMove(ev); },
-    onGraphTouchEnd: function (ev) { ev.preventDefault(); this.onGraphUp(ev); },
-    onGraphUp: function (ev) {
-      var n=this.dragNode; this.dragNode=null;
-      if(n && n.id && n.id.indexOf("lib-")===0) { var id=parseInt(n.id.slice(4),10); if(id) this.openDetail(id); }
-    },
     // PDF 阅读面板全屏（原模板绑定了该方法但从未实现）
     toggleFullscreen: function () {
       var el=this.$refs.pdfPanel; if(!el) return;
@@ -1053,6 +1131,8 @@ var Root = {
         return;
       }
       if (e.key !== "Escape") return;
+      // 正在内联改名时先取消改名，不要顺手把整个管理弹窗关掉
+      if (self.taxEdit && self.taxEdit.id) { self.cancelRename(); return; }
       if (self.transResult.show) { self.transResult.show = false; return; }
       if (self.annoPopup.show) { self.annoPopup.show = false; return; }
       if (self.pdfFullscreen) { self.pdfFullscreen = false; return; }
@@ -1131,5 +1211,13 @@ function renderSegmentHtml(seg, annos) {
 }
 
 Root.template = document.getElementById("app-template").innerHTML;
+// v-focus：元素出现时自动聚焦（改名输入框用），文本框顺便全选，改起来更快
 var app = Vue.createApp(Root);
+app.directive("focus", {
+  mounted: function (el) {
+    if (!el || !el.focus) return;
+    el.focus();
+    if (el.select && el.value !== undefined) { try { el.select(); } catch (e) {} }
+  }
+});
 app.mount("#app");

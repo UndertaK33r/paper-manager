@@ -21,7 +21,6 @@
     <nav class="nav">
       <button class="p3r-btn small" :class="{active: route==='list'}" @click="go('list')">论文库</button>
       <button class="p3r-btn small" :class="{active: route==='upload'}" @click="go('upload')">上传论文</button>
-      <button class="p3r-btn small" :class="{active: route==='graph'}" @click="go('graph')">知识图谱</button>
       <button class="p3r-btn small" @click="openSettings">AI 设置</button>
       <button class="p3r-btn small" @click="openManage">管理</button>
     </nav>
@@ -54,7 +53,8 @@
           <button v-for="st in statusOptions" class="p3r-btn small" :class="{active: statusFilter===st.v}" @click="setStatus(st.v)">{{ st.t }}</button>
         </div>
         <select class="p3r-input" v-model="categoryFilter" @change="applyFilters"><option value="">全部分类</option><option v-for="c in categories" :value="c.id" :key="c.id">{{ c.name }}</option></select>
-        <select class="p3r-input" v-model="tagFilter" @change="applyFilters"><option value="">全部标签</option><option v-for="t in tags" :value="t.name" :key="t.id">{{ t.name }}</option></select>
+        <select class="p3r-input" v-model="tagFilter" @change="applyFilters"><option value="">全部标签</option><option v-for="t in tags" :value="t.id" :key="t.id">{{ t.name }}</option></select>
+        <select class="p3r-input" v-model="collectionFilter" @change="applyFilters"><option value="">全部合集</option><option v-for="c in collections" :value="c.id" :key="c.id">{{ c.name }}</option></select>
         <div class="view-toggle"><button class="p3r-btn small" :class="{active: view==='table'}" @click="view='table'">表格</button><button class="p3r-btn small" :class="{active: view==='card'}" @click="view='card'">卡片</button></div>
         <button class="p3r-btn small" @click="exportBib">导出 BibTeX</button>
       </div>
@@ -115,7 +115,6 @@
             <label>DOI<input class="p3r-input" v-model="detail.doi"></label>
             <label>关键词<input class="p3r-input" v-model="detail.keywords"></label>
             <label>链接<input class="p3r-input" v-model="detail.link"></label>
-            <label>分类<select class="p3r-input" v-model="detail.categoryId"><option value="">未分类</option><option v-for="c in categories" :value="c.id" :key="c.id">{{ c.name }}</option></select></label>
           </div>
           <div class="checks">
             <label class="check-row">状态<select class="p3r-input" v-model="detail.status"><option value="unread">待读</option><option value="reading">在读</option><option value="read">已读</option></select></label>
@@ -124,11 +123,49 @@
           <div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="saveDetail">保存修改</button></div>
         </div>
         <div class="p3r-sheet">
-          <span class="p3r-readout">标签与合集</span>
-          <div class="chips"><span v-for="t in detail.tags" class="p3r-badge">{{ t.name }} <button type="button" class="chip-x" :aria-label="'移除标签 ' + t.name" :title="'移除标签 ' + t.name" @click="removeDetailTag(t.id)">×</button></span></div>
-          <div class="inline-form"><input class="p3r-input" v-model="tagSelect" list="detailTagList" placeholder="输入或选择标签，可新建" @keyup.enter="addDetailTag"><datalist id="detailTagList"><option v-for="t in availableTags" :key="t.id" :value="t.name"></option></datalist><button class="p3r-btn small" @click="addDetailTag">添加</button></div>
-          <div class="chips"><span v-for="c in detail.collections" class="p3r-badge">{{ c.name }} <button type="button" class="chip-x" :aria-label="'移除合集 ' + c.name" :title="'移除合集 ' + c.name" @click="removeDetailCollection(c.id)">×</button></span></div>
-          <div class="inline-form"><input class="p3r-input" v-model="collectionSelect" list="detailCollectionList" placeholder="输入或选择合集，可新建" @keyup.enter="addDetailCollection"><datalist id="detailCollectionList"><option v-for="c in availableCollections" :key="c.id" :value="c.name"></option></datalist><button class="p3r-btn small" @click="addDetailCollection">添加</button></div>
+          <span class="p3r-readout">分类 · 标签 · 合集</span>
+
+          <div class="tax-row">
+            <span class="tax-row__label">分类</span>
+            <div class="tax-row__body">
+              <div class="chips" v-if="detail.category"><span class="p3r-badge p3r-badge--strong">{{ detail.category }} <button type="button" class="chip-x" title="清除分类" aria-label="清除分类" @click="clearDetailCategory">×</button></span></div>
+              <span v-else class="p3r-readout">未分类</span>
+              <div class="inline-form tax-row__form">
+                <select class="p3r-input" v-model="categorySelect" @change="setDetailCategory">
+                  <option value="">设为分类…</option>
+                  <option v-for="c in availableCategories" :key="c.id" :value="c.name">{{ c.name }}</option>
+                </select>
+                <input class="p3r-input" v-model="newCategoryName" placeholder="或新建分类" @keyup.enter="setDetailCategory(true)">
+                <button class="p3r-btn small" @click="setDetailCategory(true)">设置</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="tax-row">
+            <span class="tax-row__label">标签</span>
+            <div class="tax-row__body">
+              <div class="chips" v-if="detail.tags && detail.tags.length"><span v-for="t in detail.tags" class="p3r-badge" :key="t.id">{{ t.name }} <button type="button" class="chip-x" :aria-label="'移除标签 ' + t.name" :title="'移除标签 ' + t.name" @click="removeDetailTag(t.id)">×</button></span></div>
+              <span v-else class="p3r-readout">还没有标签</span>
+              <div class="inline-form tax-row__form">
+                <input class="p3r-input" v-model="tagSelect" list="detailTagList" placeholder="输入新标签后回车" @keyup.enter="addDetailTag"><datalist id="detailTagList"><option v-for="t in availableTags" :key="t.id" :value="t.name"></option></datalist>
+                <button class="p3r-btn small" @click="addDetailTag">添加</button>
+              </div>
+              <div class="tax-quick" v-if="unusedTags.length"><span class="p3r-readout">常用：</span><button v-for="t in unusedTags" :key="t.id" class="tax-quick__item" @click="addDetailTag(t.name)">+ {{ t.name }}</button></div>
+            </div>
+          </div>
+
+          <div class="tax-row">
+            <span class="tax-row__label">合集</span>
+            <div class="tax-row__body">
+              <div class="chips" v-if="detail.collections && detail.collections.length"><span v-for="c in detail.collections" class="p3r-badge" :key="c.id">{{ c.name }} <button type="button" class="chip-x" :aria-label="'移除合集 ' + c.name" :title="'移除合集 ' + c.name" @click="removeDetailCollection(c.id)">×</button></span></div>
+              <span v-else class="p3r-readout">还没有加入合集</span>
+              <div class="inline-form tax-row__form">
+                <input class="p3r-input" v-model="collectionSelect" list="detailCollectionList" placeholder="输入新合集后回车" @keyup.enter="addDetailCollection"><datalist id="detailCollectionList"><option v-for="c in availableCollections" :key="c.id" :value="c.name"></option></datalist>
+                <button class="p3r-btn small" @click="addDetailCollection">添加</button>
+              </div>
+              <div class="tax-quick" v-if="unusedCollections.length"><span class="p3r-readout">常用：</span><button v-for="c in unusedCollections" :key="c.id" class="tax-quick__item" @click="addDetailCollection(c.name)">+ {{ c.name }}</button></div>
+            </div>
+          </div>
           <div class="p3r-divider"></div>
           <span class="p3r-readout">AI 摘要</span>
           <div v-if="!detail.summary" class="muted">暂无摘要，点击下方「AI 提取元数据」生成</div>
@@ -261,11 +298,7 @@
     </div>
   </section>
 
-  <!-- ===================== 图谱 ===================== -->
-  <section v-else-if="route==='graph'" class="graph-page">
-    <div class="p3r-panel toolbar"><span class="p3r-h3">引用图谱</span><span class="p3r-readout">{{ graphWarning || 'OpenAlex 引用网络' }}</span><button class="p3r-btn small p3r-btn--primary" @click="loadGraph(true)">重新拉取</button></div>
-    <div class="p3r-panel graph-wrap"><canvas ref="graphCanvas" width="1200" height="720" @mousedown="onGraphDown" @mousemove="onGraphMove" @mouseup="onGraphUp" @mouseleave="onGraphUp" @touchstart.prevent="onGraphTouchStart" @touchmove.prevent="onGraphTouchMove" @touchend.prevent="onGraphTouchEnd"></canvas></div>
-  </section>
+
 
   <!-- 添加/编辑论文弹窗（与旧逻辑一致） -->
   <div v-if="showPaperModal" class="modal-overlay" @click.self="closePaperModal">
@@ -288,12 +321,69 @@
 
   <!-- 管理弹窗 -->
   <div v-if="showManage" class="modal-overlay" @click.self="showManage=false">
-    <div class="p3r-dialog wide">
+    <div class="p3r-dialog wide p3r-dialog--tax">
       <div class="dialog-head"><span class="p3r-h3">管理</span><div class="actions"><button class="p3r-btn small" @click="openTrash" title="查看已删除的论文，可恢复或彻底删除">回收站<span v-if="trashCount"> ({{ trashCount }})</span></button><button class="p3r-btn small" @click="exportBackup" title="导出数据库快照与全部 PDF，解压覆盖 data/ 即可恢复">导出备份</button><button class="p3r-btn small" @click="exportAllNotes">导出全部笔记</button><button class="p3r-btn" @click="showManage=false">关闭</button></div></div>
       <div class="manage-grid">
-        <div class="p3r-panel"><span class="p3r-h3">分类</span><div class="inline-form"><input class="p3r-input" v-model="newCategory" placeholder="新分类"><button class="p3r-btn small p3r-btn--primary" @click="addCategory">添加</button></div><ul class="manage-list"><li v-for="c in categories" :key="c.id"><span>{{ c.name }} ({{ c.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteCategory(c.id)">删除</button></li></ul></div>
-        <div class="p3r-panel"><span class="p3r-h3">标签</span><div class="inline-form"><input class="p3r-input" v-model="newTag" placeholder="新标签"><button class="p3r-btn small p3r-btn--primary" @click="addTag">添加</button></div><ul class="manage-list"><li v-for="t in tags" :key="t.id"><span>{{ t.name }} ({{ t.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteTag(t.id)">删除</button></li></ul></div>
-        <div class="p3r-panel"><span class="p3r-h3">合集</span><div class="inline-form"><input class="p3r-input" v-model="newCollection" placeholder="新合集"><button class="p3r-btn small p3r-btn--primary" @click="addCollection">添加</button></div><ul class="manage-list"><li v-for="o in collections" :key="o.id"><span>{{ o.name }} ({{ o.paperCount }})</span><button class="p3r-btn small p3r-btn--danger" @click="deleteCollection(o.id)">删除</button></li></ul></div>
+        <div class="p3r-panel tax-panel">
+          <div class="tax-head"><span class="p3r-h3">分类</span><span class="p3r-readout">{{ categories.length }} 个 · 一篇论文只属于一个分类</span></div>
+          <div class="inline-form"><input class="p3r-input" v-model="newCategory" placeholder="新分类名称" @keyup.enter="addCategory"><button class="p3r-btn small p3r-btn--primary" @click="addCategory">添加</button></div>
+          <div v-if="!categories.length" class="p3r-readout tax-empty">还没有分类。上传论文时会自动建分类，也可以在这里手动添加。</div>
+          <ul class="tax-list" v-else>
+            <li v-for="c in categories" :key="c.id" class="tax-item">
+              <input v-if="taxEdit.id === c.id && taxEdit.kind === 'category'" class="p3r-input tax-rename" v-model="taxEdit.name" @keyup.enter="saveRename('category', c.id)" @keyup.esc="cancelRename" v-focus>
+              <template v-else>
+                <span class="tax-name" @click="renameStart('category', c)" title="点击改名">{{ c.name }}</span>
+                <span class="tax-count p3r-badge">{{ c.paperCount }}</span>
+              </template>
+              <span class="tax-actions">
+                <button class="p3r-btn small" @click="viewTaxonomy('category', c)" title="在论文列表里只看这一项">查看</button>
+                <button v-if="taxEdit.id === c.id && taxEdit.kind === 'category'" class="p3r-btn small p3r-btn--primary" @click="saveRename('category', c.id)">保存</button>
+                <button v-else class="p3r-btn small" @click="renameStart('category', c)">改名</button>
+                <button class="p3r-btn small p3r-btn--danger" @click="deleteCategory(c.id, c.name, c.paperCount)">删除</button>
+              </span>
+            </li>
+          </ul>
+        </div>
+        <div class="p3r-panel tax-panel">
+          <div class="tax-head"><span class="p3r-h3">标签</span><span class="p3r-readout">{{ tags.length }} 个 · 一篇论文可有多个</span></div>
+          <div class="inline-form"><input class="p3r-input" v-model="newTag" placeholder="新标签名称" @keyup.enter="addTag"><button class="p3r-btn small p3r-btn--primary" @click="addTag">添加</button></div>
+          <div v-if="!tags.length" class="p3r-readout tax-empty">还没有标签。在详情页给论文加标签时可以直接新建。</div>
+          <ul class="tax-list" v-else>
+            <li v-for="t in tags" :key="t.id" class="tax-item">
+              <input v-if="taxEdit.id === t.id && taxEdit.kind === 'tag'" class="p3r-input tax-rename" v-model="taxEdit.name" @keyup.enter="saveRename('tag', t.id)" @keyup.esc="cancelRename" v-focus>
+              <template v-else>
+                <span class="tax-name" @click="renameStart('tag', t)" title="点击改名">{{ t.name }}</span>
+                <span class="tax-count p3r-badge">{{ t.paperCount }}</span>
+              </template>
+              <span class="tax-actions">
+                <button class="p3r-btn small" @click="viewTaxonomy('tag', t)">查看</button>
+                <button v-if="taxEdit.id === t.id && taxEdit.kind === 'tag'" class="p3r-btn small p3r-btn--primary" @click="saveRename('tag', t.id)">保存</button>
+                <button v-else class="p3r-btn small" @click="renameStart('tag', t)">改名</button>
+                <button class="p3r-btn small p3r-btn--danger" @click="deleteTag(t.id, t.name, t.paperCount)">删除</button>
+              </span>
+            </li>
+          </ul>
+        </div>
+        <div class="p3r-panel tax-panel">
+          <div class="tax-head"><span class="p3r-h3">合集</span><span class="p3r-readout">{{ collections.length }} 个 · 用于把一组论文打包</span></div>
+          <div class="inline-form"><input class="p3r-input" v-model="newCollection" placeholder="新合集名称" @keyup.enter="addCollection"><button class="p3r-btn small p3r-btn--primary" @click="addCollection">添加</button></div>
+          <div v-if="!collections.length" class="p3r-readout tax-empty">还没有合集。合集适合放「要读的一组」「某次调研」这类分组。</div>
+          <ul class="tax-list" v-else>
+            <li v-for="o in collections" :key="o.id" class="tax-item">
+              <input v-if="taxEdit.id === o.id && taxEdit.kind === 'collection'" class="p3r-input tax-rename" v-model="taxEdit.name" @keyup.enter="saveRename('collection', o.id)" @keyup.esc="cancelRename" v-focus>
+              <template v-else>
+                <span class="tax-name" @click="renameStart('collection', o)" title="点击改名">{{ o.name }}</span>
+                <span class="tax-count p3r-badge">{{ o.paperCount }}</span>
+              </template>
+              <span class="tax-actions">
+                <button class="p3r-btn small" @click="viewTaxonomy('collection', o)">查看</button>
+                <button v-if="taxEdit.id === o.id && taxEdit.kind === 'collection'" class="p3r-btn small p3r-btn--primary" @click="saveRename('collection', o.id)">保存</button>
+                <button v-else class="p3r-btn small" @click="renameStart('collection', o)">改名</button>
+                <button class="p3r-btn small p3r-btn--danger" @click="deleteCollection(o.id, o.name, o.paperCount)">删除</button>
+              </span>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   </div>

@@ -23,22 +23,24 @@ func (s *Server) handlePatchPaper(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Title       *string  `json:"title"`
-		Authors     *string  `json:"authors"`
-		Year        *int     `json:"year"`
-		Venue       *string  `json:"venue"`
-		DOI         *string  `json:"doi"`
-		Keywords    *string  `json:"keywords"`
-		Link        *string  `json:"link"`
-		Summary     *string  `json:"summary"`
-		Notes       *string  `json:"notes"`
-		FullText    *string  `json:"fulltext"`
-		Status      *string  `json:"status"`
-		Read        *bool    `json:"read"`
-		Starred     *bool    `json:"starred"`
-		CategoryID  *int64   `json:"categoryId"`
-		Tags        *[]int64 `json:"tags"`
-		Collections *[]int64 `json:"collections"`
+		Title      *string `json:"title"`
+		Authors    *string `json:"authors"`
+		Year       *int    `json:"year"`
+		Venue      *string `json:"venue"`
+		DOI        *string `json:"doi"`
+		Keywords   *string `json:"keywords"`
+		Link       *string `json:"link"`
+		Summary    *string `json:"summary"`
+		Notes      *string `json:"notes"`
+		FullText   *string `json:"fulltext"`
+		Status     *string `json:"status"`
+		Read       *bool   `json:"read"`
+		Starred    *bool   `json:"starred"`
+		CategoryID *int64  `json:"categoryId"`
+		// 按名字设置/清除分类（前端「分类」行用；空字符串表示清除）
+		CategoryName *string  `json:"categoryName"`
+		Tags         *[]int64 `json:"tags"`
+		Collections  *[]int64 `json:"collections"`
 	}
 	if err := readJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -143,6 +145,20 @@ func (s *Server) handlePatchPaper(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.CategoryID != nil {
 		fields["category_id"] = *body.CategoryID
+	}
+	if body.CategoryName != nil {
+		name := strings.TrimSpace(*body.CategoryName)
+		if name == "" {
+			// 清除分类
+			fields["category_id"] = nil
+		} else {
+			cat, err := s.store.EnsureCategory(name)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+			fields["category_id"] = cat.ID
+		}
 	}
 	if len(fields) > 0 {
 		if err := s.store.UpdateFields(id, fields, nil, nil, nil); err != nil {

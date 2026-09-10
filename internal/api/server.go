@@ -76,14 +76,17 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/categories", s.handleListCategories)
 	mux.HandleFunc("POST /api/categories", s.handleCreateCategory)
+	mux.HandleFunc("PATCH /api/categories/{id}", s.handleRenameCategory)
 	mux.HandleFunc("DELETE /api/categories/{id}", s.handleDeleteCategory)
 
 	mux.HandleFunc("GET /api/tags", s.handleListTags)
 	mux.HandleFunc("POST /api/tags", s.handleCreateTag)
+	mux.HandleFunc("PATCH /api/tags/{id}", s.handleRenameTag)
 	mux.HandleFunc("DELETE /api/tags/{id}", s.handleDeleteTag)
 
 	mux.HandleFunc("GET /api/collections", s.handleListCollections)
 	mux.HandleFunc("POST /api/collections", s.handleCreateCollection)
+	mux.HandleFunc("PATCH /api/collections/{id}", s.handleUpdateCollection)
 	mux.HandleFunc("DELETE /api/collections/{id}", s.handleDeleteCollection)
 
 	mux.HandleFunc("GET /api/stats", s.handleStats)
@@ -228,15 +231,25 @@ func csvSplit(s string) []string {
 
 func (s *Server) buildQuery(r *http.Request) models.PaperQuery {
 	q := r.URL.Query()
+	// tags/collections 既接受 ID 列表（前端用），也接受名字列表（接口调用方便）；
+	// 旧版只按 ID 解析，前端传名字时条件被静默丢弃，筛选等于没生效
+	tagParam := q.Get("tags")
+	colParam := q.Get("collections")
 	query := models.PaperQuery{
 		Search:        strings.TrimSpace(q.Get("search")),
-		TagIDs:        parseIDList(q.Get("tags")),
-		CollectionIDs: parseIDList(q.Get("collections")),
+		TagIDs:        parseIDList(tagParam),
+		CollectionIDs: parseIDList(colParam),
 		Sort:          q.Get("sort"),
 		Order:         q.Get("order"),
 		Read:          parseBoolParam(q.Get("read")),
 		Starred:       parseBoolParam(q.Get("starred")),
 		Status:        q.Get("status"),
+	}
+	if len(query.TagIDs) == 0 {
+		query.TagNames = csvSplit(tagParam)
+	}
+	if len(query.CollectionIDs) == 0 {
+		query.CollectionNames = csvSplit(colParam)
 	}
 	if v := parseIntPtr(q.Get("category")); v != nil {
 		id := *v

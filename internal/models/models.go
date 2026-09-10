@@ -106,19 +106,22 @@ type PaperInput struct {
 }
 
 type PaperQuery struct {
-	Search        string
-	CategoryID    *int64
-	TagIDs        []int64
-	CollectionIDs []int64
-	YearFrom      *int
-	YearTo        *int
-	Read          *bool
-	Status        string
-	Starred       *bool
-	Sort          string
-	Order         string
-	Page          int
-	PageSize      int
+	Search     string
+	CategoryID *int64
+	TagIDs     []int64
+	// TagNames / CollectionNames：按名字过滤（接口既支持 ID 也支持名字）
+	TagNames        []string
+	CollectionNames []string
+	CollectionIDs   []int64
+	YearFrom        *int
+	YearTo          *int
+	Read            *bool
+	Status          string
+	Starred         *bool
+	Sort            string
+	Order           string
+	Page            int
+	PageSize        int
 }
 
 type DuplicateCheck struct {

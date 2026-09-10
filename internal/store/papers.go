@@ -118,6 +118,20 @@ func buildWhere(q models.PaperQuery) (string, []any) {
 			args = append(args, id)
 		}
 	}
+	if len(q.TagNames) > 0 {
+		ph := placeholders(len(q.TagNames))
+		conds = append(conds, "EXISTS (SELECT 1 FROM paper_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.paper_id = p.id AND t.name IN ("+ph+"))")
+		for _, n := range q.TagNames {
+			args = append(args, n)
+		}
+	}
+	if len(q.CollectionNames) > 0 {
+		ph := placeholders(len(q.CollectionNames))
+		conds = append(conds, "EXISTS (SELECT 1 FROM paper_collections pc JOIN collections co ON co.id = pc.collection_id WHERE pc.paper_id = p.id AND co.name IN ("+ph+"))")
+		for _, n := range q.CollectionNames {
+			args = append(args, n)
+		}
+	}
 	if q.YearFrom != nil {
 		conds = append(conds, "p.year >= ?")
 		args = append(args, *q.YearFrom)

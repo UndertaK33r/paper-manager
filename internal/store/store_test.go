@@ -637,3 +637,63 @@ func TestNoteAnnotationsStore(t *testing.T) {
 		}
 	}
 }
+
+// 列表筛选：按分类 ID、标签名、合集名过滤（此前 API 把名字当 ID 解析，条件被静默丢弃）
+func TestListPapersFiltering(t *testing.T) {
+	st := newTestStore(t)
+	mk := func(title string) int64 {
+		p := models.Paper{Title: title}
+		id, err := st.CreatePaper(&p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	a, b := mk("论文A"), mk("论文B")
+
+	cat, err := st.EnsureCategory("cv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpdateFields(a, map[string]any{"category_id": cat.ID}, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	tagFusion, _ := st.EnsureTag("fusion")
+	tagDistill, _ := st.EnsureTag("蒸馏")
+	colRead, _ := st.EnsureCollection("要精读的", "")
+	if err := st.AddPaperTag(a, tagFusion.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AddPaperTag(b, tagFusion.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AddPaperTag(b, tagDistill.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.AddPaperCollection(a, colRead.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name string
+		q    models.PaperQuery
+		want int64
+	}{
+		{"无条件", models.PaperQuery{}, 2},
+		{"按分类", models.PaperQuery{CategoryID: &cat.ID}, 1},
+		{"按标签名", models.PaperQuery{TagNames: []string{"fusion"}}, 2},
+		{"按标签名（单个）", models.PaperQuery{TagNames: []string{"蒸馏"}}, 1},
+		{"按合集名", models.PaperQuery{CollectionNames: []string{"要精读的"}}, 1},
+		{"不存在的标签", models.PaperQuery{TagNames: []string{"nope"}}, 0},
+		{"标签+合集", models.PaperQuery{TagNames: []string{"fusion"}, CollectionNames: []string{"要精读的"}}, 1},
+	}
+	for _, c := range cases {
+		res, err := st.ListPapers(c.q)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if res.Total != c.want {
+			t.Errorf("%s: 命中 %d 篇，期望 %d", c.name, res.Total, c.want)
+		}
+	}
+}

@@ -35,6 +35,29 @@ func (s *Store) EnsureCategory(name string) (models.Category, error) {
 	return c, err
 }
 
+// RenameCategory 重命名分类；名字已被占用时返回 ErrConflict。
+func (s *Store) RenameCategory(id int64, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ErrConflict
+	}
+	var exists int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM categories WHERE name = ? AND id <> ?", name, id).Scan(&exists); err != nil {
+		return err
+	}
+	if exists > 0 {
+		return ErrConflict
+	}
+	res, err := s.db.Exec("UPDATE categories SET name = ? WHERE id = ?", name, id)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return ErrConflict
+	}
+	return nil
+}
+
 func (s *Store) DeleteCategory(id int64) error {
 	_, err := s.db.Exec("DELETE FROM categories WHERE id = ?", id)
 	return err
@@ -67,6 +90,29 @@ func (s *Store) EnsureTag(name string) (models.Tag, error) {
 	var t models.Tag
 	err = s.db.QueryRow("SELECT id, name, (SELECT COUNT(*) FROM paper_tags WHERE tag_id = id) FROM tags WHERE name = ?", name).Scan(&t.ID, &t.Name, &t.PaperCount)
 	return t, err
+}
+
+// RenameTag 重命名标签；名字已被占用时返回 ErrConflict。
+func (s *Store) RenameTag(id int64, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ErrConflict
+	}
+	var exists int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM tags WHERE name = ? AND id <> ?", name, id).Scan(&exists); err != nil {
+		return err
+	}
+	if exists > 0 {
+		return ErrConflict
+	}
+	res, err := s.db.Exec("UPDATE tags SET name = ? WHERE id = ?", name, id)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return ErrConflict
+	}
+	return nil
 }
 
 func (s *Store) DeleteTag(id int64) error {
@@ -102,6 +148,29 @@ func (s *Store) EnsureCollection(name, description string) (models.Collection, e
 	err = s.db.QueryRow(`SELECT id, name, description, (SELECT COUNT(*) FROM paper_collections WHERE collection_id = id)
 		FROM collections WHERE name = ?`, name).Scan(&c.ID, &c.Name, &c.Description, &c.PaperCount)
 	return c, err
+}
+
+// UpdateCollection 改名/改简介；名字已被占用时返回 ErrConflict。
+func (s *Store) UpdateCollection(id int64, name, description string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ErrConflict
+	}
+	var exists int
+	if err := s.db.QueryRow("SELECT COUNT(*) FROM collections WHERE name = ? AND id <> ?", name, id).Scan(&exists); err != nil {
+		return err
+	}
+	if exists > 0 {
+		return ErrConflict
+	}
+	res, err := s.db.Exec("UPDATE collections SET name = ?, description = ? WHERE id = ?", name, strings.TrimSpace(description), id)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return ErrConflict
+	}
+	return nil
 }
 
 func (s *Store) DeleteCollection(id int64) error {
