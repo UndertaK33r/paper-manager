@@ -92,6 +92,76 @@ test('全屏阅读笔记浮窗：可拖动、可固定、固定后拖不动', as
   expect(Math.abs(still.x - pinned.x)).toBeLessThan(2);
 });
 
+test('阅读模式：重排全文 + 选中高亮 + 刷新后仍在 + 删除', async ({ page }) => {
+  // 建一篇带全文的论文（全文由 PATCH 写入，模拟已提取的状态）
+  const created = await page.request.post('/api/papers', {
+    data: { title: '阅读模式 E2E 论文', authors: 'Tester', year: 2026 },
+  });
+  expect(created.ok()).toBeTruthy();
+  const paper = await created.json();
+  const fulltext = [
+    '1',
+    'Distilling Textual Priors from LLM to Efficient Image Fusion',
+    'Ran Zhang, Xuanhua He',
+    'Abstract',
+    '—Multi-modality image fusion aims to synthesize a single, comprehensive image from',
+    'multiple source inputs. Traditional approaches offer efficiency but struggle with low-quality',
+    'inputs.',
+    '1 Introduction',
+    'We propose a novel framework for distilling large model priors into a compact network.',
+  ].join('\n');
+  const patched = await page.request.patch(`/api/papers/${paper.id}`, { data: { fulltext } });
+  expect(patched.ok()).toBeTruthy();
+
+  await page.goto(`/#/papers/${paper.id}`);
+  await page.waitForTimeout(500);
+  await page.click('button:has-text("阅读模式")');
+
+  // 服务端已做断行重排与标题识别
+  await expect(page.locator('.read-body')).toBeVisible();
+  // 服务端识别出小节标题（Abstract / 1 Introduction）
+  expect(await page.locator('.read-h').count()).toBeGreaterThanOrEqual(2);
+  await expect(page.locator('.read-h').first()).toHaveText(/Abstract|Distilling/);
+  // 断行已被合并（原文里 "…image from" 与 "multiple source inputs." 分属两行）
+  await expect(page.locator('.read-body')).toContainText('comprehensive image from multiple source inputs');
+
+  // 选中一段文字 → 高亮
+  const selected = await page.evaluate(() => {
+    const root = document.querySelector('.read-body');
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const idx = node.textContent.indexOf('Multi-modality');
+      if (idx < 0 || !node.parentElement.closest('.read-seg')) continue;
+      const r = document.createRange();
+      r.setStart(node, idx);
+      r.setEnd(node, idx + 20);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+      document.querySelector('.read-wrap').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return true;
+    }
+    return false;
+  });
+  expect(selected).toBeTruthy();
+  await expect(page.locator('.anno-popup')).toBeVisible();
+  await page.locator('.anno-popup .anno-dot--green').click();
+  await expect(page.locator('mark.anno--green')).toHaveCount(1);
+  await expect(page.locator('mark.anno').first()).toHaveText(/Multi-modality/);
+
+  // 刷新后按偏移复原
+  await page.reload();
+  await page.waitForTimeout(800);
+  await expect(page.locator('mark.anno')).toHaveCount(1);
+  await expect(page.locator('.anno-item')).toHaveCount(1);
+
+  // 标注列表 → 删除
+  await page.locator('.anno-item button:has-text("删除")').first().click();
+  await expect(page.locator('.anno-item')).toHaveCount(0);
+  await expect(page.locator('mark.anno')).toHaveCount(0);
+});
+
 test('删除论文后从列表移除', async ({ page }) => {
   await uploadSample(page);
   await page.goto('/');

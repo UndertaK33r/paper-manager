@@ -32,6 +32,7 @@ func (s *Server) handlePatchPaper(w http.ResponseWriter, r *http.Request) {
 		Link        *string  `json:"link"`
 		Summary     *string  `json:"summary"`
 		Notes       *string  `json:"notes"`
+		FullText    *string  `json:"fulltext"`
 		Status      *string  `json:"status"`
 		Read        *bool    `json:"read"`
 		Starred     *bool    `json:"starred"`
@@ -119,6 +120,9 @@ func (s *Server) handlePatchPaper(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Notes != nil {
 		fields["notes"] = *body.Notes
+	}
+	if body.FullText != nil { // 允许手动修正/粘贴全文（阅读模式与搜索都基于它）
+		fields["fulltext"] = *body.FullText
 	}
 	if body.Status != nil {
 		st := strings.TrimSpace(*body.Status)

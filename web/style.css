@@ -506,6 +506,55 @@ body.fs-dragging .pdf-panel iframe { pointer-events: none; }
 @media (max-width: 900px) {
   .fs-trans { width: min(300px, calc(100vw - 32px)); top: 76px; max-height: 52vh; }
 }
+/* ============ 阅读模式（重排全文 + 标注） ============ */
+.read-wrap {
+  margin-top: 12px; max-height: 70vh; overflow-y: auto;
+  border: 1px solid var(--k-line, #ececec); border-radius: 12px;
+  background: var(--k-bg, #fff); padding: 8px 0;
+}
+.pd3r-panel:fullscreen .read-wrap, .pdf-panel:fullscreen .read-wrap { max-height: none; height: calc(100vh - 190px); }
+.read-empty { padding: 28px 20px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.read-body { max-width: 760px; margin: 0 auto; padding: 12px 28px 40px; font-size: 15.5px; line-height: 1.95; }
+.read-page__mark { text-align: center; color: var(--k-faint, #b9b9b9); font-size: 11.5px; margin: 22px 0 10px; letter-spacing: 0.08em; }
+.read-page:first-child .read-page__mark { margin-top: 6px; }
+.read-p { margin: 0 0 14px; text-align: justify; }
+.read-h { font-size: 16.5px; font-weight: 650; margin: 22px 0 10px; }
+.read-seg { scroll-margin-top: 80px; }
+
+/* 高亮标注 */
+mark.anno { background: rgba(255, 224, 102, 0.55); color: inherit; padding: 1px 0; border-radius: 2px; cursor: pointer; }
+mark.anno--yellow { background: rgba(255, 224, 102, 0.55); }
+mark.anno--green { background: rgba(150, 230, 160, 0.55); }
+mark.anno--blue { background: rgba(150, 205, 255, 0.55); }
+mark.anno--pink { background: rgba(255, 175, 205, 0.55); }
+mark.anno:hover { filter: brightness(0.94); }
+mark.anno--flash { animation: anno-flash 0.5s ease-in-out 2; }
+@keyframes anno-flash { 0%, 100% { background-color: rgba(255, 224, 102, 0.55); } 50% { background-color: rgba(255, 170, 60, 0.9); } }
+
+/* 选区浮层 / 标注编辑浮层 */
+.anno-popup {
+  position: fixed; z-index: 95; transform: translateX(-50%);
+  background: var(--k-bg, #fff); border: 1px solid var(--k-line-strong, #1a1a1a);
+  border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); padding: 8px 10px;
+}
+.anno-popup--edit { transform: none; width: min(340px, calc(100vw - 24px)); }
+.anno-popup__row { display: flex; align-items: center; gap: 8px; }
+.anno-popup__note { width: 100%; margin-top: 8px; font-size: 13px; }
+.anno-dot { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--k-line-strong, #d4d4d4); cursor: pointer; padding: 0; }
+.anno-dot--yellow { background: rgba(255, 224, 102, 0.95); }
+.anno-dot--green { background: rgba(150, 230, 160, 0.95); }
+.anno-dot--blue { background: rgba(150, 205, 255, 0.95); }
+.anno-dot--pink { background: rgba(255, 175, 205, 0.95); }
+.anno-dot.cur { outline: 2px solid var(--k-ink, #141414); outline-offset: 1px; }
+
+/* 详情页标注列表 */
+.anno-list { list-style: none; padding: 0; margin: 12px 0 0; }
+.anno-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--k-line, #ececec); cursor: pointer; }
+.anno-item:hover { background: var(--k-bg-soft, #fafafa); }
+.anno-item__dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.anno-item__quote { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+.anno-item__note { flex: 0 1 30%; color: var(--k-mute, #8c8c8c); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .fs-trans__item { border-bottom: 1px solid var(--k-line, #ececec); padding: 8px 0; }
 .fs-trans__item:last-child { border-bottom: none; }
 .fs-trans__src { font-size: 12px; color: var(--k-mute, #8c8c8c); margin-bottom: 4px; max-height: 3.2em; overflow: hidden; }

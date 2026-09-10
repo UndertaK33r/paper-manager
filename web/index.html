@@ -139,10 +139,36 @@
           <div class="form-actions" style="margin-top:16px"><button class="p3r-btn small" @click="aiExtract(detail.id)">AI 提取元数据</button><button class="p3r-btn small" @click="summarize(detail.id)">生成摘要</button></div>
         </div>
         <div class="p3r-panel pdf-panel" ref="pdfPanel">
-          <span class="p3r-readout">PDF 阅读</span>
-          <div class="actions"><a v-if="detail.hasPdf" class="p3r-btn small" :href="pdfUrl(detail.id)" target="_blank">打开</a><a v-if="detail.hasPdf" class="p3r-btn small" :href="pdfUrl(detail.id, true)">下载</a><button class="p3r-btn small" @click="fullWidth=!fullWidth">全宽阅读</button><button class="p3r-btn small" @click="toggleFullscreen">全屏</button></div>
-          <iframe v-if="detail.hasPdf" :src="pdfUrl(detail.id)" :class="{wide: fullWidth}"></iframe>
-          <div v-if="!detail.hasPdf" class="p3r-readout">该论文暂无 PDF</div>
+          <span class="p3r-readout">{{ readMode ? '阅读模式' : 'PDF 阅读' }}</span>
+          <div class="actions">
+            <button class="p3r-btn small" :class="{active: readMode}" @click="toggleReadMode" :title="readMode ? '切回 PDF 原文' : '用重排后的全文阅读，可做标注'">{{ readMode ? 'PDF 原文' : '阅读模式' }}</button>
+            <a v-if="detail.hasPdf" class="p3r-btn small" :href="pdfUrl(detail.id)" target="_blank">打开</a><a v-if="detail.hasPdf" class="p3r-btn small" :href="pdfUrl(detail.id, true)">下载</a>
+            <button class="p3r-btn small" @click="toggleFullWidth">全宽阅读</button><button class="p3r-btn small" @click="toggleFullscreen">全屏</button>
+          </div>
+          <div v-if="readMode" class="read-wrap" ref="readWrap" @mouseup="onReadMouseUp">
+            <div v-if="readLoading" class="p3r-readout">正在加载全文…</div>
+            <div v-else-if="!readHasText" class="read-empty">
+              <div class="p3r-readout">这篇论文还没有可用的全文，阅读模式无法显示。</div>
+              <button class="p3r-btn small p3r-btn--primary" @click="reExtract(detail.id)">重新提取全文</button>
+            </div>
+            <article v-else class="read-body" v-html="readingHtml" @click="onReadClick"></article>
+          </div>
+          <iframe v-else-if="detail.hasPdf" :src="pdfUrl(detail.id)" :class="{wide: fullWidth}"></iframe>
+          <div v-if="!detail.hasPdf && !readMode" class="p3r-readout">该论文暂无 PDF</div>
+          <div v-if="annoPopup.show" class="anno-popup" :style="{ left: annoPopup.x + 'px', top: annoPopup.y + 'px' }" @mousedown.stop>
+            <div class="anno-popup__row"><span class="p3r-readout">高亮</span>
+              <button v-for="c in annoColors" :key="c" class="anno-dot" :class="'anno-dot--' + c" :title="c" @click="addAnnotation(c)"></button>
+              <button class="p3r-btn small" @click="annoPopup.show=false">取消</button>
+            </div>
+          </div>
+          <div v-if="annoEdit.show" class="anno-popup anno-popup--edit" :style="{ left: annoEdit.x + 'px', top: annoEdit.y + 'px' }" @mousedown.stop>
+            <div class="anno-popup__row"><span class="p3r-readout">标注</span>
+              <button v-for="c in annoColors" :key="c" class="anno-dot" :class="['anno-dot--' + c, { cur: annoEdit.color === c }]" :title="c" @click="setAnnotationColor(annoEdit.id, c)"></button>
+              <button class="p3r-btn small p3r-btn--danger" @click="deleteAnnotation(annoEdit.id)">删除</button>
+              <button class="p3r-btn small" @click="annoEdit.show=false">关闭</button>
+            </div>
+            <textarea class="p3r-input anno-popup__note" rows="3" v-model="annoEdit.note" placeholder="给这条标注写点备注…" @change="saveAnnotationNote(annoEdit.id, annoEdit.note)"></textarea>
+          </div>
           <div class="fs-notes" v-if="pdfFullscreen || fullWidth" ref="fsNotes" :class="{ 'fs-notes--min': fsNotesMin, 'fs-notes--pinned': fsNotesPinned, 'fs-notes--dragging': fsNotesDrag, 'fs-notes--sized': !!fsNotesSize && !fsNotesMin }" :style="fsNotesStyle">
             <div class="fs-notes__head" @pointerdown="startNotesDrag" @dblclick="resetNotesLayout" :title="fsNotesPinned ? '已固定：位置与大小已锁定，双击复位' : '按住拖动；双击复位位置与大小'">
               <span class="p3r-readout">笔记</span>
@@ -172,13 +198,29 @@
             </div>
           </div>
         </div>
+        <div class="p3r-panel grid-full anno-panel">
+          <div class="notes-head">
+            <span class="p3r-readout">标注（{{ annotations.length }}）</span>
+            <span class="p3r-readout">在阅读模式里选中文字即可高亮</span>
+            <button class="p3r-btn small notes-preview-btn" v-if="annotations.length" @click="insertAnnotationsIntoNotes" title="把全部标注按 Markdown 追加到笔记末尾">插入笔记</button>
+          </div>
+          <div v-if="!annotations.length" class="p3r-readout">还没有标注。切到「阅读模式」，选中文字后点颜色即可高亮。</div>
+          <ul class="anno-list" v-else>
+            <li v-for="a in annotations" :key="a.id" class="anno-item" @click="jumpToAnnotation(a.id)">
+              <span class="anno-item__dot" :class="'anno-dot--' + a.color"></span>
+              <span class="anno-item__quote">{{ a.quote }}</span>
+              <span class="anno-item__note" v-if="a.note">{{ a.note }}</span>
+              <button class="p3r-btn small p3r-btn--danger" @click.stop="deleteAnnotation(a.id)">删除</button>
+            </li>
+          </ul>
+        </div>
         <div class="p3r-panel grid-full">
           <div class="notes-head">
             <span class="p3r-readout">笔记</span>
             <span v-if="detail.updatedAt" class="p3r-readout notes-date">最后修改 {{ fmtDate(detail.updatedAt) }}</span>
             <button class="p3r-btn small notes-preview-btn" :class="{active: notesPreview}" :title="notesPreview ? '切换回编辑' : '预览 Markdown 渲染效果'" @click="toggleNotesPreview">{{ notesPreview ? '编辑' : '预览' }}</button>
           </div>
-          <textarea v-if="!notesPreview" class="p3r-input" v-model="detail.notes" rows="8" placeholder="支持 Markdown：# 标题、**加粗**、- 列表、`代码`、> 引用"></textarea>
+          <textarea v-if="!notesPreview" class="p3r-input detail-notes" v-model="detail.notes" rows="8" placeholder="支持 Markdown：# 标题、**加粗**、- 列表、`代码`、> 引用"></textarea>
           <div v-else class="md-body notes-preview" v-html="renderedNotes"></div>
           <div class="form-actions"><button class="p3r-btn p3r-btn--primary" @click="saveDetail">保存笔记</button><button class="p3r-btn small" @click="exportNotes">导出笔记</button><button class="p3r-btn small" @click="reDetect(detail.id)">重新识别元数据</button>
           <button class="p3r-btn small" @click="reExtract(detail.id)">重新提取全文</button><button class="p3r-btn small p3r-btn--danger" @click="deletePaper(detail.id)">删除论文</button></div>

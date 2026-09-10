@@ -27,7 +27,9 @@
 
 - **收录**：拖拽 PDF 自动提取标题 / 作者 / 年份 / 期刊 / DOI / 关键词 / 全文（支持中文 PDF），可选 AI 补充提取
 - **补全**：按 DOI 走 Crossref、OpenAlex；按标题走 arXiv、Crossref 检索
-- **阅读**：浏览器内原生阅读 PDF，全宽 / 全屏；笔记浮窗可拖动、可调长宽、图钉固定（位置与尺寸本地持久化）
+- **阅读**：两种视图随时切换 —— **PDF 原文**（浏览器原生）与 **阅读模式**（把已提取的全文重排成可读正文：合并断行、还原连字符断词、识别小节标题、按页分隔，全屏时默认进入）
+- **标注**：在阅读模式里选中文字即可高亮（黄/绿/蓝/粉四色），可写备注、改色、删除；标注随论文保存、刷新后按偏移精确复原；详情页有标注列表（点一下定位到正文），可一键按 Markdown 插入笔记
+- **笔记浮窗**：可拖动、可调长宽、图钉固定（位置与尺寸本地持久化）
 - **笔记**：支持 **Markdown 渲染预览**（标题/列表/表格/代码/引用），编辑与预览一键切换；停止输入自动保存，乐观锁避免多窗口互相覆盖；可导出为 Markdown
 - **组织**：分类 / 标签 / 合集 / 阅读状态 / 收藏；搜索（含全文）、筛选、排序、分页
 - **回收站**：删除先进回收站（PDF 与关联保留），可恢复或彻底删除；不再一删就没了
@@ -146,8 +148,8 @@ go test ./... && go vet ./...      # 单元测试（存储 / 鉴权 / 备份 / �
 cd e2e && npm ci && npx playwright test    # 端到端冒烟（自带隔离实例，不碰真实数据）
 ```
 
-E2E 覆盖（8 例）：首页加载、上传 PDF、详情渲染、笔记自动/手动保存、笔记浮窗拖动与固定、删除、
-回收站恢复与彻底删除、笔记 Markdown 预览（含注入转义）、备份接口。
+E2E 覆盖（9 例）：首页加载、上传 PDF、详情渲染、笔记自动/手动保存、笔记浮窗拖动与固定、删除、
+回收站恢复与彻底删除、笔记 Markdown 预览（含注入转义）、阅读模式与标注（重排、高亮、持久化、删除）、备份接口。
 CI（`.github/workflows/ci.yml`）在每次 push 与 PR 上跑这两组测试。
 
 ## API 概览
@@ -162,6 +164,11 @@ DELETE /api/trash                         清空回收站（连同 PDF 一起删
 POST   /api/papers/{id}/restore           从回收站恢复
 DELETE /api/papers/{id}/purge             彻底删除（连同 PDF）
 GET    /api/papers/{id}/pdf               获取 PDF（?download=1 下载）
+GET    /api/papers/{id}/text              阅读模式的结构化全文（分页/段落/偏移）
+GET    /api/papers/{id}/annotations       标注列表
+POST   /api/papers/{id}/annotations       新建标注
+PATCH  /api/annotations/{id}              改标注颜色/备注
+DELETE /api/annotations/{id}              删除标注
 POST   /api/papers/{id}/toggle-read       切换阅读状态
 POST   /api/papers/{id}/re-extract        重新提取全文
 POST   /api/papers/{id}/re-detect         重新识别元数据
@@ -195,7 +202,7 @@ paper-manager/
 │   ├── api/           # HTTP 处理器、路由、鉴权、备份
 │   ├── meta/          # Crossref / OpenAlex / arXiv 元数据补全
 │   ├── models/        # 数据模型
-│   ├── pdf/           # PDF 元数据与全文提取
+│   ├── pdf/           # PDF 元数据与全文提取 + 阅读模式重排（SplitReading）
 │   └── store/         # SQLite 存储（事务、乐观锁、快照）
 ├── web/               # 前端（Vue 3 全局构建 + 样式，go:embed 内嵌）
 ├── e2e/               # Playwright 端到端冒烟测试

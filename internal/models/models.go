@@ -50,6 +50,19 @@ type Paper struct {
 	Collections    []Collection `json:"collections"`
 }
 
+// Annotation 是全文阅读模式里的一处高亮标注。
+// Start/End 是以 UTF-16 码元计的字符偏移（与浏览器 JS 字符串下标一致）。
+type Annotation struct {
+	ID        int64     `json:"id"`
+	PaperID   int64     `json:"paperId"`
+	Start     int       `json:"start"`
+	End       int       `json:"end"`
+	Quote     string    `json:"quote"`
+	Color     string    `json:"color"`
+	Note      string    `json:"note,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
 type PaperInput struct {
 	Title           string   `json:"title"`
 	Authors         string   `json:"authors"`

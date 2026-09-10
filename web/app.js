@@ -18,6 +18,11 @@ var Root = {
       fsNotesPos: null, fsNotesSize: null, fsNotesPinned: false, fsNotesDrag: false,
       // 笔记 Markdown 预览（编辑态/预览态，偏好持久化）
       notesPreview: false,
+      // 阅读模式与标注
+      readMode: false, readPages: [], readLoading: false, readHasText: false,
+      annotations: [], annoColors: ["yellow", "green", "blue", "pink"],
+      annoPopup: { show: false, x: 0, y: 0, start: 0, end: 0, quote: "" },
+      annoEdit: { show: false, x: 0, y: 0, id: 0, color: "yellow", note: "" },
       summaryExpanded: false, summaryOverflow: false,
       fsTransMin: false, transHistory: [], instantSrc: "", instantLoading: false,
       showPaperModal: false, editingId: null, saving: false, form: makeEmptyForm(),
@@ -39,6 +44,25 @@ var Root = {
     renderedSummary: function () { return window.mdRender ? window.mdRender(this.detail.summary) : ""; },
     renderedAnswer: function () { return window.mdRender ? window.mdRender(this.answer) : ""; },
     uiBlocked: function () { return !!(this.showManage || this.showSettings || this.showPaperModal || this.showTrash); },
+    // 阅读模式正文：把「页 → 段落 → 片段」渲染成 HTML，标注以 <mark> 内联
+    readingHtml: function () {
+      var annos = (this.annotations || []).slice().sort(function (a, b) { return a.start - b.start; });
+      var out = [];
+      (this.readPages || []).forEach(function (page) {
+        out.push('<section class="read-page">');
+        out.push('<div class="read-page__mark"><span>· ' + page.number + ' ·</span></div>');
+        (page.paragraphs || []).forEach(function (para) {
+          out.push(para.heading ? '<h3 class="read-h">' : '<p class="read-p">');
+          (para.segments || []).forEach(function (seg, i) {
+            if (i > 0 && seg.join !== "none") out.push(" ");
+            out.push('<span class="read-seg" data-o="' + seg.start + '">' + renderSegmentHtml(seg, annos) + "</span>");
+          });
+          out.push(para.heading ? "</h3>" : "</p>");
+        });
+        out.push("</section>");
+      });
+      return out.join("");
+    },
     // 笔记的 Markdown 渲染（md-mini.js 已做 HTML 转义与 URL 白名单）
     renderedNotes: function () {
       var src = (this.detail && this.detail.notes) || "";
@@ -233,7 +257,11 @@ var Root = {
     openDetail: async function (id) {
       this.detail={}; this.route="detail"; window.location.hash="#/papers/"+id;
       this.transHistory=[]; this.instantSrc="";
+      this.readPages=[]; this.annotations=[]; this.readHasText=false;
+      this.annoPopup.show=false; this.annoEdit.show=false;
       try { this.detail=await this.api("/api/papers/"+id); this.tagSelect=""; this.collectionSelect=""; this.fsNotesMin=false; this.notesSavedAt=""; } catch (e) { this.notify(e.message,true); }
+      this.loadAnnotations(id);
+      if (this.readMode) this.loadReading();
     },
     addToHistory: function (src, out) {
       this.transHistory.unshift({ src: src.length > 220 ? src.slice(0, 220) + "…" : src, html: window.mdRender ? window.mdRender(out) : out });
@@ -320,6 +348,152 @@ var Root = {
       window.addEventListener("pointercancel", end);
       e.preventDefault();
       e.stopPropagation();
+    },
+    // ---------- 阅读模式 ----------
+    toggleReadMode: function () {
+      this.readMode = !this.readMode;
+      try { localStorage.setItem("pm-read-mode", this.readMode ? "1" : "0"); } catch (e) {}
+      if (this.readMode && !this.readPages.length) this.loadReading();
+    },
+    loadReading: async function () {
+      if (!this.detail || !this.detail.id) return;
+      this.readLoading = true;
+      try {
+        var id = this.detail.id;
+        var res = await this.api("/api/papers/" + id + "/text");
+        if (!this.detail || this.detail.id !== id) return; // 期间切了论文
+        this.readPages = res.pages || [];
+        this.readHasText = !!res.hasText;
+        await this.loadAnnotations(id);
+      } catch (e) { this.notify(e.message, true); }
+      this.readLoading = false;
+    },
+    loadAnnotations: async function (id) {
+      try {
+        var res = await this.api("/api/papers/" + id + "/annotations");
+        if (!this.detail || this.detail.id !== id) return;
+        this.annotations = res.annotations || [];
+      } catch (e) { this.annotations = []; }
+    },
+    // 选区 → 全文 UTF-16 偏移（与后端返回的 segment.start 同一坐标系）
+    offsetFromDom: function (root, node, offset) {
+      var el = node && node.nodeType === 3 ? node.parentElement : node;
+      var span = el && el.closest ? el.closest("[data-o]") : null;
+      if (!span || !root.contains(span)) return null;
+      var base = parseInt(span.getAttribute("data-o"), 10);
+      if (isNaN(base)) return null;
+      var within = 0, found = false;
+      var walk = function (n) {
+        if (found) return;
+        if (n === node) {
+          if (n.nodeType === 3) { within += offset; }
+          found = true;
+          return;
+        }
+        if (n.nodeType === 3) { within += n.textContent.length; return; }
+        for (var i = 0; i < n.childNodes.length; i++) {
+          walk(n.childNodes[i]);
+          if (found) return;
+        }
+      };
+      walk(span);
+      return found ? base + within : null;
+    },
+    onReadMouseUp: function () {
+      var self = this;
+      if (this.annoEdit.show) return;
+      setTimeout(function () {
+        var sel = window.getSelection();
+        var root = self.$refs.readWrap;
+        if (!sel || sel.isCollapsed || !root) { self.annoPopup.show = false; return; }
+        var text = sel.toString().replace(/\s+/g, " ").trim();
+        if (text.length < 2) { self.annoPopup.show = false; return; }
+        var start = self.offsetFromDom(root, sel.anchorNode, sel.anchorOffset);
+        var end = self.offsetFromDom(root, sel.focusNode, sel.focusOffset);
+        if (start === null || end === null) { self.annoPopup.show = false; return; }
+        if (start > end) { var t = start; start = end; end = t; }
+        var rect = sel.getRangeAt(0).getBoundingClientRect();
+        self.annoPopup = {
+          show: true,
+          x: Math.min(Math.max(rect.left + rect.width / 2, 90), window.innerWidth - 90),
+          y: Math.max(rect.top - 46, 8),
+          start: start, end: end, quote: text.slice(0, 4000)
+        };
+      }, 10);
+    },
+    addAnnotation: async function (color) {
+      var p = this.annoPopup;
+      if (!p.show || !this.detail.id) return;
+      this.annoPopup.show = false;
+      try {
+        var a = await this.api("/api/papers/" + this.detail.id + "/annotations", {
+          method: "POST",
+          json: { start: p.start, end: p.end, quote: p.quote, color: color }
+        });
+        this.annotations = this.annotations.concat([a]).sort(function (x, y) { return x.start - y.start; });
+        var sel = window.getSelection(); if (sel) sel.removeAllRanges();
+        this.notify("已高亮");
+      } catch (e) { this.notify(e.message, true); }
+    },
+    onReadClick: function (ev) {
+      var mark = ev.target && ev.target.closest ? ev.target.closest("mark.anno") : null;
+      if (!mark) { this.annoEdit.show = false; return; }
+      var id = parseInt(mark.getAttribute("data-id"), 10);
+      var a = null;
+      for (var i = 0; i < this.annotations.length; i++) { if (this.annotations[i].id === id) a = this.annotations[i]; }
+      if (!a) return;
+      var rect = mark.getBoundingClientRect();
+      this.annoPopup.show = false;
+      this.annoEdit = {
+        show: true, id: a.id, color: a.color, note: a.note || "",
+        x: Math.min(Math.max(rect.left, 120), Math.max(window.innerWidth - 300, 8)),
+        y: rect.bottom + 8
+      };
+    },
+    setAnnotationColor: async function (id, color) {
+      try {
+        await this.api("/api/annotations/" + id, { method: "PATCH", json: { color: color } });
+        this.annotations = this.annotations.map(function (a) { return a.id === id ? Object.assign({}, a, { color: color }) : a; });
+        this.annoEdit.color = color;
+      } catch (e) { this.notify(e.message, true); }
+    },
+    saveAnnotationNote: async function (id, note) {
+      try {
+        await this.api("/api/annotations/" + id, { method: "PATCH", json: { note: note } });
+        this.annotations = this.annotations.map(function (a) { return a.id === id ? Object.assign({}, a, { note: note }) : a; });
+      } catch (e) { this.notify(e.message, true); }
+    },
+    deleteAnnotation: async function (id) {
+      try {
+        await this.api("/api/annotations/" + id, { method: "DELETE" });
+        this.annotations = this.annotations.filter(function (a) { return a.id !== id; });
+        this.annoEdit.show = false;
+      } catch (e) { this.notify(e.message, true); }
+    },
+    // 点标注列表 → 滚动到正文中对应位置并闪一下
+    jumpToAnnotation: function (id) {
+      var el = null;
+      var marks = document.querySelectorAll("mark.anno");
+      for (var i = 0; i < marks.length; i++) {
+        if (parseInt(marks[i].getAttribute("data-id"), 10) === id) { el = marks[i]; break; }
+      }
+      if (!el) { this.notify("切到「阅读模式」才能定位到正文", true); return; }
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.classList.add("anno--flash");
+      setTimeout(function () { el.classList.remove("anno--flash"); }, 1200);
+    },
+    // 把标注按 Markdown 追加到笔记
+    insertAnnotationsIntoNotes: function () {
+      if (!this.annotations.length) return;
+      var lines = ["", "", "## 标注"];
+      this.annotations.forEach(function (a) {
+        var q = a.quote.replace(/\s+/g, " ").trim();
+        lines.push("- > " + q);
+        if (a.note) lines.push("  - 备注：" + a.note);
+      });
+      var cur = (this.detail && this.detail.notes) || "";
+      this.detail.notes = cur.replace(/\s+$/, "") + "\n" + lines.join("\n") + "\n";
+      this.notify("已插入笔记，记得保存");
     },
     toggleNotesPreview: function () {
       this.notesPreview = !this.notesPreview;
@@ -525,6 +699,7 @@ var Root = {
     },
     // PDF 阅读面板全屏（原模板绑定了该方法但从未实现）
     toggleFullscreen: function () {
+      this.enterReadingOnBigView();
       var el=this.$refs.pdfPanel; if(!el) return;
       var doc=document;
       var current=doc.fullscreenElement||doc.webkitFullscreenElement;
@@ -535,6 +710,18 @@ var Root = {
     },
     // 全屏状态跟踪：不依赖 :fullscreen 伪类（Safari 前缀支持不一致），
     // 直接由 fullscreenchange 事件驱动悬浮笔记窗的显隐
+    // 进入全屏/全宽时自动切到阅读模式（有全文的前提下）
+    toggleFullWidth: function () {
+      this.fullWidth = !this.fullWidth;
+      if (this.fullWidth) this.enterReadingOnBigView();
+    },
+    enterReadingOnBigView: function () {
+      if (!this.readMode && this.detail && this.detail.id) {
+        this.readMode = true;
+        try { localStorage.setItem("pm-read-mode", "1"); } catch (e) {}
+        this.loadReading();
+      }
+    },
     syncFullscreen: function () {
       var doc=document;
       var on=!!(doc.fullscreenElement||doc.webkitFullscreenElement);
@@ -557,6 +744,7 @@ var Root = {
     this.setTheme(); // 恢复上次选择的主题
     this.loadNotesPanelPrefs(); // 恢复笔记浮窗位置与固定状态
     try { this.notesPreview = localStorage.getItem("pm-notes-preview") === "1"; } catch (e) {}
+    try { this.readMode = localStorage.getItem("pm-read-mode") === "1"; } catch (e) {}
     window.addEventListener("hashchange", function(){ self.parseHash(); });
     window.addEventListener("resize", function(){ self.clampNotesPos(); });
     var fsSync=function(){
@@ -582,6 +770,38 @@ var Root = {
     this.loadPapers();
   }
 };
+
+// ---------- 阅读模式渲染辅助 ----------
+// 全文是纯文本：先转义再拼 HTML，避免注入
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// 把一个片段渲染为 HTML：按标注范围切分并包 <mark>
+// 片段与标注都在「全文 UTF-16 偏移」坐标系里，与后端 SplitReading 一致
+function renderSegmentHtml(seg, annos) {
+  var base = seg.start;
+  var text = seg.text || "";
+  var end = base + text.length;
+  var pieces = [];
+  var pos = base;
+  for (var i = 0; i < annos.length; i++) {
+    var a = annos[i];
+    var as = Math.max(a.start, base, pos);   // 不允许与已有标注重叠（防止嵌套 mark）
+    var ae = Math.min(a.end, end);
+    if (ae <= as) continue;
+    if (as > pos) pieces.push(escHtml(text.slice(pos - base, as - base)));
+    pieces.push('<mark class="anno anno--' + escHtml(a.color) + '" data-id="' + a.id + '">' +
+      escHtml(text.slice(as - base, ae - base)) + '</mark>');
+    pos = ae;
+  }
+  if (pos < end) pieces.push(escHtml(text.slice(pos - base)));
+  return pieces.join("");
+}
 
 Root.template = document.getElementById("app-template").innerHTML;
 var app = Vue.createApp(Root);

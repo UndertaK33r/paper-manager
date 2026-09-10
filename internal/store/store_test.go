@@ -469,3 +469,107 @@ func searchTitles(t *testing.T, st *Store, q string) []string {
 	}
 	return out
 }
+
+// 标注：CRUD、排序、颜色收敛、随论文彻底删除而级联清理
+func TestAnnotationsCRUDAndCascade(t *testing.T) {
+	st := newTestStore(t)
+	p := seedPaper(t, st)
+
+	a1 := models.Annotation{PaperID: p.ID, Start: 100, End: 120, Quote: "第二处"}
+	a2 := models.Annotation{PaperID: p.ID, Start: 10, End: 25, Quote: "第一处", Color: "green", Note: "备注"}
+	if _, err := st.CreateAnnotation(&a2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.CreateAnnotation(&a1); err != nil {
+		t.Fatal(err)
+	}
+
+	list, err := st.ListAnnotations(p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 2 || list[0].Start != 10 || list[1].Start != 100 {
+		t.Fatalf("排序不对: %+v", list)
+	}
+	if list[0].Color != "green" || list[0].Note != "备注" {
+		t.Fatalf("字段丢失: %+v", list[0])
+	}
+	if list[0].CreatedAt.IsZero() {
+		t.Fatal("创建时间未解析")
+	}
+	if n, _ := st.CountAnnotations(p.ID); n != 2 {
+		t.Fatalf("计数错误: %d", n)
+	}
+
+	// 未知颜色收敛为 yellow
+	bad := models.Annotation{PaperID: p.ID, Start: 1, End: 5, Quote: "x", Color: "rainbow"}
+	if _, err := st.CreateAnnotation(&bad); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := st.ListAnnotations(p.ID)
+	if got[0].Color != "yellow" {
+		t.Fatalf("颜色未收敛: %q", got[0].Color)
+	}
+
+	// 更新备注与颜色
+	newNote, newColor := "改过的备注", "blue"
+	if err := st.UpdateAnnotation(a2.ID, &newColor, &newNote); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = st.ListAnnotations(p.ID)
+	var target models.Annotation
+	for _, a := range got {
+		if a.ID == a2.ID {
+			target = a
+		}
+	}
+	if target.Note != newNote || target.Color != "blue" {
+		t.Fatalf("更新未生效: %+v", target)
+	}
+	if err := st.UpdateAnnotation(99999, nil, &newNote); err != ErrConflict {
+		t.Fatalf("更新不存在的标注应返回 ErrConflict, got %v", err)
+	}
+
+	// 删除
+	if err := st.DeleteAnnotation(a2.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteAnnotation(a2.ID); err != ErrConflict {
+		t.Fatalf("重复删除应返回 ErrConflict, got %v", err)
+	}
+	if n, _ := st.CountAnnotations(p.ID); n != 2 {
+		t.Fatalf("删除后计数错误: %d", n)
+	}
+
+	// 论文彻底删除后标注级联清理（外键 ON DELETE CASCADE）
+	if _, err := st.DeletePaper(p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.PurgePaper(p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := st.CountAnnotations(p.ID); n != 0 {
+		t.Fatalf("论文删除后标注未清理: %d", n)
+	}
+}
+
+// 软删除（进回收站）时标注保留，恢复后仍在
+func TestAnnotationsSurviveSoftDelete(t *testing.T) {
+	st := newTestStore(t)
+	p := seedPaper(t, st)
+	if _, err := st.CreateAnnotation(&models.Annotation{PaperID: p.ID, Start: 5, End: 9, Quote: "abc"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DeletePaper(p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := st.CountAnnotations(p.ID); n != 1 {
+		t.Fatal("软删除不应清理标注")
+	}
+	if err := st.RestorePaper(p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := st.ListAnnotations(p.ID); len(list) != 1 {
+		t.Fatalf("恢复后标注丢失: %+v", list)
+	}
+}

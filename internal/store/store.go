@@ -95,6 +95,17 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
+CREATE TABLE IF NOT EXISTS annotations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+  start_offset INTEGER NOT NULL,
+  end_offset INTEGER NOT NULL,
+  quote TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL DEFAULT 'yellow',
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_annotations_paper ON annotations(paper_id);
 `
 	_, err := s.db.Exec(schema)
 	if err != nil {
@@ -124,9 +135,10 @@ DROP TABLE IF EXISTS papers_fts;`)
 
 func nowStr() string { return time.Now().UTC().Format(time.RFC3339) }
 
-// nowMillis 毫秒精度：笔记时间戳用它，保证同一秒内的连续编辑也能区分
-// （旧版由 SQLite 触发器 strftime('%Y-%m-%dT%H:%M:%fZ') 产生同样的精度）
-func nowMillis() string { return time.Now().UTC().Format("2006-01-02T15:04:05.000Z") }
+// nowMillis 微秒精度：笔记时间戳用它，保证连续编辑一定能区分开。
+// 旧版由 SQLite 触发器 strftime('%Y-%m-%dT%H:%M:%fZ') 产生毫秒精度，
+// 毫秒内连续两次写入会得到相同时间戳（测试与"最后修改"显示都会受影响），故提高到微秒。
+func nowMillis() string { return time.Now().UTC().Format("2006-01-02T15:04:05.000000Z") }
 
 func parseTime(v string) time.Time {
 	t, err := time.Parse(time.RFC3339, v)
