@@ -27,8 +27,8 @@
 
 - **收录**：拖拽 PDF 自动提取标题 / 作者 / 年份 / 期刊 / DOI / 关键词 / 全文（支持中文 PDF），可选 AI 补充提取
 - **补全**：按 DOI 走 Crossref、OpenAlex；按标题走 arXiv、Crossref 检索
-- **阅读**：两种视图随时切换 —— **PDF 原文**（浏览器原生）与 **阅读模式**（把已提取的全文重排成可读正文：按页分隔、合并硬换行、还原英文断词与 PDF 首字母下沉、识别小节标题、弱化页眉页脚；进入全屏自动切换）
-- **标注**：在阅读模式里选中文字即可高亮（黄/绿/蓝/粉四色），可写备注、改色、删除；标注随论文保存、刷新后按偏移精确复原；详情页有标注列表（点一下定位到正文），可一键按 Markdown 插入笔记
+- **阅读**：内置 **pdf.js 阅读器**（离线可用），保留 PDF 原始版面；可另切「纯文本」视图（把已提取全文重排：合并断行、还原断词与首字母下沉、识别小节标题）
+- **标注**：**直接在 PDF 上划段** —— 选中文字弹出四色高亮（黄/绿/蓝/粉），可写备注、改色、删除；位置以「页码 + 归一化矩形」保存，与栏数（单栏/双栏）、缩放、窗口大小无关，刷新后精确复原；详情页有标注列表（显示页码、点击定位并闪烁），可一键按 Markdown 插入笔记
 - **笔记浮窗**：可拖动、可调长宽、图钉固定（位置与尺寸本地持久化）
 - **笔记**：支持 **Markdown 渲染预览**（标题/列表/表格/代码/引用），编辑与预览一键切换；停止输入自动保存，乐观锁避免多窗口互相覆盖；可导出为 Markdown
 - **组织**：分类 / 标签 / 合集 / 阅读状态 / 收藏；搜索（含全文）、筛选、排序、分页
@@ -164,7 +164,7 @@ DELETE /api/trash                         清空回收站（连同 PDF 一起删
 POST   /api/papers/{id}/restore           从回收站恢复
 DELETE /api/papers/{id}/purge             彻底删除（连同 PDF）
 GET    /api/papers/{id}/pdf               获取 PDF（?download=1 下载）
-GET    /api/papers/{id}/text              阅读模式的结构化全文（分页/段落/偏移）
+GET    /api/papers/{id}/text              纯文本视图的结构化全文（分页/段落）
 GET    /api/papers/{id}/annotations       标注列表
 POST   /api/papers/{id}/annotations       新建标注
 PATCH  /api/annotations/{id}              改标注颜色/备注
@@ -202,8 +202,8 @@ paper-manager/
 │   ├── api/           # HTTP 处理器、路由、鉴权、备份
 │   ├── meta/          # Crossref / OpenAlex / arXiv 元数据补全
 │   ├── models/        # 数据模型
-│   ├── pdf/           # PDF 元数据与全文提取 + 阅读模式重排（SplitReading）
-│   └── store/         # SQLite 存储（事务、乐观锁、快照）
+│   ├── pdf/           # PDF 元数据与全文提取 + 纯文本重排（SplitReading）
+│   └── store/         # SQLite 存储（事务、乐观锁、快照、标注）
 ├── web/               # 前端（Vue 3 全局构建 + 样式，go:embed 内嵌）
 ├── e2e/               # Playwright 端到端冒烟测试
 ├── docs/screenshots/  # README 截图

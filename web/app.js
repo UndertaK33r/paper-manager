@@ -18,7 +18,9 @@ var Root = {
       fsNotesPos: null, fsNotesSize: null, fsNotesPinned: false, fsNotesDrag: false,
       // 笔记 Markdown 预览（编辑态/预览态，偏好持久化）
       notesPreview: false,
-      // 阅读模式与标注
+      // PDF 渲染与标注（pdf.js：画布 + 文字层 + 标注层）
+      pdfLoading: false, pdfFailed: false, pdfError: "",
+      // 纯文本（重排）视图
       readMode: false, readPages: [], readLoading: false, readHasText: false,
       annotations: [], annoColors: ["yellow", "green", "blue", "pink"],
       annoPopup: { show: false, x: 0, y: 0, start: 0, end: 0, quote: "" },
@@ -44,9 +46,8 @@ var Root = {
     renderedSummary: function () { return window.mdRender ? window.mdRender(this.detail.summary) : ""; },
     renderedAnswer: function () { return window.mdRender ? window.mdRender(this.answer) : ""; },
     uiBlocked: function () { return !!(this.showManage || this.showSettings || this.showPaperModal || this.showTrash); },
-    // 阅读模式正文：把「页 → 段落 → 片段」渲染成 HTML，标注以 <mark> 内联
+    // 纯文本视图正文：把「页 → 段落 → 片段」渲染成 HTML
     readingHtml: function () {
-      var annos = (this.annotations || []).slice().sort(function (a, b) { return a.start - b.start; });
       var out = [];
       (this.readPages || []).forEach(function (page) {
         out.push('<section class="read-page">');
@@ -56,7 +57,7 @@ var Root = {
           out.push(para.heading ? '<h3 class="read-h">' : '<p class="' + cls + '">');
           (para.segments || []).forEach(function (seg, i) {
             if (i > 0 && seg.join !== "none") out.push(" ");
-            out.push('<span class="read-seg" data-o="' + seg.start + '">' + renderSegmentHtml(seg, annos) + "</span>");
+            out.push('<span class="read-seg">' + escHtml(seg.text) + "</span>");
           });
           out.push(para.heading ? "</h3>" : "</p>");
         });
@@ -256,14 +257,25 @@ var Root = {
       try { var res=await this.api("/api/trash",{method:"DELETE"}); this.notify("已清空回收站（"+((res&&res.removed)||0)+" 个文件）"); await this.loadTrash(); this.loadAll(); } catch(e){ this.notify(e.message,true); }
     },
     openDetail: async function (id) {
-      this.detail={}; this.route="detail"; window.location.hash="#/papers/"+id;
+      this.detail={}; this.route="detail";
+      // 只有 hash 真的变化才赋值：否则会触发 hashchange → 再次 openDetail，
+      // 把正在加载的 pdf.js 任务销毁掉（报 Worker was destroyed）
+      if (window.location.hash !== "#/papers/" + id) window.location.hash = "#/papers/" + id;
       this.transHistory=[]; this.instantSrc="";
       this.readPages=[]; this.annotations=[]; this.readHasText=false;
       this.annoPopup.show=false; this.annoEdit.show=false;
+      this.destroyPdf();
       try { this.detail=await this.api("/api/papers/"+id); this.tagSelect=""; this.collectionSelect=""; this.fsNotesMin=false; this.notesSavedAt=""; } catch (e) { this.notify(e.message,true); }
-      this.loadAnnotations(id);
-      if (this.readMode) this.loadReading();
+      await this.loadAnnotations(id);
+      if (this.readMode) {
+        this.loadReading();
+      } else {
+        var self = this;
+        this.$nextTick(function () { self.setupPdf(); });
+      }
     },
+    // 点击 PDF 上的高亮（事件委托，绑定在容器上）
+    onPdfContainerClick: function (ev) { this.onPdfClick(ev); },
     addToHistory: function (src, out) {
       this.transHistory.unshift({ src: src.length > 220 ? src.slice(0, 220) + "…" : src, html: window.mdRender ? window.mdRender(out) : out });
       if (this.transHistory.length > 30) this.transHistory.pop();
@@ -350,11 +362,216 @@ var Root = {
       e.preventDefault();
       e.stopPropagation();
     },
-    // ---------- 阅读模式 ----------
+    // ---------- PDF 渲染（pdf.js）+ 划段标注 ----------
+    setupPdf: async function () {
+      this.destroyPdf();
+      this.pdfFailed = false;
+      if (this.readMode || !this.detail || !this.detail.hasPdf) return;
+      if (!window.pdfjsLib) { this.pdfFailed = true; return; }
+      var self = this, el = this.$refs.pdfView;
+      if (!el) return;
+      this.pdfLoading = true;
+      this.pdfError = "";
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "/assets/pdfjs/pdf.worker.min.js";
+      var task = pdfjsLib.getDocument({ url: this.pdfUrl(this.detail.id) });
+      var S = { task: task, doc: null, pages: [], el: el, width: 0, io: null };
+      this._pdf = S;
+      try {
+        var doc = await task.promise;
+        if (this._pdf !== S) return; // 期间切了论文
+        S.doc = doc;
+        el.innerHTML = "";
+        for (var n = 1; n <= doc.numPages; n++) {
+          var wrap = document.createElement("div");
+          wrap.className = "pdf-page";
+          wrap.dataset.page = n;
+          var canvas = document.createElement("canvas");
+          var text = document.createElement("div");
+          text.className = "pdf-text";
+          var anno = document.createElement("div");
+          anno.className = "pdf-annos";
+          wrap.appendChild(canvas); wrap.appendChild(text); wrap.appendChild(anno);
+          el.appendChild(wrap);
+          S.pages.push({ n: n, wrap: wrap, canvas: canvas, text: text, anno: anno, done: false, w: 0, h: 0 });
+        }
+        await this.layoutPdf(true);
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) { if (en.isIntersecting) self.renderPdfPage(+en.target.dataset.page); });
+        }, { root: el, rootMargin: "700px 0px" });
+        S.io = io;
+        S.pages.forEach(function (p) { io.observe(p.wrap); });
+      } catch (e) {
+        if (this._pdf !== S) return; // 已被新的一次渲染取代，忽略这次的失败
+        this.pdfFailed = true;       // 回退浏览器原生阅读器
+        this.pdfError = String((e && e.message) || e);
+      }
+      this.pdfLoading = false;
+    },
+    destroyPdf: function () {
+      var S = this._pdf;
+      if (S) {
+        if (S.io) S.io.disconnect();
+        if (S.task) { try { S.task.destroy(); } catch (e) {} }
+        if (S.el) S.el.innerHTML = "";
+      }
+      this._pdf = null;
+    },
+    // 按容器宽度排布页面占位（避免渲染后跳动）
+    layoutPdf: async function (force) {
+      var S = this._pdf;
+      if (!S || !S.doc || !S.el) return;
+      var width = S.el.clientWidth - 20;
+      if (width < 260) width = 260;
+      if (!force && S.width && Math.abs(S.width - width) < 10) return;
+      S.width = width;
+      for (var i = 0; i < S.pages.length; i++) {
+        var p = S.pages[i];
+        var page = await S.doc.getPage(p.n);
+        var base = page.getViewport({ scale: 1 });
+        var scale = width / base.width;
+        var vp = page.getViewport({ scale: scale });
+        p.scale = scale; p.w = vp.width; p.h = vp.height;
+        p.wrap.style.width = Math.round(vp.width) + "px";
+        p.wrap.style.height = Math.round(vp.height) + "px";
+        // pdf.js 文字层依赖这个 CSS 变量来定位 span
+        p.wrap.style.setProperty("--scale-factor", scale);
+        p.done = false;
+        p.canvas.width = 0; p.canvas.height = 0;
+        p.canvas.style.width = ""; p.canvas.style.height = "";
+        p.text.innerHTML = "";
+      }
+      this.renderAllAnnotations();
+      var st = S.el.scrollTop, vh = S.el.clientHeight;
+      var self = this;
+      S.pages.forEach(function (p) {
+        var top = p.wrap.offsetTop;
+        if (top + p.wrap.offsetHeight > st - 900 && top < st + vh + 900) self.renderPdfPage(p.n);
+      });
+    },
+    renderPdfPage: async function (n) {
+      var S = this._pdf;
+      if (!S || !S.doc) return;
+      var p = S.pages[n - 1];
+      if (!p || p.done) return;
+      p.done = true;
+      try {
+        var page = await S.doc.getPage(n);
+        var vp = page.getViewport({ scale: p.scale });
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        p.canvas.width = Math.round(vp.width * dpr);
+        p.canvas.height = Math.round(vp.height * dpr);
+        p.canvas.style.width = Math.round(vp.width) + "px";
+        p.canvas.style.height = Math.round(vp.height) + "px";
+        var ctx = p.canvas.getContext("2d");
+        await page.render({ canvasContext: ctx, viewport: vp, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null }).promise;
+        if (this._pdf !== S) return;
+        var tc = await page.getTextContent();
+        p.text.innerHTML = "";
+        await pdfjsLib.renderTextLayer({ textContentSource: tc, container: p.text, viewport: vp }).promise;
+        this.renderPageAnnotations(n);
+      } catch (e) { p.done = false; }
+    },
+    // ---------- 标注层 ----------
+    renderPageAnnotations: function (n) {
+      var S = this._pdf;
+      if (!S) return;
+      var p = S.pages[n - 1];
+      if (!p) return;
+      p.anno.innerHTML = "";
+      var w = p.wrap.clientWidth || p.w, h = p.wrap.clientHeight || p.h;
+      if (!w || !h) return;
+      (this.annotations || []).forEach(function (a) {
+        (a.rects || []).forEach(function (r) {
+          if (r.p !== n) return;
+          var d = document.createElement("div");
+          d.className = "pdf-anno pdf-anno--" + a.color;
+          d.style.left = (r.x * w) + "px";
+          d.style.top = (r.y * h) + "px";
+          d.style.width = Math.max(2, r.w * w) + "px";
+          d.style.height = Math.max(2, r.h * h) + "px";
+          d.dataset.id = a.id;
+          d.title = a.note ? a.note : "点击编辑标注";
+          p.anno.appendChild(d);
+        });
+      });
+    },
+    renderAllAnnotations: function () {
+      var S = this._pdf;
+      if (!S) return;
+      for (var i = 1; i <= S.pages.length; i++) this.renderPageAnnotations(i);
+    },
+    // 选区 → 每页的归一化矩形（与栏数、缩放无关）
+    selectionRects: function (range, S) {
+      var rects = range.getClientRects();
+      var raw = [];
+      for (var i = 0; i < rects.length; i++) {
+        var r = rects[i];
+        if (r.width < 1 || r.height < 1) continue;
+        var mid = r.top + r.height / 2;
+        for (var j = 0; j < S.pages.length; j++) {
+          var pg = S.pages[j], box = pg.wrap.getBoundingClientRect();
+          if (mid < box.top || mid > box.bottom || box.height < 1) continue;
+          raw.push({
+            p: pg.n,
+            x: Math.max(0, (r.left - box.left) / box.width),
+            y: Math.max(0, (r.top - box.top) / box.height),
+            w: Math.min(1, r.width / box.width),
+            h: Math.min(1, r.height / box.height)
+          });
+          break;
+        }
+      }
+      return mergeRects(raw);
+    },
+    onPdfMouseUp: function () {
+      var self = this;
+      if (this.annoEdit.show) return;
+      setTimeout(function () {
+        var S = self._pdf, sel = window.getSelection();
+        if (!S || !sel || sel.isCollapsed) { self.annoPopup.show = false; return; }
+        var range = sel.getRangeAt(0);
+        if (!S.el.contains(range.commonAncestorContainer)) { self.annoPopup.show = false; return; }
+        var text = sel.toString().replace(/\s+/g, " ").trim();
+        if (text.length < 2) { self.annoPopup.show = false; return; }
+        var rs = self.selectionRects(range, S);
+        if (!rs.length) { self.annoPopup.show = false; return; }
+        var box = range.getBoundingClientRect();
+        var popW = 320, popH = 52;
+        self.annoPopup = {
+          show: true,
+          x: Math.min(Math.max(box.left + Math.min(box.width, 300) / 2, popW / 2), Math.max(window.innerWidth - popW / 2, popW / 2)),
+          // 选区靠近上下边缘时把浮层夹在视口内
+          y: Math.min(Math.max(box.top - popH - 6, 8), Math.max(window.innerHeight - popH - 8, 8)),
+          rects: rs, quote: text.slice(0, 4000)
+        };
+      }, 10);
+    },
+    onPdfClick: function (ev) {
+      var box = ev.target && ev.target.closest ? ev.target.closest(".pdf-anno") : null;
+      if (!box) { this.annoEdit.show = false; return; }
+      var id = parseInt(box.dataset.id, 10);
+      var a = null;
+      for (var i = 0; i < this.annotations.length; i++) { if (this.annotations[i].id === id) a = this.annotations[i]; }
+      if (!a) return;
+      var r = box.getBoundingClientRect();
+      this.annoPopup.show = false;
+      this.annoEdit = {
+        show: true, id: a.id, color: a.color, note: a.note || "",
+        x: Math.min(Math.max(r.left, 8), Math.max(window.innerWidth - 360, 8)),
+        y: Math.min(r.bottom + 8, Math.max(window.innerHeight - 220, 8))
+      };
+    },
+    // ---------- 纯文本视图 ----------
     toggleReadMode: function () {
       this.readMode = !this.readMode;
       try { localStorage.setItem("pm-read-mode", this.readMode ? "1" : "0"); } catch (e) {}
-      if (this.readMode && !this.readPages.length) this.loadReading();
+      if (this.readMode) {
+        this.destroyPdf();
+        if (!this.readPages.length) this.loadReading();
+      } else {
+        var self = this;
+        this.$nextTick(function () { self.setupPdf(); });
+      }
     },
     loadReading: async function () {
       if (!this.detail || !this.detail.id) return;
@@ -362,10 +579,9 @@ var Root = {
       try {
         var id = this.detail.id;
         var res = await this.api("/api/papers/" + id + "/text");
-        if (!this.detail || this.detail.id !== id) return; // 期间切了论文
+        if (!this.detail || this.detail.id !== id) return;
         this.readPages = res.pages || [];
         this.readHasText = !!res.hasText;
-        await this.loadAnnotations(id);
       } catch (e) { this.notify(e.message, true); }
       this.readLoading = false;
     },
@@ -374,88 +590,32 @@ var Root = {
         var res = await this.api("/api/papers/" + id + "/annotations");
         if (!this.detail || this.detail.id !== id) return;
         this.annotations = res.annotations || [];
+        this.renderAllAnnotations();
       } catch (e) { this.annotations = []; }
-    },
-    // 选区 → 全文 UTF-16 偏移（与后端返回的 segment.start 同一坐标系）
-    offsetFromDom: function (root, node, offset) {
-      var el = node && node.nodeType === 3 ? node.parentElement : node;
-      var span = el && el.closest ? el.closest("[data-o]") : null;
-      if (!span || !root.contains(span)) return null;
-      var base = parseInt(span.getAttribute("data-o"), 10);
-      if (isNaN(base)) return null;
-      var within = 0, found = false;
-      var walk = function (n) {
-        if (found) return;
-        if (n === node) {
-          if (n.nodeType === 3) { within += offset; }
-          found = true;
-          return;
-        }
-        if (n.nodeType === 3) { within += n.textContent.length; return; }
-        for (var i = 0; i < n.childNodes.length; i++) {
-          walk(n.childNodes[i]);
-          if (found) return;
-        }
-      };
-      walk(span);
-      return found ? base + within : null;
-    },
-    onReadMouseUp: function () {
-      var self = this;
-      if (this.annoEdit.show) return;
-      setTimeout(function () {
-        var sel = window.getSelection();
-        var root = self.$refs.readWrap;
-        if (!sel || sel.isCollapsed || !root) { self.annoPopup.show = false; return; }
-        var text = sel.toString().replace(/\s+/g, " ").trim();
-        if (text.length < 2) { self.annoPopup.show = false; return; }
-        var start = self.offsetFromDom(root, sel.anchorNode, sel.anchorOffset);
-        var end = self.offsetFromDom(root, sel.focusNode, sel.focusOffset);
-        if (start === null || end === null) { self.annoPopup.show = false; return; }
-        if (start > end) { var t = start; start = end; end = t; }
-        var rect = sel.getRangeAt(0).getBoundingClientRect();
-        self.annoPopup = {
-          show: true,
-          x: Math.min(Math.max(rect.left + rect.width / 2, 90), window.innerWidth - 90),
-          y: Math.max(rect.top - 46, 8),
-          start: start, end: end, quote: text.slice(0, 4000)
-        };
-      }, 10);
     },
     addAnnotation: async function (color) {
       var p = this.annoPopup;
-      if (!p.show || !this.detail.id) return;
+      if (!p.show || !this.detail.id || !p.rects) return;
       this.annoPopup.show = false;
       try {
         var a = await this.api("/api/papers/" + this.detail.id + "/annotations", {
           method: "POST",
-          json: { start: p.start, end: p.end, quote: p.quote, color: color }
+          json: { page: p.rects[0].p, rects: p.rects, quote: p.quote, color: color }
         });
-        this.annotations = this.annotations.concat([a]).sort(function (x, y) { return x.start - y.start; });
+        this.annotations = this.annotations.concat([a]).sort(function (x, y) {
+          return x.page - y.page || x.id - y.id;
+        });
+        this.renderAllAnnotations();
         var sel = window.getSelection(); if (sel) sel.removeAllRanges();
         this.notify("已高亮");
       } catch (e) { this.notify(e.message, true); }
-    },
-    onReadClick: function (ev) {
-      var mark = ev.target && ev.target.closest ? ev.target.closest("mark.anno") : null;
-      if (!mark) { this.annoEdit.show = false; return; }
-      var id = parseInt(mark.getAttribute("data-id"), 10);
-      var a = null;
-      for (var i = 0; i < this.annotations.length; i++) { if (this.annotations[i].id === id) a = this.annotations[i]; }
-      if (!a) return;
-      var rect = mark.getBoundingClientRect();
-      this.annoPopup.show = false;
-      this.annoEdit = {
-        show: true, id: a.id, color: a.color, note: a.note || "",
-        x: Math.min(Math.max(rect.left, 120), Math.max(window.innerWidth - 300, 8)),
-        y: rect.bottom + 8
-      };
     },
     setAnnotationColor: async function (id, color) {
       try {
         await this.api("/api/annotations/" + id, { method: "PATCH", json: { color: color } });
         this.annotations = this.annotations.map(function (a) { return a.id === id ? Object.assign({}, a, { color: color }) : a; });
         this.annoEdit.color = color;
+        this.renderAllAnnotations();
       } catch (e) { this.notify(e.message, true); }
     },
     saveAnnotationNote: async function (id, note) {
@@ -469,27 +629,39 @@ var Root = {
         await this.api("/api/annotations/" + id, { method: "DELETE" });
         this.annotations = this.annotations.filter(function (a) { return a.id !== id; });
         this.annoEdit.show = false;
+        this.renderAllAnnotations();
       } catch (e) { this.notify(e.message, true); }
     },
-    // 点标注列表 → 滚动到正文中对应位置并闪一下
+    // 点标注列表 → 滚到 PDF 对应位置并闪一下
     jumpToAnnotation: function (id) {
-      var el = null;
-      var marks = document.querySelectorAll("mark.anno");
-      for (var i = 0; i < marks.length; i++) {
-        if (parseInt(marks[i].getAttribute("data-id"), 10) === id) { el = marks[i]; break; }
+      var a = null;
+      for (var i = 0; i < this.annotations.length; i++) { if (this.annotations[i].id === id) a = this.annotations[i]; }
+      if (!a || !this._pdf) { this.notify("切到 PDF 视图才能定位", true); return; }
+      if (this.readMode) {
+        this.readMode = false;
+        try { localStorage.setItem("pm-read-mode", "0"); } catch (e) {}
+        var self = this;
+        this.$nextTick(function () { self.setupPdf(); });
       }
-      if (!el) { this.notify("切到「阅读模式」才能定位到正文", true); return; }
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
-      el.classList.add("anno--flash");
-      setTimeout(function () { el.classList.remove("anno--flash"); }, 1200);
+      var S = this._pdf;
+      if (!S) return;
+      var page = S.pages[(a.page || 1) - 1];
+      if (page) page.wrap.scrollIntoView({ block: "start", behavior: "smooth" });
+      var self2 = this;
+      setTimeout(function () {
+        var el = document.querySelector('.pdf-anno[data-id="' + id + '"]');
+        if (!el) return;
+        el.classList.add("pdf-anno--flash");
+        setTimeout(function () { el.classList.remove("pdf-anno--flash"); }, 1400);
+      }, 400);
     },
     // 把标注按 Markdown 追加到笔记
     insertAnnotationsIntoNotes: function () {
       if (!this.annotations.length) return;
       var lines = ["", "", "## 标注"];
       this.annotations.forEach(function (a) {
-        var q = a.quote.replace(/\s+/g, " ").trim();
-        lines.push("- > " + q);
+        var q = (a.quote || "").replace(/\s+/g, " ").trim();
+        lines.push("- （第 " + (a.page || 1) + " 页）> " + q);
         if (a.note) lines.push("  - 备注：" + a.note);
       });
       var cur = (this.detail && this.detail.notes) || "";
@@ -700,7 +872,6 @@ var Root = {
     },
     // PDF 阅读面板全屏（原模板绑定了该方法但从未实现）
     toggleFullscreen: function () {
-      this.enterReadingOnBigView();
       var el=this.$refs.pdfPanel; if(!el) return;
       var doc=document;
       var current=doc.fullscreenElement||doc.webkitFullscreenElement;
@@ -714,14 +885,9 @@ var Root = {
     // 进入全屏/全宽时自动切到阅读模式（有全文的前提下）
     toggleFullWidth: function () {
       this.fullWidth = !this.fullWidth;
-      if (this.fullWidth) this.enterReadingOnBigView();
-    },
-    enterReadingOnBigView: function () {
-      if (!this.readMode && this.detail && this.detail.id) {
-        this.readMode = true;
-        try { localStorage.setItem("pm-read-mode", "1"); } catch (e) {}
-        this.loadReading();
-      }
+      // 全宽/全屏后容器宽度变化，PDF 需要按新宽度重排（高亮会跟着重新定位）
+      var self = this;
+      this.$nextTick(function () { setTimeout(function () { self.layoutPdf(false); }, 120); });
     },
     syncFullscreen: function () {
       var doc=document;
@@ -771,6 +937,33 @@ var Root = {
     this.loadPapers();
   }
 };
+
+// 合并同页同行的矩形：一次选择会被 pdf.js 拆成很多 spans，逐行合并后重叠更自然
+function mergeRects(rects) {
+  if (!rects.length) return [];
+  var byPage = {};
+  rects.forEach(function (r) {
+    (byPage[r.p] = byPage[r.p] || []).push(r);
+  });
+  var out = [];
+  Object.keys(byPage).forEach(function (key) {
+    var list = byPage[key].slice().sort(function (a, b) { return a.y - b.y || a.x - b.x; });
+    var cur = null;
+    list.forEach(function (r) {
+      if (cur && Math.abs(cur.y - r.y) < 0.004 && Math.abs(cur.h - r.h) < 0.004 &&
+          r.x <= cur.x + cur.w + 0.01) {
+        var right = Math.max(cur.x + cur.w, r.x + r.w);
+        cur.x = Math.min(cur.x, r.x);
+        cur.w = right - cur.x;
+        return;
+      }
+      if (cur) out.push(cur);
+      cur = { p: r.p, x: r.x, y: r.y, w: r.w, h: r.h };
+    });
+    if (cur) out.push(cur);
+  });
+  return out;
+}
 
 // ---------- 阅读模式渲染辅助 ----------
 // 全文是纯文本：先转义再拼 HTML，避免注入

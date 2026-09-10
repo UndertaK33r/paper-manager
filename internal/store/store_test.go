@@ -470,13 +470,16 @@ func searchTitles(t *testing.T, st *Store, q string) []string {
 	return out
 }
 
-// 标注：CRUD、排序、颜色收敛、随论文彻底删除而级联清理
+// 标注：CRUD、按页排序、颜色收敛、随论文彻底删除而级联清理
 func TestAnnotationsCRUDAndCascade(t *testing.T) {
 	st := newTestStore(t)
 	p := seedPaper(t, st)
 
-	a1 := models.Annotation{PaperID: p.ID, Start: 100, End: 120, Quote: "第二处"}
-	a2 := models.Annotation{PaperID: p.ID, Start: 10, End: 25, Quote: "第一处", Color: "green", Note: "备注"}
+	rect := func(page int, x, y, w, h float64) []models.AnnoRect {
+		return []models.AnnoRect{{Page: page, X: x, Y: y, W: w, H: h}}
+	}
+	a1 := models.Annotation{PaperID: p.ID, Page: 5, Rects: rect(5, .1, .2, .3, .02), Quote: "第五页的句子"}
+	a2 := models.Annotation{PaperID: p.ID, Page: 1, Rects: rect(1, .2, .1, .4, .02), Quote: "第一页的句子", Color: "green", Note: "备注"}
 	if _, err := st.CreateAnnotation(&a2); err != nil {
 		t.Fatal(err)
 	}
@@ -488,11 +491,14 @@ func TestAnnotationsCRUDAndCascade(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list) != 2 || list[0].Start != 10 || list[1].Start != 100 {
-		t.Fatalf("排序不对: %+v", list)
+	if len(list) != 2 || list[0].Page != 1 || list[1].Page != 5 {
+		t.Fatalf("应按页码排序: %+v", list)
 	}
 	if list[0].Color != "green" || list[0].Note != "备注" {
 		t.Fatalf("字段丢失: %+v", list[0])
+	}
+	if len(list[0].Rects) != 1 || list[0].Rects[0].W != 0.4 {
+		t.Fatalf("矩形未持久化: %+v", list[0].Rects)
 	}
 	if list[0].CreatedAt.IsZero() {
 		t.Fatal("创建时间未解析")
@@ -502,13 +508,15 @@ func TestAnnotationsCRUDAndCascade(t *testing.T) {
 	}
 
 	// 未知颜色收敛为 yellow
-	bad := models.Annotation{PaperID: p.ID, Start: 1, End: 5, Quote: "x", Color: "rainbow"}
+	bad := models.Annotation{PaperID: p.ID, Page: 2, Rects: rect(2, .1, .1, .1, .01), Quote: "x", Color: "rainbow"}
 	if _, err := st.CreateAnnotation(&bad); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := st.ListAnnotations(p.ID)
-	if got[0].Color != "yellow" {
-		t.Fatalf("颜色未收敛: %q", got[0].Color)
+	for _, a := range got {
+		if a.ID == bad.ID && a.Color != "yellow" {
+			t.Fatalf("颜色未收敛: %q", a.Color)
+		}
 	}
 
 	// 更新备注与颜色
@@ -517,14 +525,10 @@ func TestAnnotationsCRUDAndCascade(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ = st.ListAnnotations(p.ID)
-	var target models.Annotation
 	for _, a := range got {
-		if a.ID == a2.ID {
-			target = a
+		if a.ID == a2.ID && (a.Note != newNote || a.Color != "blue") {
+			t.Fatalf("更新未生效: %+v", a)
 		}
-	}
-	if target.Note != newNote || target.Color != "blue" {
-		t.Fatalf("更新未生效: %+v", target)
 	}
 	if err := st.UpdateAnnotation(99999, nil, &newNote); err != ErrConflict {
 		t.Fatalf("更新不存在的标注应返回 ErrConflict, got %v", err)
@@ -541,7 +545,7 @@ func TestAnnotationsCRUDAndCascade(t *testing.T) {
 		t.Fatalf("删除后计数错误: %d", n)
 	}
 
-	// 论文彻底删除后标注级联清理（外键 ON DELETE CASCADE）
+	// 论文彻底删除后标注级联清理
 	if _, err := st.DeletePaper(p.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -557,7 +561,11 @@ func TestAnnotationsCRUDAndCascade(t *testing.T) {
 func TestAnnotationsSurviveSoftDelete(t *testing.T) {
 	st := newTestStore(t)
 	p := seedPaper(t, st)
-	if _, err := st.CreateAnnotation(&models.Annotation{PaperID: p.ID, Start: 5, End: 9, Quote: "abc"}); err != nil {
+	if _, err := st.CreateAnnotation(&models.Annotation{
+		PaperID: p.ID, Page: 1,
+		Rects: []models.AnnoRect{{Page: 1, X: .1, Y: .1, W: .2, H: .02}},
+		Quote: "abc",
+	}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := st.DeletePaper(p.ID); err != nil {

@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 
 	"paper-manager/internal/models"
 )
@@ -21,8 +22,8 @@ func NormalizeAnnotationColor(c string) string {
 
 // ListAnnotations 返回某篇论文的标注，按在全文中的位置排序。
 func (s *Store) ListAnnotations(paperID int64) ([]models.Annotation, error) {
-	rows, err := s.db.Query(`SELECT id, paper_id, start_offset, end_offset, quote, color, note, created_at
-		FROM annotations WHERE paper_id = ? ORDER BY start_offset, id`, paperID)
+	rows, err := s.db.Query(`SELECT id, paper_id, page, rects, quote, color, note, created_at
+		FROM annotations WHERE paper_id = ? ORDER BY page, id`, paperID)
 	if err != nil {
 		return nil, err
 	}
@@ -30,9 +31,15 @@ func (s *Store) ListAnnotations(paperID int64) ([]models.Annotation, error) {
 	out := []models.Annotation{}
 	for rows.Next() {
 		var a models.Annotation
-		var created string
-		if err := rows.Scan(&a.ID, &a.PaperID, &a.Start, &a.End, &a.Quote, &a.Color, &a.Note, &created); err != nil {
+		var rects, created string
+		if err := rows.Scan(&a.ID, &a.PaperID, &a.Page, &rects, &a.Quote, &a.Color, &a.Note, &created); err != nil {
 			return nil, err
+		}
+		if rects != "" {
+			_ = json.Unmarshal([]byte(rects), &a.Rects)
+		}
+		if a.Rects == nil {
+			a.Rects = []models.AnnoRect{}
 		}
 		a.CreatedAt = parseTime(created)
 		a.Color = NormalizeAnnotationColor(a.Color)
@@ -44,8 +51,15 @@ func (s *Store) ListAnnotations(paperID int64) ([]models.Annotation, error) {
 // CreateAnnotation 新建标注；论文不存在时由外键约束拦下。
 func (s *Store) CreateAnnotation(a *models.Annotation) (int64, error) {
 	a.Color = NormalizeAnnotationColor(a.Color)
-	res, err := s.db.Exec(`INSERT INTO annotations (paper_id, start_offset, end_offset, quote, color, note)
-		VALUES (?,?,?,?,?,?)`, a.PaperID, a.Start, a.End, a.Quote, a.Color, a.Note)
+	if a.Page < 1 {
+		a.Page = 1
+	}
+	raw, err := json.Marshal(a.Rects)
+	if err != nil {
+		return 0, err
+	}
+	res, err := s.db.Exec(`INSERT INTO annotations (paper_id, page, rects, quote, color, note)
+		VALUES (?,?,?,?,?,?)`, a.PaperID, a.Page, string(raw), a.Quote, a.Color, a.Note)
 	if err != nil {
 		return 0, err
 	}

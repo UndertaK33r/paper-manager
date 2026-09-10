@@ -506,7 +506,36 @@ body.fs-dragging .pdf-panel iframe { pointer-events: none; }
 @media (max-width: 900px) {
   .fs-trans { width: min(300px, calc(100vw - 32px)); top: 76px; max-height: 52vh; }
 }
-/* ============ 阅读模式（重排全文 + 标注） ============ */
+/* ============ PDF 视图（pdf.js 渲染 + 划段标注） ============ */
+.pdf-wrap {
+  margin-top: 12px; max-height: 70vh; overflow-y: auto;
+  border: 1px solid var(--k-line, #ececec); border-radius: 12px;
+  background: var(--k-bg-raise, #f4f4f4); padding: 12px 10px; -webkit-overflow-scrolling: touch;
+}
+.pdf-wrap.wide { max-height: 86vh; }
+.pdf-panel:fullscreen .pdf-wrap { max-height: none; height: calc(100vh - 190px); }
+.pdf-hint { padding: 20px; }
+.pdf-page {
+  position: relative; margin: 0 auto 14px; background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12); overflow: hidden;
+}
+.pdf-page canvas { display: block; }
+/* 文字层：透明文字覆盖在画布上，用于选中 */
+.pdf-text { position: absolute; inset: 0; overflow: hidden; line-height: 1; text-size-adjust: none; }
+.pdf-text span { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0 0; }
+.pdf-text ::selection { background: rgba(46, 159, 255, 0.28); }
+.pdf-text br::selection { background: transparent; }
+/* 标注层：不拦截鼠标，只有色块本身可点 */
+.pdf-annos { position: absolute; inset: 0; pointer-events: none; }
+.pdf-anno { position: absolute; pointer-events: auto; cursor: pointer; border-radius: 2px; mix-blend-mode: multiply; }
+.pdf-anno--yellow { background: rgba(255, 214, 64, 0.42); }
+.pdf-anno--green { background: rgba(120, 220, 140, 0.42); }
+.pdf-anno--blue { background: rgba(120, 190, 255, 0.42); }
+.pdf-anno--pink { background: rgba(255, 150, 190, 0.42); }
+.pdf-anno:hover { outline: 1px solid rgba(20, 20, 20, 0.35); }
+.pdf-anno--flash { animation: anno-flash 0.6s ease-in-out 2; }
+
+/* ============ 纯文本（重排）视图 ============ */
 .read-wrap {
   margin-top: 12px; max-height: 70vh; overflow-y: auto;
   border: 1px solid var(--k-line, #ececec); border-radius: 12px;
@@ -554,6 +583,7 @@ mark.anno--flash { animation: anno-flash 0.5s ease-in-out 2; }
 .anno-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--k-line, #ececec); cursor: pointer; }
 .anno-item:hover { background: var(--k-bg-soft, #fafafa); }
 .anno-item__dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.anno-item__page { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 .anno-item__quote { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
 .anno-item__note { flex: 0 1 30%; color: var(--k-mute, #8c8c8c); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

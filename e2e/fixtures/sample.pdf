@@ -6,20 +6,39 @@ endobj
 <</Type/Pages/Kids[3 0 R]/Count 1>>
 endobj
 3 0 obj
-<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>
+<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 5 0 R>>>>/Contents 4 0 R>>
 endobj
 4 0 obj
+<</Length 420>>
+stream
+BT /F1 12 Tf 72 720 Td 16 TL
+(Image Fusion with Knowledge Distillation) Tj T*
+(Ran Zhang, Xuanhua He) Tj T*
+(Abstract) Tj T*
+(Multi-modality image fusion aims to synthesize a single image from multiple inputs.) Tj T*
+(We propose a distillation framework that keeps 90 percent of the performance.) Tj T*
+(1 Introduction) Tj T*
+(Recent text-guided methods leverage large model priors at high computational cost.) Tj T*
+ET
+endstream
+endobj
+5 0 obj
+<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>
+endobj
+6 0 obj
 <</Title(E2E Smoke Test Paper)/Author(E2E Bot)>>
 endobj
 xref
-0 5
+0 7
 0000000000 65535 f 
 0000000009 00000 n 
 0000000054 00000 n 
 0000000105 00000 n 
-0000000170 00000 n 
+0000000217 00000 n 
+0000000685 00000 n 
+0000000748 00000 n 
 trailer
-<</Size 5/Root 1 0 R/Info 4 0 R>>
+<</Size 7/Root 1 0 R/Info 6 0 R>>
 startxref
-234
+812
 %%EOF

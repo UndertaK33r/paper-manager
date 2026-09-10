@@ -50,17 +50,27 @@ type Paper struct {
 	Collections    []Collection `json:"collections"`
 }
 
-// Annotation 是全文阅读模式里的一处高亮标注。
-// Start/End 是以 UTF-16 码元计的字符偏移（与浏览器 JS 字符串下标一致）。
+// Annotation 是 PDF 上的一处划段标注。
+// 位置用「页面 + 归一化矩形」表示（0..1 相对页面宽高），与栏数、缩放、列宽无关：
+// 双栏论文里选区本身就是视觉范围，不依赖文本抽取顺序。
 type Annotation struct {
-	ID        int64     `json:"id"`
-	PaperID   int64     `json:"paperId"`
-	Start     int       `json:"start"`
-	End       int       `json:"end"`
-	Quote     string    `json:"quote"`
-	Color     string    `json:"color"`
-	Note      string    `json:"note,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID        int64      `json:"id"`
+	PaperID   int64      `json:"paperId"`
+	Page      int        `json:"page"`  // 起始页（1 起）
+	Rects     []AnnoRect `json:"rects"` // 覆盖的矩形（可能跨页/跨行）
+	Quote     string     `json:"quote"`
+	Color     string     `json:"color"`
+	Note      string     `json:"note,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+}
+
+// AnnoRect 是标注在某一页上的一个矩形（归一化坐标，相对页面左上角）
+type AnnoRect struct {
+	Page int     `json:"p"`
+	X    float64 `json:"x"`
+	Y    float64 `json:"y"`
+	W    float64 `json:"w"`
+	H    float64 `json:"h"`
 }
 
 type PaperInput struct {

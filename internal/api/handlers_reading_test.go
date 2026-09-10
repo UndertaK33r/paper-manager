@@ -66,7 +66,7 @@ func TestPaperTextEndpoint(t *testing.T) {
 	}
 }
 
-// 标注接口：创建/校验/列表/修改/删除
+// 标注接口：创建/校验/列表/修改/删除（位置用页码 + 归一化矩形）
 func TestAnnotationEndpoints(t *testing.T) {
 	s, st := newModelsTestServer(t)
 	p := models.Paper{Title: "标注测试"}
@@ -77,10 +77,13 @@ func TestAnnotationEndpoints(t *testing.T) {
 	base := "/api/papers/" + itoa(id) + "/annotations"
 	h := s.Handler()
 
-	// 非法范围
+	// 非法入参
 	for _, body := range []string{
-		`{"start":10,"end":10}`, `{"start":-1,"end":5}`, `{"start":5,"end":4}`,
-		`{"start":0,"end":99999}`,
+		`{"page":1,"rects":[],"quote":"x"}`,                              // 没有矩形
+		`{"page":1,"rects":[{"p":0,"x":0.1,"y":0.1,"w":0.2,"h":0.02}]}`,  // 页码非法
+		`{"page":1,"rects":[{"p":1,"x":0.1,"y":0.1,"w":0,"h":0.02}]}`,    // 宽度为 0
+		`{"page":1,"rects":[{"p":1,"x":0.9,"y":0.1,"w":0.5,"h":0.02}]}`,  // 超出页面
+		`{"page":1,"rects":[{"p":1,"x":-0.1,"y":0.1,"w":0.2,"h":0.02}]}`, // 负坐标
 	} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, jsonReq("POST", base, body))
@@ -89,16 +92,19 @@ func TestAnnotationEndpoints(t *testing.T) {
 		}
 	}
 
-	// 正常创建
+	// 正常创建（跨行两个矩形）
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, jsonReq("POST", base, `{"start":10,"end":30,"quote":"选中文字","color":"green","note":" 我的备注 "}`))
+	h.ServeHTTP(rec, jsonReq("POST", base, `{"page":3,"rects":[{"p":3,"x":0.11,"y":0.2,"w":0.3,"h":0.02},{"p":3,"x":0.11,"y":0.23,"w":0.25,"h":0.02}],"quote":"选中文字","color":"green","note":" 我的备注 "}`))
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create status %d: %s", rec.Code, rec.Body.String())
 	}
 	var created models.Annotation
 	json.Unmarshal(rec.Body.Bytes(), &created)
-	if created.ID == 0 || created.Color != "green" || created.Note != "我的备注" {
+	if created.ID == 0 || created.Color != "green" || created.Note != "我的备注" || created.Page != 3 {
 		t.Fatalf("创建结果异常: %+v", created)
+	}
+	if len(created.Rects) != 2 {
+		t.Fatalf("矩形数量不对: %+v", created.Rects)
 	}
 
 	// 列表
@@ -109,7 +115,7 @@ func TestAnnotationEndpoints(t *testing.T) {
 		Annotations []models.Annotation `json:"annotations"`
 	}
 	json.Unmarshal(rec.Body.Bytes(), &list)
-	if list.Total != 1 || list.Annotations[0].Quote != "选中文字" {
+	if list.Total != 1 || list.Annotations[0].Quote != "选中文字" || list.Annotations[0].Page != 3 {
 		t.Fatalf("列表异常: %+v", list)
 	}
 
@@ -138,7 +144,7 @@ func TestAnnotationEndpoints(t *testing.T) {
 
 	// 论文不存在时创建应 404
 	rec = httptest.NewRecorder()
-	h.ServeHTTP(rec, jsonReq("POST", "/api/papers/99999/annotations", `{"start":1,"end":8,"quote":"x"}`))
+	h.ServeHTTP(rec, jsonReq("POST", "/api/papers/99999/annotations", `{"page":1,"rects":[{"p":1,"x":0.1,"y":0.1,"w":0.2,"h":0.02}]}`))
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("不存在的论文 want 404, got %d", rec.Code)
 	}

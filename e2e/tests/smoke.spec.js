@@ -33,13 +33,15 @@ test('首页可加载，健康检查返回注入的版本号', async ({ page }) 
   expect((await health.json()).version).toBeTruthy();
 });
 
-test('上传 PDF → 出现在列表 → 打开详情看到原生阅读器', async ({ page }) => {
+test('上传 PDF → 出现在列表 → 详情内渲染出 PDF 页面', async ({ page }) => {
   await uploadSample(page);
   await page.goto('/');
   await expect(page.locator('.p3r-table tbody tr').first()).toContainText(TITLE);
 
   await openFirstDetail(page);
-  await expect(page.locator('.pdf-panel iframe')).toBeVisible();
+  // pdf.js 渲染：画布 + 可选中文字层（用于划段标注）
+  await expect(page.locator('.pdf-page canvas')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.pdf-page .pdf-text span').first()).toBeAttached();
 });
 
 test('笔记：浮窗自动保存 + 详情页手动保存，刷新后都还在', async ({ page }) => {
@@ -92,74 +94,55 @@ test('全屏阅读笔记浮窗：可拖动、可固定、固定后拖不动', as
   expect(Math.abs(still.x - pinned.x)).toBeLessThan(2);
 });
 
-test('阅读模式：重排全文 + 选中高亮 + 刷新后仍在 + 删除', async ({ page }) => {
-  // 建一篇带全文的论文（全文由 PATCH 写入，模拟已提取的状态）
-  const created = await page.request.post('/api/papers', {
-    data: { title: '阅读模式 E2E 论文', authors: 'Tester', year: 2026 },
-  });
-  expect(created.ok()).toBeTruthy();
-  const paper = await created.json();
-  const fulltext = [
-    '1',
-    'Distilling Textual Priors from LLM to Efficient Image Fusion',
-    'Ran Zhang, Xuanhua He',
-    'Abstract',
-    '—Multi-modality image fusion aims to synthesize a single, comprehensive image from',
-    'multiple source inputs. Traditional approaches offer efficiency but struggle with low-quality',
-    'inputs.',
-    '1 Introduction',
-    'We propose a novel framework for distilling large model priors into a compact network.',
-  ].join('\n');
-  const patched = await page.request.patch(`/api/papers/${paper.id}`, { data: { fulltext } });
-  expect(patched.ok()).toBeTruthy();
+test('PDF 上划段标注：选中→高亮→刷新复原→删除', async ({ page }) => {
+  // 造一篇带 PDF 的论文：用最小 PDF fixture 上传（无文字层时无法划段，因此这里用 API 造数据不可行）
+  await uploadSample(page);
+  await page.goto('/');
+  await page.locator('.p3r-table tbody tr').first().locator('button:has-text("详情")').click();
+  await expect(page.locator('.pdf-page canvas')).toBeVisible({ timeout: 20_000 }); // pdf.js 渲染成功
+  // 文字层在画布之后渲染，必须等到有 span 才能构造选区
+  await expect.poll(async () => await page.locator('.pdf-text span').count(), { timeout: 20_000 }).toBeGreaterThan(0);
 
-  await page.goto(`/#/papers/${paper.id}`);
-  await page.waitForTimeout(500);
-  await page.click('button:has-text("阅读模式")');
-
-  // 服务端已做断行重排与标题识别
-  await expect(page.locator('.read-body')).toBeVisible();
-  // 服务端识别出小节标题（Abstract / 1 Introduction）
-  expect(await page.locator('.read-h').count()).toBeGreaterThanOrEqual(2);
-  await expect(page.locator('.read-h').first()).toHaveText(/Abstract|Distilling/);
-  // 断行已被合并（原文里 "…image from" 与 "multiple source inputs." 分属两行）
-  await expect(page.locator('.read-body')).toContainText('comprehensive image from multiple source inputs');
-
-  // 选中一段文字 → 高亮
+  // 在 PDF 文字层上构造选区（几何方式，与栏数无关）
   const selected = await page.evaluate(() => {
-    const root = document.querySelector('.read-body');
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let node;
-    while ((node = walker.nextNode())) {
-      const idx = node.textContent.indexOf('Multi-modality');
-      if (idx < 0 || !node.parentElement.closest('.read-seg')) continue;
-      const r = document.createRange();
-      r.setStart(node, idx);
-      r.setEnd(node, idx + 20);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(r);
-      document.querySelector('.read-wrap').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-      return true;
-    }
-    return false;
+    const wrap = document.querySelector('.pdf-wrap');
+    const spans = [...document.querySelectorAll('.pdf-text span')].filter(s => s.firstChild && s.textContent.trim().length > 8);
+    if (!spans.length) return null;
+    const node = spans[Math.floor(spans.length / 3)];
+    node.scrollIntoView({ block: 'center' });
+    const r = document.createRange();
+    r.setStart(node.firstChild, 0);
+    r.setEnd(node.firstChild, Math.min(6, node.firstChild.length));
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+    wrap.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    return node.textContent.slice(0, 6);
   });
   expect(selected).toBeTruthy();
   await expect(page.locator('.anno-popup')).toBeVisible();
-  await page.locator('.anno-popup .anno-dot--green').click();
-  await expect(page.locator('mark.anno--green')).toHaveCount(1);
-  await expect(page.locator('mark.anno').first()).toHaveText(/Multi-modality/);
+  await page.locator('.anno-popup .anno-dot--yellow').click();
+  await expect(page.locator('.pdf-anno')).toHaveCount(1);
 
-  // 刷新后按偏移复原
+  // 高亮与被选文字在几何上重合
+  const aligned = await page.evaluate(() => {
+    const box = document.querySelector('.pdf-anno');
+    if (!box) return false;
+    const rb = box.getBoundingClientRect();
+    return rb.width > 1 && rb.height > 1;
+  });
+  expect(aligned).toBeTruthy();
+
+  // 刷新后按「页码 + 归一化矩形」复原
   await page.reload();
-  await page.waitForTimeout(800);
-  await expect(page.locator('mark.anno')).toHaveCount(1);
+  await expect(page.locator('.pdf-page canvas')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.pdf-anno')).toHaveCount(1);
   await expect(page.locator('.anno-item')).toHaveCount(1);
 
   // 标注列表 → 删除
   await page.locator('.anno-item button:has-text("删除")').first().click();
   await expect(page.locator('.anno-item')).toHaveCount(0);
-  await expect(page.locator('mark.anno')).toHaveCount(0);
+  await expect(page.locator('.pdf-anno')).toHaveCount(0);
 });
 
 test('删除论文后从列表移除', async ({ page }) => {

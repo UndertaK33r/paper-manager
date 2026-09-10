@@ -98,8 +98,8 @@ CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 CREATE TABLE IF NOT EXISTS annotations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
-  start_offset INTEGER NOT NULL,
-  end_offset INTEGER NOT NULL,
+  page INTEGER NOT NULL DEFAULT 1,
+  rects TEXT NOT NULL DEFAULT '',
   quote TEXT NOT NULL DEFAULT '',
   color TEXT NOT NULL DEFAULT 'yellow',
   note TEXT NOT NULL DEFAULT '',
@@ -119,6 +119,9 @@ CREATE INDEX IF NOT EXISTS idx_annotations_paper ON annotations(paper_id);
 	if err := s.dropSearchIndex(); err != nil {
 		return err
 	}
+	if err := s.migrateAnnotations(); err != nil {
+		return err
+	}
 	return s.migrateNotes()
 }
 
@@ -130,6 +133,49 @@ func (s *Store) dropSearchIndex() error {
 DROP TRIGGER IF EXISTS papers_fts_au;
 DROP TRIGGER IF EXISTS papers_fts_ad;
 DROP TABLE IF EXISTS papers_fts;`)
+	return err
+}
+
+// migrateAnnotations 处理标注表的结构演进。
+// 早期实验版用「全文字符偏移」定位，改为「页面 + 归一化矩形」后无法沿用，
+// 该版本未发布过，因此检测到旧结构就直接重建（避免 NOT NULL 约束挡住新写入）。
+func (s *Store) migrateAnnotations() error {
+	rows, err := s.db.Query("PRAGMA table_info(annotations)")
+	if err != nil {
+		return err
+	}
+	legacy := false
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, typ string
+		var def any
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &def, &pk); err != nil {
+			rows.Close()
+			return err
+		}
+		if name == "start_offset" {
+			legacy = true
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if !legacy {
+		return nil
+	}
+	_, err = s.db.Exec(`DROP TABLE annotations;
+CREATE TABLE annotations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+  page INTEGER NOT NULL DEFAULT 1,
+  rects TEXT NOT NULL DEFAULT '',
+  quote TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL DEFAULT 'yellow',
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_annotations_paper ON annotations(paper_id);`)
 	return err
 }
 
