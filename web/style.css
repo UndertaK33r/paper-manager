@@ -602,6 +602,19 @@ mark.anno--flash { animation: anno-flash 0.5s ease-in-out 2; }
 .anno-popup--edit { transform: none; width: min(340px, calc(100vw - 24px)); }
 .anno-popup__row { display: flex; align-items: center; gap: 8px; }
 .anno-popup__note { width: 100%; margin-top: 8px; font-size: 13px; }
+/* 划词翻译结果浮层 */
+.trans-popup {
+  position: fixed; z-index: 96; width: min(400px, calc(100vw - 24px));
+  transform: translateX(-50%);
+  background: var(--k-bg, #fff); border: 1px solid var(--k-line-strong, #1a1a1a);
+  border-radius: 12px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.2); padding: 10px 12px;
+}
+.trans-popup__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.trans-popup__src {
+  margin: 6px 0 8px; padding-left: 8px; border-left: 2px solid var(--k-line, #ececec);
+  max-height: 3.6em; overflow: hidden; text-transform: none; letter-spacing: 0.02em;
+}
+.trans-popup__body { max-height: 40vh; overflow-y: auto; font-size: 13.5px; }
 .anno-dot { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--k-line-strong, #d4d4d4); cursor: pointer; padding: 0; }
 .anno-dot--yellow { background: rgba(255, 224, 102, 0.95); }
 .anno-dot--green { background: rgba(150, 230, 160, 0.95); }

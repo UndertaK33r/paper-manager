@@ -193,6 +193,51 @@ test('PDF 上加文字批注：新建→输入→拖动→刷新保留→删除'
   await expect(page.locator('.anno-item')).toHaveCount(0);
 });
 
+test('划词翻译：选中文字→译文浮层→收集到译文面板→存为批注', async ({ page }) => {
+  // 拦截翻译接口，不消耗真实 API 调用
+  await page.route('**/api/ai/translate-text', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ translation: '多模态图像融合旨在把多个来源合成为一张图。' }),
+    });
+  });
+  // 翻译按钮需要已配置 API Key（请求本身走上面的拦截，不会真的调用）
+  const cfg = await page.request.put('/api/settings', { data: { aiApiKey: 'sk-e2e-dummy' } });
+  expect((await cfg.json()).hasApiKey).toBeTruthy();
+  await uploadSample(page);
+  await page.goto('/');
+  await page.locator('.p3r-table tbody tr').first().locator('button:has-text("详情")').click();
+  await expect(page.locator('.pdf-page canvas')).toBeVisible({ timeout: 20_000 });
+  await expect.poll(async () => await page.locator('.pdf-text span').count(), { timeout: 20_000 }).toBeGreaterThan(0);
+
+  // 选中一句 → 浮层里点「翻译」
+  await page.evaluate(() => {
+    const node = [...document.querySelectorAll('.pdf-text span')].find(s => s.textContent.includes('Multi-modality'));
+    node.scrollIntoView({ block: 'center' });
+    const r = document.createRange();
+    r.setStart(node.firstChild, 0);
+    r.setEnd(node.firstChild, Math.min(24, node.firstChild.length));
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+    document.querySelector('.pdf-wrap').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+  });
+  await expect(page.locator('.anno-popup button:has-text("翻译")')).toBeVisible();
+  await page.click('.anno-popup button:has-text("翻译")');
+  await expect(page.locator('.trans-popup')).toBeVisible();
+  await expect(page.locator('.trans-popup')).toContainText('多模态图像融合');
+
+  // 译文进入译文面板（全宽时可见）
+  await page.click('button:has-text("全宽阅读")');
+  await expect(page.locator('.fs-trans')).toContainText('多模态图像融合');
+
+  // 存为批注 → 页面上出现批注框，内容为译文
+  await page.click('.trans-popup button:has-text("存为批注")');
+  await expect(page.locator('.pdf-note')).toHaveCount(1);
+  await expect(page.locator('.pdf-note textarea')).toHaveValue(/多模态图像融合/);
+});
+
 test('删除论文后从列表移除', async ({ page }) => {
   await uploadSample(page);
   await page.goto('/');

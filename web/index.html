@@ -155,7 +155,24 @@
           <div v-if="annoPopup.show" class="anno-popup anno-popup--float" :style="{ left: annoPopup.x + 'px', top: annoPopup.y + 'px' }" @mousedown.stop>
             <div class="anno-popup__row"><span class="p3r-readout">高亮</span>
               <button v-for="c in annoColors" :key="c" class="anno-dot" :class="'anno-dot--' + c" :title="c" @click="addAnnotation(c)"></button>
+              <button class="p3r-btn small" @click="translateSelection" :disabled="!hasApiKey" :title="hasApiKey ? '翻译选中的文字（Alt+T）' : '未配置 API Key，翻译不可用'">翻译</button>
               <button class="p3r-btn small" @click="annoPopup.show=false">取消</button>
+            </div>
+          </div>
+          <!-- 划词翻译结果 -->
+          <div v-if="transResult.show" class="trans-popup" :style="{ left: transResult.x + 'px', top: transResult.y + 'px' }" @mousedown.stop>
+            <div class="trans-popup__head">
+              <span class="p3r-readout">译文</span>
+              <div class="actions">
+                <button class="p3r-btn small" v-if="transResult.html" @click="translationToNote" title="把译文放到 PDF 上作为批注框">存为批注</button>
+                <button class="p3r-btn small" @click="transResult.show=false">关闭</button>
+              </div>
+            </div>
+            <div class="trans-popup__src p3r-readout">{{ transResult.src }}</div>
+            <div class="trans-popup__body">
+              <div v-if="transResult.loading" class="p3r-readout">翻译中…</div>
+              <div v-else-if="transResult.error" class="p3r-readout">{{ transResult.error }}</div>
+              <div v-else class="md-body" v-html="transResult.html"></div>
             </div>
           </div>
           <div v-if="annoEdit.show" class="anno-popup anno-popup--edit" :style="{ left: annoEdit.x + 'px', top: annoEdit.y + 'px' }" @mousedown.stop>
@@ -183,7 +200,7 @@
               <span class="p3r-readout">{{ fsTransMin ? '展开 ♪' : '收起' }}</span>
             </div>
             <div v-show="!fsTransMin" class="fs-trans__body">
-              <div v-if="!transHistory.length" class="muted" style="font-size:13px">粘贴一段文字点「翻译」，译文会收集在这里。</div>
+              <div v-if="!transHistory.length" class="muted" style="font-size:13px">在 PDF 里选中文字点「翻译」，或粘贴文本翻译，译文都会收集在这里。</div>
               <div v-for="(h, i) in transHistory" :key="i" class="fs-trans__item">
                 <div class="fs-trans__src">{{ h.src }}</div>
                 <div class="md-body" v-html="h.html"></div>

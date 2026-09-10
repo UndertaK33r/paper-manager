@@ -25,6 +25,8 @@ var Root = {
       annotations: [], annoColors: ["yellow", "green", "blue", "pink"],
       annoPopup: { show: false, x: 0, y: 0, start: 0, end: 0, quote: "" },
       annoEdit: { show: false, x: 0, y: 0, id: 0, color: "yellow", note: "" },
+      // 划词翻译结果浮层
+      transResult: { show: false, x: 0, y: 0, src: "", html: "", loading: false, error: "", rects: null },
       summaryExpanded: false, summaryOverflow: false,
       fsTransMin: false, transHistory: [], instantSrc: "", instantLoading: false,
       showPaperModal: false, editingId: null, saving: false, form: makeEmptyForm(),
@@ -244,7 +246,7 @@ var Root = {
       if (window.location.hash !== "#/papers/" + id) window.location.hash = "#/papers/" + id;
       this.transHistory=[]; this.instantSrc="";
       this.readPages=[]; this.annotations=[]; this.readHasText=false;
-      this.annoPopup.show=false; this.annoEdit.show=false;
+      this.annoPopup.show=false; this.annoEdit.show=false; this.transResult.show=false;
       this.destroyPdf();
       try { this.detail=await this.api("/api/papers/"+id); this.tagSelect=""; this.collectionSelect=""; this.fsNotesMin=false; this.notesSavedAt=""; } catch (e) { this.notify(e.message,true); }
       await this.loadAnnotations(id);
@@ -628,6 +630,60 @@ var Root = {
         };
       }, 10);
     },
+    // ---------- 划词翻译 ----------
+    // 选中文字 → 翻译 → 结果浮层；译文可一键放到页面上作为批注框
+    translateSelection: async function () {
+      var pop = this.annoPopup;
+      var text = (pop.quote || "").trim();
+      if (!text) return;
+      var px = Math.min(Math.max(pop.x, 210), Math.max(window.innerWidth - 210, 210));
+      var py = Math.min(Math.max(pop.y + 46, 8), Math.max(window.innerHeight - 260, 8));
+      this.annoPopup.show = false;
+      this.transResult = {
+        show: true, x: px, y: py, src: text.slice(0, 200),
+        html: "", loading: true, error: "", rects: pop.rects || null
+      };
+      try {
+        var res = await this.api("/api/ai/translate-text", { method: "POST", json: { text: text } });
+        var out = (res && res.translation) || "";
+        if (!this.transResult.show) return;
+        this.transResult.loading = false;
+        this.transResult.html = window.mdRender ? window.mdRender(out) : escHtml(out);
+        this.addToHistory(text, out);
+      } catch (e) {
+        this.transResult.loading = false;
+        this.transResult.error = e.message;
+      }
+    },
+    // 把译文放到 PDF 上（选区下方）作为批注框
+    translationToNote: async function () {
+      var r = this.transResult;
+      if (!r || !r.show || !this.detail.id) return;
+      var rect = (r.rects && r.rects[0]) || { p: 1, x: 0.1, y: 0.1, h: 0.02 };
+      var text = (r.html ? this.transResultText() : "").trim();
+      if (!text) return;
+      this.transResult.show = false;
+      try {
+        var a = await this.api("/api/papers/" + this.detail.id + "/annotations", {
+          method: "POST",
+          json: {
+            kind: "note", page: rect.p,
+            x: Math.min(rect.x, 0.85),
+            y: Math.min(rect.y + (rect.h || 0.02) + 0.01, 0.94),
+            color: "blue", note: text.slice(0, 2000)
+          }
+        });
+        this.annotations = this.annotations.concat([a]);
+        this.renderPageAnnotations(rect.p);
+        this.notify("译文已作为批注放到页面上");
+      } catch (e) { this.notify(e.message, true); }
+    },
+    // 取纯文本译文（浮层里渲染的是 HTML，这里转回文本用于批注）
+    transResultText: function () {
+      var el = document.createElement("div");
+      el.innerHTML = this.transResult.html || "";
+      return (el.textContent || "").trim();
+    },
     onPdfClick: function (ev) {
       // 批注模式：点击页面任意位置放置批注框
       if (this.noteMode) {
@@ -986,7 +1042,19 @@ var Root = {
     document.addEventListener("webkitfullscreenchange", fsSync);
     // Esc 关闭最上层浮层（由内到外，一次只关一层）
     document.addEventListener("keydown", function(e){
+      // Alt+T：翻译当前选中的文字（与浮层按钮等价）
+      if (e.altKey && (e.key === "t" || e.key === "T")) {
+        var sel = window.getSelection();
+        if (sel && !sel.isCollapsed && self._pdf && self._pdf.el && self._pdf.el.contains(sel.anchorNode)) {
+          e.preventDefault();
+          self.onPdfMouseUp();
+          setTimeout(function () { if (self.annoPopup.show) self.translateSelection(); }, 40);
+        }
+        return;
+      }
       if (e.key !== "Escape") return;
+      if (self.transResult.show) { self.transResult.show = false; return; }
+      if (self.annoPopup.show) { self.annoPopup.show = false; return; }
       if (self.pdfFullscreen) { self.pdfFullscreen = false; return; }
       if (self.showPaperModal) { self.showPaperModal = false; return; }
       if (self.showSettings) { self.showSettings = false; return; }
