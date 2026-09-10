@@ -20,8 +20,8 @@ var Root = {
       notesPreview: false,
       // PDF 渲染与标注（pdf.js：画布 + 文字层 + 标注层）
       pdfLoading: false, pdfFailed: false, pdfError: "",
-      // 纯文本（重排）视图
-      readMode: false, readPages: [], readLoading: false, readHasText: false,
+      // 标注：高亮 + 文字批注
+      noteMode: false,
       annotations: [], annoColors: ["yellow", "green", "blue", "pink"],
       annoPopup: { show: false, x: 0, y: 0, start: 0, end: 0, quote: "" },
       annoEdit: { show: false, x: 0, y: 0, id: 0, color: "yellow", note: "" },
@@ -46,25 +46,6 @@ var Root = {
     renderedSummary: function () { return window.mdRender ? window.mdRender(this.detail.summary) : ""; },
     renderedAnswer: function () { return window.mdRender ? window.mdRender(this.answer) : ""; },
     uiBlocked: function () { return !!(this.showManage || this.showSettings || this.showPaperModal || this.showTrash); },
-    // 纯文本视图正文：把「页 → 段落 → 片段」渲染成 HTML
-    readingHtml: function () {
-      var out = [];
-      (this.readPages || []).forEach(function (page) {
-        out.push('<section class="read-page">');
-        out.push('<div class="read-page__mark"><span>· ' + page.number + ' ·</span></div>');
-        (page.paragraphs || []).forEach(function (para) {
-          var cls = para.heading ? 'read-h' : (para.furniture ? 'read-p read-furniture' : 'read-p');
-          out.push(para.heading ? '<h3 class="read-h">' : '<p class="' + cls + '">');
-          (para.segments || []).forEach(function (seg, i) {
-            if (i > 0 && seg.join !== "none") out.push(" ");
-            out.push('<span class="read-seg">' + escHtml(seg.text) + "</span>");
-          });
-          out.push(para.heading ? "</h3>" : "</p>");
-        });
-        out.push("</section>");
-      });
-      return out.join("");
-    },
     // 笔记的 Markdown 渲染（md-mini.js 已做 HTML 转义与 URL 白名单）
     renderedNotes: function () {
       var src = (this.detail && this.detail.notes) || "";
@@ -267,12 +248,8 @@ var Root = {
       this.destroyPdf();
       try { this.detail=await this.api("/api/papers/"+id); this.tagSelect=""; this.collectionSelect=""; this.fsNotesMin=false; this.notesSavedAt=""; } catch (e) { this.notify(e.message,true); }
       await this.loadAnnotations(id);
-      if (this.readMode) {
-        this.loadReading();
-      } else {
-        var self = this;
-        this.$nextTick(function () { self.setupPdf(); });
-      }
+      var self = this;
+      this.$nextTick(function () { self.setupPdf(); });
     },
     // 点击 PDF 上的高亮（事件委托，绑定在容器上）
     onPdfContainerClick: function (ev) { this.onPdfClick(ev); },
@@ -366,7 +343,7 @@ var Root = {
     setupPdf: async function () {
       this.destroyPdf();
       this.pdfFailed = false;
-      if (this.readMode || !this.detail || !this.detail.hasPdf) return;
+      if (!this.detail || !this.detail.hasPdf) return;
       if (!window.pdfjsLib) { this.pdfFailed = true; return; }
       var self = this, el = this.$refs.pdfView;
       if (!el) return;
@@ -494,11 +471,116 @@ var Root = {
           p.anno.appendChild(d);
         });
       });
+      // 文字批注框
+      var self = this;
+      (this.annotations || []).forEach(function (a) {
+        if (a.kind !== "note" || a.page !== n) return;
+        var box = document.createElement("div");
+        box.className = "pdf-note pdf-note--" + a.color;
+        box.dataset.id = a.id;
+        box.style.left = ((a.x || 0) * w) + "px";
+        box.style.top = ((a.y || 0) * h) + "px";
+        var grip = document.createElement("div");
+        grip.className = "pdf-note__grip";
+        grip.title = "按住拖动";
+        grip.textContent = "⠿";
+        grip.addEventListener("pointerdown", function (ev) { self.startNoteDrag(ev, a.id, n); });
+        var del = document.createElement("button");
+        del.type = "button";
+        del.className = "pdf-note__del";
+        del.title = "删除批注";
+        del.textContent = "×";
+        del.addEventListener("click", function (ev) { ev.stopPropagation(); self.deleteAnnotation(a.id); });
+        var ta = document.createElement("textarea");
+        ta.className = "pdf-note__text";
+        ta.placeholder = "写点什么…";
+        ta.value = a.note || "";
+        ta.addEventListener("change", function () { self.saveNoteText(a.id, ta.value); });
+        ta.addEventListener("blur", function () { self.saveNoteText(a.id, ta.value); });
+        ta.addEventListener("pointerdown", function (ev) { ev.stopPropagation(); });
+        ta.addEventListener("mouseup", function (ev) { ev.stopPropagation(); });
+        ta.addEventListener("click", function (ev) { ev.stopPropagation(); });
+        box.appendChild(grip);
+        box.appendChild(del);
+        box.appendChild(ta);
+        p.anno.appendChild(box);
+      });
     },
     renderAllAnnotations: function () {
       var S = this._pdf;
       if (!S) return;
       for (var i = 1; i <= S.pages.length; i++) this.renderPageAnnotations(i);
+    },
+    // ---------- 文字批注框（点击页面放置，可编辑、拖动、删除） ----------
+    toggleNoteMode: function () {
+      this.noteMode = !this.noteMode;
+      if (this.noteMode) this.notify("点击 PDF 页面任意位置放置批注框");
+    },
+    // 在指定页面、指定归一化位置新建批注框
+    createNoteAt: async function (pageNo, px, py) {
+      if (!this.detail || !this.detail.id) return;
+      this.noteMode = false;
+      try {
+        var a = await this.api("/api/papers/" + this.detail.id + "/annotations", {
+          method: "POST",
+          json: { kind: "note", page: pageNo, x: px, y: py, color: "yellow" }
+        });
+        this.annotations = this.annotations.concat([a]);
+        this.renderPageAnnotations(pageNo);
+        var self = this;
+        setTimeout(function () {
+          var ta = document.querySelector('.pdf-note[data-id="' + a.id + '"] textarea');
+          if (ta) ta.focus();
+        }, 30);
+      } catch (e) { this.notify(e.message, true); }
+    },
+    // 批注文字：只在提交时保存，且不重绘（避免打字时输入框被重建、光标丢失）
+    saveNoteText: async function (id, text) {
+      try {
+        await this.api("/api/annotations/" + id, { method: "PATCH", json: { note: text } });
+        this.annotations = this.annotations.map(function (a) {
+          return a.id === id ? Object.assign({}, a, { note: text }) : a;
+        });
+      } catch (e) { this.notify(e.message, true); }
+    },
+    // 拖动批注框：拖动中只改样式，松手后保存归一化位置
+    startNoteDrag: function (ev, id, pageNo) {
+      var S = this._pdf, self = this;
+      if (!S) return;
+      var page = S.pages[pageNo - 1];
+      var box = ev.currentTarget.closest(".pdf-note");
+      if (!page || !box) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      var boxRect = page.wrap.getBoundingClientRect();
+      var startX = ev.clientX, startY = ev.clientY;
+      var boxLeft = box.offsetLeft, boxTop = box.offsetTop;
+      var move = function (e) {
+        var maxX = page.wrap.clientWidth - box.offsetWidth;
+        var maxY = page.wrap.clientHeight - box.offsetHeight;
+        var nx = Math.min(Math.max(boxLeft + (e.clientX - startX), 0), Math.max(maxX, 0));
+        var ny = Math.min(Math.max(boxTop + (e.clientY - startY), 0), Math.max(maxY, 0));
+        box.style.left = nx + "px";
+        box.style.top = ny + "px";
+      };
+      var end = function () {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", end);
+        window.removeEventListener("pointercancel", end);
+        document.body.classList.remove("fs-dragging");
+        var px = Math.min(Math.max(box.offsetLeft / page.wrap.clientWidth, 0), 1);
+        var py = Math.min(Math.max(box.offsetTop / page.wrap.clientHeight, 0), 1);
+        self.annotations = self.annotations.map(function (a) {
+          return a.id === id ? Object.assign({}, a, { x: px, y: py }) : a;
+        });
+        self.api("/api/annotations/" + id, { method: "PATCH", json: { x: px, y: py } })
+          .catch(function (e) { self.notify(e.message, true); });
+        _ = boxRect;
+      };
+      document.body.classList.add("fs-dragging");
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", end);
+      window.addEventListener("pointercancel", end);
     },
     // 选区 → 每页的归一化矩形（与栏数、缩放无关）
     selectionRects: function (range, S) {
@@ -547,6 +629,20 @@ var Root = {
       }, 10);
     },
     onPdfClick: function (ev) {
+      // 批注模式：点击页面任意位置放置批注框
+      if (this.noteMode) {
+        var t = ev.target;
+        if (t && t.closest && (t.closest(".pdf-note") || t.closest(".pdf-anno"))) return;
+        var pageEl = t && t.closest ? t.closest(".pdf-page") : null;
+        var S = this._pdf;
+        if (pageEl && S) {
+          var rect = pageEl.getBoundingClientRect();
+          var px = Math.min(Math.max((ev.clientX - rect.left) / rect.width, 0), 0.92);
+          var py = Math.min(Math.max((ev.clientY - rect.top) / rect.height, 0), 0.95);
+          this.createNoteAt(parseInt(pageEl.dataset.page, 10), px, py);
+          return;
+        }
+      }
       var box = ev.target && ev.target.closest ? ev.target.closest(".pdf-anno") : null;
       if (!box) { this.annoEdit.show = false; return; }
       var id = parseInt(box.dataset.id, 10);
@@ -560,30 +656,6 @@ var Root = {
         x: Math.min(Math.max(r.left, 8), Math.max(window.innerWidth - 360, 8)),
         y: Math.min(r.bottom + 8, Math.max(window.innerHeight - 220, 8))
       };
-    },
-    // ---------- 纯文本视图 ----------
-    toggleReadMode: function () {
-      this.readMode = !this.readMode;
-      try { localStorage.setItem("pm-read-mode", this.readMode ? "1" : "0"); } catch (e) {}
-      if (this.readMode) {
-        this.destroyPdf();
-        if (!this.readPages.length) this.loadReading();
-      } else {
-        var self = this;
-        this.$nextTick(function () { self.setupPdf(); });
-      }
-    },
-    loadReading: async function () {
-      if (!this.detail || !this.detail.id) return;
-      this.readLoading = true;
-      try {
-        var id = this.detail.id;
-        var res = await this.api("/api/papers/" + id + "/text");
-        if (!this.detail || this.detail.id !== id) return;
-        this.readPages = res.pages || [];
-        this.readHasText = !!res.hasText;
-      } catch (e) { this.notify(e.message, true); }
-      this.readLoading = false;
     },
     loadAnnotations: async function (id) {
       try {
@@ -637,12 +709,6 @@ var Root = {
       var a = null;
       for (var i = 0; i < this.annotations.length; i++) { if (this.annotations[i].id === id) a = this.annotations[i]; }
       if (!a || !this._pdf) { this.notify("切到 PDF 视图才能定位", true); return; }
-      if (this.readMode) {
-        this.readMode = false;
-        try { localStorage.setItem("pm-read-mode", "0"); } catch (e) {}
-        var self = this;
-        this.$nextTick(function () { self.setupPdf(); });
-      }
       var S = this._pdf;
       if (!S) return;
       var page = S.pages[(a.page || 1) - 1];
@@ -911,7 +977,6 @@ var Root = {
     this.setTheme(); // 恢复上次选择的主题
     this.loadNotesPanelPrefs(); // 恢复笔记浮窗位置与固定状态
     try { this.notesPreview = localStorage.getItem("pm-notes-preview") === "1"; } catch (e) {}
-    try { this.readMode = localStorage.getItem("pm-read-mode") === "1"; } catch (e) {}
     window.addEventListener("hashchange", function(){ self.parseHash(); });
     window.addEventListener("resize", function(){ self.clampNotesPos(); });
     var fsSync=function(){

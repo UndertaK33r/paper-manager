@@ -98,8 +98,11 @@ CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers(doi);
 CREATE TABLE IF NOT EXISTS annotations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'highlight',
   page INTEGER NOT NULL DEFAULT 1,
   rects TEXT NOT NULL DEFAULT '',
+  x REAL NOT NULL DEFAULT 0,
+  y REAL NOT NULL DEFAULT 0,
   quote TEXT NOT NULL DEFAULT '',
   color TEXT NOT NULL DEFAULT 'yellow',
   note TEXT NOT NULL DEFAULT '',
@@ -162,14 +165,21 @@ func (s *Store) migrateAnnotations() error {
 		return err
 	}
 	if !legacy {
+		// 结构未变：补齐后续新增的列（kind / x / y）
+		_, _ = s.db.Exec("ALTER TABLE annotations ADD COLUMN kind TEXT NOT NULL DEFAULT 'highlight'")
+		_, _ = s.db.Exec("ALTER TABLE annotations ADD COLUMN x REAL NOT NULL DEFAULT 0")
+		_, _ = s.db.Exec("ALTER TABLE annotations ADD COLUMN y REAL NOT NULL DEFAULT 0")
 		return nil
 	}
 	_, err = s.db.Exec(`DROP TABLE annotations;
 CREATE TABLE annotations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'highlight',
   page INTEGER NOT NULL DEFAULT 1,
   rects TEXT NOT NULL DEFAULT '',
+  x REAL NOT NULL DEFAULT 0,
+  y REAL NOT NULL DEFAULT 0,
   quote TEXT NOT NULL DEFAULT '',
   color TEXT NOT NULL DEFAULT 'yellow',
   note TEXT NOT NULL DEFAULT '',

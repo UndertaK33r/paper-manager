@@ -22,7 +22,7 @@ func NormalizeAnnotationColor(c string) string {
 
 // ListAnnotations 返回某篇论文的标注，按在全文中的位置排序。
 func (s *Store) ListAnnotations(paperID int64) ([]models.Annotation, error) {
-	rows, err := s.db.Query(`SELECT id, paper_id, page, rects, quote, color, note, created_at
+	rows, err := s.db.Query(`SELECT id, paper_id, kind, page, rects, x, y, quote, color, note, created_at
 		FROM annotations WHERE paper_id = ? ORDER BY page, id`, paperID)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func (s *Store) ListAnnotations(paperID int64) ([]models.Annotation, error) {
 	for rows.Next() {
 		var a models.Annotation
 		var rects, created string
-		if err := rows.Scan(&a.ID, &a.PaperID, &a.Page, &rects, &a.Quote, &a.Color, &a.Note, &created); err != nil {
+		if err := rows.Scan(&a.ID, &a.PaperID, &a.Kind, &a.Page, &rects, &a.X, &a.Y, &a.Quote, &a.Color, &a.Note, &created); err != nil {
 			return nil, err
 		}
 		if rects != "" {
@@ -43,6 +43,9 @@ func (s *Store) ListAnnotations(paperID int64) ([]models.Annotation, error) {
 		}
 		a.CreatedAt = parseTime(created)
 		a.Color = NormalizeAnnotationColor(a.Color)
+		if a.Kind == "" {
+			a.Kind = models.AnnoKindHighlight
+		}
 		out = append(out, a)
 	}
 	return out, rows.Err()
@@ -58,8 +61,12 @@ func (s *Store) CreateAnnotation(a *models.Annotation) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	res, err := s.db.Exec(`INSERT INTO annotations (paper_id, page, rects, quote, color, note)
-		VALUES (?,?,?,?,?,?)`, a.PaperID, a.Page, string(raw), a.Quote, a.Color, a.Note)
+	if a.Kind != models.AnnoKindNote {
+		a.Kind = models.AnnoKindHighlight
+	}
+	res, err := s.db.Exec(`INSERT INTO annotations (paper_id, kind, page, rects, x, y, quote, color, note)
+		VALUES (?,?,?,?,?,?,?,?,?)`,
+		a.PaperID, a.Kind, a.Page, string(raw), a.X, a.Y, a.Quote, a.Color, a.Note)
 	if err != nil {
 		return 0, err
 	}
@@ -72,7 +79,7 @@ func (s *Store) CreateAnnotation(a *models.Annotation) (int64, error) {
 }
 
 // UpdateAnnotation 只更新显式提供的字段（颜色 / 备注）。
-func (s *Store) UpdateAnnotation(id int64, color, note *string) error {
+func (s *Store) UpdateAnnotation(id int64, color, note *string, x, y *float64) error {
 	sets := []string{}
 	args := []any{}
 	if color != nil {
@@ -82,6 +89,10 @@ func (s *Store) UpdateAnnotation(id int64, color, note *string) error {
 	if note != nil {
 		sets = append(sets, "note = ?")
 		args = append(args, *note)
+	}
+	if x != nil && y != nil { // 拖动文字批注框
+		sets = append(sets, "x = ?", "y = ?")
+		args = append(args, *x, *y)
 	}
 	if len(sets) == 0 {
 		return nil

@@ -139,27 +139,19 @@
           <div class="form-actions" style="margin-top:16px"><button class="p3r-btn small" @click="aiExtract(detail.id)">AI 提取元数据</button><button class="p3r-btn small" @click="summarize(detail.id)">生成摘要</button></div>
         </div>
         <div class="p3r-panel pdf-panel" ref="pdfPanel">
-          <span class="p3r-readout">{{ readMode ? '纯文本（重排）' : 'PDF 阅读 · 可划段标注' }}</span>
+          <span class="p3r-readout">PDF 阅读 · 划段高亮 / 加批注</span>
           <div class="actions">
-            <button class="p3r-btn small" :class="{active: readMode}" @click="toggleReadMode" :title="readMode ? '切回 PDF' : '切换为纯文本视图'">{{ readMode ? 'PDF' : '纯文本' }}</button>
+            <button class="p3r-btn small" :class="{active: noteMode}" @click="toggleNoteMode" :title="noteMode ? '退出批注模式' : '开启后点击页面任意位置新建批注框'">{{ noteMode ? '点击页面放置…' : '加批注' }}</button>
             <a v-if="detail.hasPdf" class="p3r-btn small" :href="pdfUrl(detail.id)" target="_blank">打开</a><a v-if="detail.hasPdf" class="p3r-btn small" :href="pdfUrl(detail.id, true)">下载</a>
             <button class="p3r-btn small" @click="toggleFullWidth">全宽阅读</button><button class="p3r-btn small" @click="toggleFullscreen">全屏</button>
           </div>
           <div v-if="pdfLoading" class="p3r-readout pdf-hint">正在渲染 PDF…</div>
-          <div v-if="!readMode && detail.hasPdf && !pdfFailed" class="pdf-wrap" :class="{wide: fullWidth}" ref="pdfView" @mouseup="onPdfMouseUp" @click="onPdfClick"></div>
-          <div v-if="!readMode && detail.hasPdf && pdfFailed" class="p3r-readout pdf-hint">
+          <div v-if="detail.hasPdf && !pdfFailed" class="pdf-wrap" :class="{wide: fullWidth, 'note-mode': noteMode}" ref="pdfView" @mouseup="onPdfMouseUp" @click="onPdfClick"></div>
+          <div v-if="detail.hasPdf && pdfFailed" class="p3r-readout pdf-hint">
             内置阅读器不可用，已回退浏览器原生阅读器（该模式无法划段标注）。{{ pdfError ? '（' + pdfError + '）' : '' }}
           </div>
-          <iframe v-if="!readMode && detail.hasPdf && pdfFailed" :src="pdfUrl(detail.id)" :class="{wide: fullWidth}"></iframe>
-          <div v-if="readMode" class="read-wrap" ref="readWrap">
-            <div v-if="readLoading" class="p3r-readout">正在加载全文…</div>
-            <div v-else-if="!readHasText" class="read-empty">
-              <div class="p3r-readout">这篇论文还没有可用的全文，阅读模式无法显示。</div>
-              <button class="p3r-btn small p3r-btn--primary" @click="reExtract(detail.id)">重新提取全文</button>
-            </div>
-            <article v-else class="read-body" v-html="readingHtml" @click="onReadClick"></article>
-          </div>
-          <div v-if="!detail.hasPdf && !readMode" class="p3r-readout">该论文暂无 PDF</div>
+          <iframe v-if="detail.hasPdf && pdfFailed" :src="pdfUrl(detail.id)" :class="{wide: fullWidth}"></iframe>
+          <div v-if="!detail.hasPdf" class="p3r-readout">该论文暂无 PDF</div>
           <div v-if="annoPopup.show" class="anno-popup anno-popup--float" :style="{ left: annoPopup.x + 'px', top: annoPopup.y + 'px' }" @mousedown.stop>
             <div class="anno-popup__row"><span class="p3r-readout">高亮</span>
               <button v-for="c in annoColors" :key="c" class="anno-dot" :class="'anno-dot--' + c" :title="c" @click="addAnnotation(c)"></button>
@@ -209,13 +201,14 @@
             <span class="p3r-readout">在 PDF 上选中文字即可高亮</span>
             <button class="p3r-btn small notes-preview-btn" v-if="annotations.length" @click="insertAnnotationsIntoNotes" title="把全部标注按 Markdown 追加到笔记末尾">插入笔记</button>
           </div>
-          <div v-if="!annotations.length" class="p3r-readout">还没有标注。在 PDF 上选中文字，点一下颜色即可高亮。</div>
+          <div v-if="!annotations.length" class="p3r-readout">还没有标注。在 PDF 上选中文字点颜色即可高亮；点「加批注」再点页面任意位置可放批注框。</div>
           <ul class="anno-list" v-else>
             <li v-for="a in annotations" :key="a.id" class="anno-item" @click="jumpToAnnotation(a.id)">
               <span class="anno-item__dot" :class="'anno-dot--' + a.color"></span>
               <span class="anno-item__page p3r-readout">P{{ a.page }}</span>
-              <span class="anno-item__quote">{{ a.quote }}</span>
-              <span class="anno-item__note" v-if="a.note">{{ a.note }}</span>
+              <span class="anno-item__kind p3r-readout">{{ a.kind === 'note' ? '批注' : '高亮' }}</span>
+              <span class="anno-item__quote">{{ a.kind === 'note' ? (a.note || '（空批注）') : a.quote }}</span>
+              <span class="anno-item__note" v-if="a.kind !== 'note' && a.note">{{ a.note }}</span>
               <button class="p3r-btn small p3r-btn--danger" @click.stop="deleteAnnotation(a.id)">删除</button>
             </li>
           </ul>

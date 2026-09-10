@@ -534,6 +534,37 @@ body.fs-dragging .pdf-panel iframe { pointer-events: none; }
 .pdf-anno--pink { background: rgba(255, 150, 190, 0.42); }
 .pdf-anno:hover { outline: 1px solid rgba(20, 20, 20, 0.35); }
 .pdf-anno--flash { animation: anno-flash 0.6s ease-in-out 2; }
+/* 批注模式：页面显示十字光标，便于"点击放置" */
+.pdf-wrap.note-mode .pdf-page { cursor: crosshair; }
+.pdf-wrap.note-mode .pdf-text span { cursor: crosshair; }
+
+/* 文字批注框 */
+.pdf-note {
+  position: absolute; width: 208px; pointer-events: auto;
+  background: var(--k-bg, #fff); border: 1px solid var(--k-line-strong, #d4d4d4);
+  border-left: 3px solid rgba(255, 196, 32, 0.95);
+  border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+  padding: 6px 8px 8px; cursor: default;
+}
+.pdf-note--green { border-left-color: rgba(80, 200, 110, 0.95); }
+.pdf-note--blue { border-left-color: rgba(70, 160, 250, 0.95); }
+.pdf-note--pink { border-left-color: rgba(250, 110, 170, 0.95); }
+.pdf-note__grip {
+  cursor: grab; user-select: none; color: var(--k-faint, #b9b9b9);
+  font-size: 13px; line-height: 1; float: left; padding: 2px 4px 2px 0;
+}
+.pdf-note__grip:active { cursor: grabbing; }
+.pdf-note__del {
+  float: right; appearance: none; background: none; border: 0; padding: 0 2px;
+  color: var(--k-mute, #8c8c8c); font-size: 15px; line-height: 1; cursor: pointer;
+}
+.pdf-note__del:hover { color: var(--k-ink, #141414); }
+.pdf-note__text {
+  clear: both; display: block; width: 100%; margin-top: 2px; min-height: 54px;
+  border: 0; outline: none; resize: vertical; font: inherit; font-size: 12.5px;
+  line-height: 1.55; color: var(--k-ink, #141414); background: transparent;
+}
+.pdf-note__text::placeholder { color: var(--k-faint, #b9b9b9); }
 
 /* ============ 纯文本（重排）视图 ============ */
 .read-wrap {
@@ -584,6 +615,7 @@ mark.anno--flash { animation: anno-flash 0.5s ease-in-out 2; }
 .anno-item:hover { background: var(--k-bg-soft, #fafafa); }
 .anno-item__dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
 .anno-item__page { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.anno-item__kind { flex: 0 0 auto; }
 .anno-item__quote { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
 .anno-item__note { flex: 0 1 30%; color: var(--k-mute, #8c8c8c); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

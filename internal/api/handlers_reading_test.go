@@ -10,63 +10,7 @@ import (
 	"paper-manager/internal/models"
 )
 
-// 阅读模式接口：返回分页/段落结构，无全文时 hasText=false
-func TestPaperTextEndpoint(t *testing.T) {
-	s, st := newModelsTestServer(t)
-	p := models.Paper{Title: "带全文的论文"}
-	id, err := st.CreatePaper(&p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := st.UpdateFields(id, map[string]any{"fulltext": "1\nFirst paragraph line one\nline two continues\n\n2\n第二页内容"}, nil, nil, nil); err != nil {
-		t.Fatal(err)
-	}
-
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/api/papers/"+itoa(id)+"/text", nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
-	}
-	var resp struct {
-		HasText bool `json:"hasText"`
-		Pages   []struct {
-			Number     int `json:"number"`
-			Paragraphs []struct {
-				Heading  bool `json:"heading"`
-				Segments []struct {
-					Start int    `json:"start"`
-					Text  string `json:"text"`
-					Join  string `json:"join"`
-				} `json:"segments"`
-			} `json:"paragraphs"`
-		} `json:"pages"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatal(err)
-	}
-	if !resp.HasText || len(resp.Pages) != 2 {
-		t.Fatalf("结构异常: %+v", resp)
-	}
-	first := resp.Pages[0].Paragraphs[0].Segments
-	if len(first) != 2 || first[1].Join != "space" {
-		t.Fatalf("断行未合并或 Join 缺失: %+v", first)
-	}
-
-	// 空全文的论文
-	empty := models.Paper{Title: "无全文"}
-	eid, _ := st.CreatePaper(&empty)
-	rec2 := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec2, httptest.NewRequest("GET", "/api/papers/"+itoa(eid)+"/text", nil))
-	var resp2 struct {
-		HasText bool `json:"hasText"`
-	}
-	json.Unmarshal(rec2.Body.Bytes(), &resp2)
-	if resp2.HasText {
-		t.Fatal("无全文时 hasText 应为 false")
-	}
-}
-
-// 标注接口：创建/校验/列表/修改/删除（位置用页码 + 归一化矩形）
+// 标注接口：高亮（矩形）与文字批注（位置）的创建、校验、修改、删除
 func TestAnnotationEndpoints(t *testing.T) {
 	s, st := newModelsTestServer(t)
 	p := models.Paper{Title: "标注测试"}
@@ -166,4 +110,66 @@ func itoa(n int64) string {
 		n /= 10
 	}
 	return string(digits)
+}
+
+// 文字批注：任意位置新建、拖动改位置、编辑文字、删除
+func TestNoteAnnotationEndpoints(t *testing.T) {
+	s, st := newModelsTestServer(t)
+	p := models.Paper{Title: "批注测试"}
+	id, _ := st.CreatePaper(&p)
+	base := "/api/papers/" + itoa(id) + "/annotations"
+	h := s.Handler()
+
+	// 非法位置
+	for _, body := range []string{
+		`{"kind":"note","page":1,"x":1.4,"y":0.2}`,
+		`{"kind":"note","page":1,"x":-0.1,"y":0.2}`,
+		`{"kind":"note","page":0,"x":0.1,"y":0.2}`,
+	} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, jsonReq("POST", base, body))
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("body %s: status %d, want 400", body, rec.Code)
+		}
+	}
+
+	// 新建（初始可以为空文字，用户随后输入）
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, jsonReq("POST", base, `{"kind":"note","page":4,"x":0.3,"y":0.6,"color":"blue"}`))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status %d: %s", rec.Code, rec.Body.String())
+	}
+	var note models.Annotation
+	json.Unmarshal(rec.Body.Bytes(), &note)
+	if note.Kind != models.AnnoKindNote || note.Page != 4 || note.X != 0.3 || note.Y != 0.6 {
+		t.Fatalf("创建结果异常: %+v", note)
+	}
+
+	// 编辑文字 + 拖动位置
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, jsonReq("PATCH", "/api/annotations/"+itoa(note.ID), `{"note":" 这里的方法值得复现 ","x":0.55,"y":0.22}`))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("patch status %d: %s", rec.Code, rec.Body.String())
+	}
+	list, _ := st.ListAnnotations(id)
+	if list[0].Note != "这里的方法值得复现" || list[0].X != 0.55 || list[0].Y != 0.22 {
+		t.Fatalf("修改未生效: %+v", list[0])
+	}
+
+	// x/y 必须成对提供
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, jsonReq("PATCH", "/api/annotations/"+itoa(note.ID), `{"x":0.2}`))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("只给 x want 400, got %d", rec.Code)
+	}
+
+	// 删除
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("DELETE", "/api/annotations/"+itoa(note.ID), nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delete status %d", rec.Code)
+	}
+	if n, _ := st.CountAnnotations(id); n != 0 {
+		t.Fatalf("删除后仍有 %d 条", n)
+	}
 }

@@ -50,17 +50,27 @@ type Paper struct {
 	Collections    []Collection `json:"collections"`
 }
 
-// Annotation 是 PDF 上的一处划段标注。
-// 位置用「页面 + 归一化矩形」表示（0..1 相对页面宽高），与栏数、缩放、列宽无关：
-// 双栏论文里选区本身就是视觉范围，不依赖文本抽取顺序。
+// 标注类型：highlight = 文字高亮，note = 页面上的文字批注框
+const (
+	AnnoKindHighlight = "highlight"
+	AnnoKindNote      = "note"
+)
+
+// Annotation 是 PDF 上的一处标注（不改动原 PDF 文件，全部单独存储）。
+// 位置一律用归一化坐标（0..1，相对页面宽高），因此与栏数、缩放、窗口大小无关：
+//   - highlight：Rects 给出若干矩形（跨行/跨栏时会有多个）
+//   - note：X/Y 给出批注框左上角
 type Annotation struct {
 	ID        int64      `json:"id"`
 	PaperID   int64      `json:"paperId"`
-	Page      int        `json:"page"`  // 起始页（1 起）
-	Rects     []AnnoRect `json:"rects"` // 覆盖的矩形（可能跨页/跨行）
-	Quote     string     `json:"quote"`
+	Kind      string     `json:"kind"`
+	Page      int        `json:"page"` // 页码，1 起
+	Rects     []AnnoRect `json:"rects,omitempty"`
+	X         float64    `json:"x,omitempty"`
+	Y         float64    `json:"y,omitempty"`
+	Quote     string     `json:"quote,omitempty"` // 高亮选中的原文
 	Color     string     `json:"color"`
-	Note      string     `json:"note,omitempty"`
+	Note      string     `json:"note,omitempty"` // 高亮的备注 / 批注的正文
 	CreatedAt time.Time  `json:"createdAt"`
 }
 

@@ -145,6 +145,54 @@ test('PDF 上划段标注：选中→高亮→刷新复原→删除', async ({ p
   await expect(page.locator('.pdf-anno')).toHaveCount(0);
 });
 
+test('PDF 上加文字批注：新建→输入→拖动→刷新保留→删除', async ({ page }) => {
+  await uploadSample(page);
+  await page.goto('/');
+  await page.locator('.p3r-table tbody tr').first().locator('button:has-text("详情")').click();
+  await expect(page.locator('.pdf-page canvas')).toBeVisible({ timeout: 20_000 });
+
+  // 开启批注模式后点击页面任意位置
+  await page.click('button:has-text("加批注")');
+  // 点在 PDF 容器的可见区域内（整页比视口高，不能按页面高度比例取点）
+  const wrapBox = await page.locator('.pdf-wrap').boundingBox();
+  await page.mouse.click(wrapBox.x + wrapBox.width * 0.5, wrapBox.y + 120);
+  await expect(page.locator('.pdf-note')).toHaveCount(1);
+
+  // 输入文字（失焦保存）
+  await page.locator('.pdf-note textarea').fill('这里值得复现');
+  await page.locator('.pdf-note textarea').blur();
+  await expect(page.locator('.anno-item')).toHaveCount(1);
+  await expect(page.locator('.anno-item__kind').first()).toHaveText('批注');
+
+  // 拖动位置并保存
+  const before = await page.evaluate(() => {
+    const b = document.querySelector('.pdf-note');
+    return [b.offsetLeft, b.offsetTop];
+  });
+  const grip = await page.locator('.pdf-note__grip').boundingBox();
+  await page.mouse.move(grip.x + 4, grip.y + 4);
+  await page.mouse.down();
+  await page.mouse.move(grip.x + 4 + 90, grip.y + 4 + 60, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(() => {
+    const b = document.querySelector('.pdf-note');
+    return [b.offsetLeft, b.offsetTop];
+  });
+  expect(Math.abs(after[0] - before[0] - 90)).toBeLessThan(12);
+
+  // 刷新后仍在（文字 + 位置）
+  await page.reload();
+  await expect(page.locator('.pdf-page canvas')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.pdf-note')).toHaveCount(1);
+  await expect(page.locator('.pdf-note textarea')).toHaveValue('这里值得复现');
+
+  // 删除
+  await page.locator('.pdf-note__del').click();
+  await expect(page.locator('.pdf-note')).toHaveCount(0);
+  await expect(page.locator('.anno-item')).toHaveCount(0);
+});
+
 test('删除论文后从列表移除', async ({ page }) => {
   await uploadSample(page);
   await page.goto('/');

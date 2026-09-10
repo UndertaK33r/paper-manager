@@ -521,7 +521,7 @@ func TestAnnotationsCRUDAndCascade(t *testing.T) {
 
 	// 更新备注与颜色
 	newNote, newColor := "改过的备注", "blue"
-	if err := st.UpdateAnnotation(a2.ID, &newColor, &newNote); err != nil {
+	if err := st.UpdateAnnotation(a2.ID, &newColor, &newNote, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = st.ListAnnotations(p.ID)
@@ -530,7 +530,7 @@ func TestAnnotationsCRUDAndCascade(t *testing.T) {
 			t.Fatalf("更新未生效: %+v", a)
 		}
 	}
-	if err := st.UpdateAnnotation(99999, nil, &newNote); err != ErrConflict {
+	if err := st.UpdateAnnotation(99999, nil, &newNote, nil, nil); err != ErrConflict {
 		t.Fatalf("更新不存在的标注应返回 ErrConflict, got %v", err)
 	}
 
@@ -579,5 +579,57 @@ func TestAnnotationsSurviveSoftDelete(t *testing.T) {
 	}
 	if list, _ := st.ListAnnotations(p.ID); len(list) != 1 {
 		t.Fatalf("恢复后标注丢失: %+v", list)
+	}
+}
+
+// 文字批注：kind 区分、位置可改（拖动）、与高亮共存排序
+func TestNoteAnnotationsStore(t *testing.T) {
+	st := newTestStore(t)
+	p := seedPaper(t, st)
+
+	note := models.Annotation{PaperID: p.ID, Kind: models.AnnoKindNote, Page: 2, X: 0.3, Y: 0.7, Color: "blue"}
+	if _, err := st.CreateAnnotation(&note); err != nil {
+		t.Fatal(err)
+	}
+	hl := models.Annotation{PaperID: p.ID, Kind: models.AnnoKindHighlight, Page: 1,
+		Rects: []models.AnnoRect{{Page: 1, X: .1, Y: .1, W: .2, H: .02}}, Quote: "高亮"}
+	if _, err := st.CreateAnnotation(&hl); err != nil {
+		t.Fatal(err)
+	}
+	list, err := st.ListAnnotations(p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 2 || list[0].Page != 1 || list[1].Page != 2 {
+		t.Fatalf("排序不对: %+v", list)
+	}
+	if list[1].Kind != models.AnnoKindNote || list[1].X != 0.3 || list[1].Y != 0.7 {
+		t.Fatalf("批注字段丢失: %+v", list[1])
+	}
+	if list[0].Kind != models.AnnoKindHighlight || len(list[0].Rects) != 1 {
+		t.Fatalf("高亮字段丢失: %+v", list[0])
+	}
+
+	// 拖动批注框 + 改文字
+	nx, ny := 0.6, 0.25
+	text := "改过的批注"
+	if err := st.UpdateAnnotation(note.ID, nil, &text, &nx, &ny); err != nil {
+		t.Fatal(err)
+	}
+	list, _ = st.ListAnnotations(p.ID)
+	if list[1].X != 0.6 || list[1].Y != 0.25 || list[1].Note != text {
+		t.Fatalf("拖动/改字未生效: %+v", list[1])
+	}
+
+	// kind 为空时按高亮处理（兼容旧数据）
+	raw := models.Annotation{PaperID: p.ID, Page: 3, Rects: []models.AnnoRect{{Page: 3, X: .1, Y: .1, W: .1, H: .01}}}
+	if _, err := st.CreateAnnotation(&raw); err != nil {
+		t.Fatal(err)
+	}
+	list, _ = st.ListAnnotations(p.ID)
+	for _, a := range list {
+		if a.ID == raw.ID && a.Kind != models.AnnoKindHighlight {
+			t.Fatalf("空 kind 应归一为 highlight: %q", a.Kind)
+		}
 	}
 }

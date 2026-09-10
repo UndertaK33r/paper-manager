@@ -27,8 +27,10 @@
 
 - **收录**：拖拽 PDF 自动提取标题 / 作者 / 年份 / 期刊 / DOI / 关键词 / 全文（支持中文 PDF），可选 AI 补充提取
 - **补全**：按 DOI 走 Crossref、OpenAlex；按标题走 arXiv、Crossref 检索
-- **阅读**：内置 **pdf.js 阅读器**（离线可用），保留 PDF 原始版面；可另切「纯文本」视图（把已提取全文重排：合并断行、还原断词与首字母下沉、识别小节标题）
-- **标注**：**直接在 PDF 上划段** —— 选中文字弹出四色高亮（黄/绿/蓝/粉），可写备注、改色、删除；位置以「页码 + 归一化矩形」保存，与栏数（单栏/双栏）、缩放、窗口大小无关，刷新后精确复原；详情页有标注列表（显示页码、点击定位并闪烁），可一键按 Markdown 插入笔记
+- **阅读**：内置 **pdf.js 阅读器**（离线可用），按原始版面渲染 PDF；加载失败自动回退浏览器原生阅读器
+- **划段高亮**：选中 PDF 文字弹出四色高亮（黄/绿/蓝/粉），可改色、写备注、删除
+- **文字批注**：点「加批注」后在页面任意位置放置批注框，可编辑文字、按住拖动、删除
+- **标注持久化**：位置以「页码 + 归一化坐标」单独存储，**不改动原 PDF 文件**；与栏数（单栏/双栏）、缩放、窗口大小无关，重新打开自动加载；详情页标注列表显示类型与页码，点击定位并闪烁，可一键按 Markdown 插入笔记
 - **笔记浮窗**：可拖动、可调长宽、图钉固定（位置与尺寸本地持久化）
 - **笔记**：支持 **Markdown 渲染预览**（标题/列表/表格/代码/引用），编辑与预览一键切换；停止输入自动保存，乐观锁避免多窗口互相覆盖；可导出为 Markdown
 - **组织**：分类 / 标签 / 合集 / 阅读状态 / 收藏；搜索（含全文）、筛选、排序、分页
@@ -148,8 +150,8 @@ go test ./... && go vet ./...      # 单元测试（存储 / 鉴权 / 备份 / �
 cd e2e && npm ci && npx playwright test    # 端到端冒烟（自带隔离实例，不碰真实数据）
 ```
 
-E2E 覆盖（9 例）：首页加载、上传 PDF、详情渲染、笔记自动/手动保存、笔记浮窗拖动与固定、删除、
-回收站恢复与彻底删除、笔记 Markdown 预览（含注入转义）、阅读模式与标注（重排、高亮、持久化、删除）、备份接口。
+E2E 覆盖（10 例）：首页加载、上传 PDF、详情渲染、笔记自动/手动保存、笔记浮窗拖动与固定、删除、
+回收站恢复与彻底删除、笔记 Markdown 预览（含注入转义）、PDF 划段高亮、PDF 文字批注（新建/拖动/持久化/删除）、备份接口。
 CI（`.github/workflows/ci.yml`）在每次 push 与 PR 上跑这两组测试。
 
 ## API 概览
@@ -164,10 +166,9 @@ DELETE /api/trash                         清空回收站（连同 PDF 一起删
 POST   /api/papers/{id}/restore           从回收站恢复
 DELETE /api/papers/{id}/purge             彻底删除（连同 PDF）
 GET    /api/papers/{id}/pdf               获取 PDF（?download=1 下载）
-GET    /api/papers/{id}/text              纯文本视图的结构化全文（分页/段落）
-GET    /api/papers/{id}/annotations       标注列表
-POST   /api/papers/{id}/annotations       新建标注
-PATCH  /api/annotations/{id}              改标注颜色/备注
+GET    /api/papers/{id}/annotations       标注列表（高亮 + 批注）
+POST   /api/papers/{id}/annotations       新建标注（高亮：rects；批注：x/y）
+PATCH  /api/annotations/{id}              改颜色/文字/位置（拖动批注框）
 DELETE /api/annotations/{id}              删除标注
 POST   /api/papers/{id}/toggle-read       切换阅读状态
 POST   /api/papers/{id}/re-extract        重新提取全文
@@ -202,7 +203,7 @@ paper-manager/
 │   ├── api/           # HTTP 处理器、路由、鉴权、备份
 │   ├── meta/          # Crossref / OpenAlex / arXiv 元数据补全
 │   ├── models/        # 数据模型
-│   ├── pdf/           # PDF 元数据与全文提取 + 纯文本重排（SplitReading）
+│   ├── pdf/           # PDF 元数据与全文提取
 │   └── store/         # SQLite 存储（事务、乐观锁、快照、标注）
 ├── web/               # 前端（Vue 3 全局构建 + 样式，go:embed 内嵌）
 ├── e2e/               # Playwright 端到端冒烟测试

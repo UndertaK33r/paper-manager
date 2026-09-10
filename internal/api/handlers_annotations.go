@@ -6,35 +6,14 @@ import (
 	"strings"
 
 	"paper-manager/internal/models"
-	pdfmeta "paper-manager/internal/pdf"
 	"paper-manager/internal/store"
 )
 
-const maxAnnotationQuote = 4000 // 单条标注引文上限（防超大 payload）
-const maxAnnotationRects = 400  // 单条标注覆盖的矩形上限（大段选择会被拆成很多行矩形）
-
-// handlePaperText 返回阅读模式需要的结构化全文（服务端已做断行重排与标题识别）。
-// fulltext 很大（可达 200K 字符），因此独立于详情接口按需拉取。
-func (s *Server) handlePaperText(w http.ResponseWriter, r *http.Request) {
-	id, ok := s.idParam(r, "id")
-	if !ok {
-		writeError(w, http.StatusBadRequest, "invalid paper id")
-		return
-	}
-	if _, err := s.store.GetPaper(id); err != nil {
-		writeError(w, http.StatusNotFound, "paper not found")
-		return
-	}
-	text := s.store.PaperFullText(id)
-	pages := pdfmeta.SplitReading(text)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"paperId":  id,
-		"chars":    len([]rune(text)),
-		"pages":    pages,
-		"hasText":  strings.TrimSpace(text) != "",
-		"rawChars": len(text),
-	})
-}
+const (
+	maxAnnotationQuote = 4000 // 单条标注引文上限
+	maxAnnotationNote  = 8000 // 单条批注文字上限
+	maxAnnotationRects = 400  // 单条高亮覆盖的矩形上限（大段选择会被拆成很多行矩形）
+)
 
 // handleListAnnotations 列出某篇论文的标注。
 func (s *Server) handleListAnnotations(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +31,9 @@ func (s *Server) handleListAnnotations(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCreateAnnotation 新建标注。
-// 位置用「页码 + 归一化矩形」：与 PDF 栏数、缩放无关。
+// 位置一律用归一化坐标（0..1 相对页面），不改动原 PDF 文件：
+//   - highlight：{page, rects:[{p,x,y,w,h}...], quote}
+//   - note：{page, x, y, note}
 func (s *Server) handleCreateAnnotation(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.idParam(r, "id")
 	if !ok {
@@ -64,8 +45,11 @@ func (s *Server) handleCreateAnnotation(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var body struct {
+		Kind  string            `json:"kind"`
 		Page  int               `json:"page"`
 		Rects []models.AnnoRect `json:"rects"`
+		X     float64           `json:"x"`
+		Y     float64           `json:"y"`
 		Quote string            `json:"quote"`
 		Color string            `json:"color"`
 		Note  string            `json:"note"`
@@ -74,34 +58,49 @@ func (s *Server) handleCreateAnnotation(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if len(body.Rects) == 0 {
-		writeError(w, http.StatusBadRequest, "没有选中内容")
-		return
-	}
-	if len(body.Rects) > maxAnnotationRects {
-		writeError(w, http.StatusBadRequest, "选中的范围过大，请分段标注")
-		return
-	}
-	for _, rc := range body.Rects {
-		if rc.Page < 1 || rc.W <= 0 || rc.H <= 0 ||
-			rc.X < 0 || rc.Y < 0 || rc.X+rc.W > 1.001 || rc.Y+rc.H > 1.001 {
-			writeError(w, http.StatusBadRequest, "标注坐标无效")
-			return
-		}
-	}
 	if body.Page < 1 {
-		body.Page = body.Rects[0].Page
+		writeError(w, http.StatusBadRequest, "页码无效")
+		return
 	}
 	a := models.Annotation{
 		PaperID: id,
+		Kind:    body.Kind,
 		Page:    body.Page,
-		Rects:   body.Rects,
-		Quote:   strings.TrimSpace(body.Quote),
 		Color:   body.Color,
 		Note:    strings.TrimSpace(body.Note),
 	}
-	if len(a.Quote) > maxAnnotationQuote {
-		a.Quote = a.Quote[:maxAnnotationQuote]
+	switch body.Kind {
+	case models.AnnoKindNote:
+		if body.X < 0 || body.Y < 0 || body.X > 1 || body.Y > 1 {
+			writeError(w, http.StatusBadRequest, "批注位置无效")
+			return
+		}
+		a.X, a.Y = body.X, body.Y
+		if len(a.Note) > maxAnnotationNote {
+			a.Note = a.Note[:maxAnnotationNote]
+		}
+	default: // highlight
+		if len(body.Rects) == 0 {
+			writeError(w, http.StatusBadRequest, "没有选中内容")
+			return
+		}
+		if len(body.Rects) > maxAnnotationRects {
+			writeError(w, http.StatusBadRequest, "选中的范围过大，请分段标注")
+			return
+		}
+		for _, rc := range body.Rects {
+			if rc.Page < 1 || rc.W <= 0 || rc.H <= 0 ||
+				rc.X < 0 || rc.Y < 0 || rc.X+rc.W > 1.001 || rc.Y+rc.H > 1.001 {
+				writeError(w, http.StatusBadRequest, "标注坐标无效")
+				return
+			}
+		}
+		a.Kind = models.AnnoKindHighlight
+		a.Rects = body.Rects
+		a.Quote = strings.TrimSpace(body.Quote)
+		if len(a.Quote) > maxAnnotationQuote {
+			a.Quote = a.Quote[:maxAnnotationQuote]
+		}
 	}
 	if _, err := s.store.CreateAnnotation(&a); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -110,7 +109,7 @@ func (s *Server) handleCreateAnnotation(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusCreated, a)
 }
 
-// handleUpdateAnnotation 修改标注颜色或备注。
+// handleUpdateAnnotation 修改标注：颜色 / 备注（高亮）/ 正文（批注）/ 位置（拖动批注框）。
 func (s *Server) handleUpdateAnnotation(w http.ResponseWriter, r *http.Request) {
 	id, ok := s.idParam(r, "id")
 	if !ok {
@@ -118,8 +117,10 @@ func (s *Server) handleUpdateAnnotation(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var body struct {
-		Color *string `json:"color"`
-		Note  *string `json:"note"`
+		Color *string  `json:"color"`
+		Note  *string  `json:"note"`
+		X     *float64 `json:"x"`
+		Y     *float64 `json:"y"`
 	}
 	if err := readJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -127,9 +128,20 @@ func (s *Server) handleUpdateAnnotation(w http.ResponseWriter, r *http.Request) 
 	}
 	if body.Note != nil {
 		trimmed := strings.TrimSpace(*body.Note)
+		if len(trimmed) > maxAnnotationNote {
+			trimmed = trimmed[:maxAnnotationNote]
+		}
 		body.Note = &trimmed
 	}
-	if err := s.store.UpdateAnnotation(id, body.Color, body.Note); err != nil {
+	if (body.X == nil) != (body.Y == nil) {
+		writeError(w, http.StatusBadRequest, "x 与 y 必须同时提供")
+		return
+	}
+	if body.X != nil && (*body.X < 0 || *body.Y < 0 || *body.X > 1 || *body.Y > 1) {
+		writeError(w, http.StatusBadRequest, "位置无效")
+		return
+	}
+	if err := s.store.UpdateAnnotation(id, body.Color, body.Note, body.X, body.Y); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			writeError(w, http.StatusNotFound, "标注不存在")
 			return
